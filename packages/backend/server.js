@@ -211,11 +211,12 @@ async function enqueueWebhookDeliveries(eventName, payload) {
   }
 }
 
-async function processWebhookDeliveries({ dryRun = false } = {}) {
+async function processWebhookDeliveries({ dryRun = false, canProcessDelivery = null } = {}) {
   const results = []
 
   for (const delivery of webhookDeliveries.values()) {
     if (!['pending', 'failed'].includes(delivery.status)) continue
+    if (typeof canProcessDelivery === 'function' && !canProcessDelivery(delivery)) continue
 
     delivery.attempts += 1
     delivery.updatedAt = nowIso()
@@ -485,6 +486,11 @@ function consumeWalletVerifyChallenge(challengeId, walletAddress, message, chain
 
 function getSupportedVerificationChainIds() {
   return new Set([1, 10, 42161, 11155111, config.payments.settlementChainId])
+}
+
+function getDeliveryOwnerWallet(delivery) {
+  const hook = extensionHooks.get(delivery.hookId)
+  return hook?.ownerWallet || null
 }
 
 function computeReliabilityMetrics() {
@@ -1973,7 +1979,11 @@ app.post('/api/extensions/hooks', authenticateToken, requireScopes('extensions:*
 app.post('/api/ops/webhooks/process', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
   try {
     const dryRun = req.body.dryRun !== false
-    const results = await processWebhookDeliveries({ dryRun })
+    const isAdmin = hasScope(safeArray(req.scopes), 'admin:*')
+    const results = await processWebhookDeliveries({
+      dryRun,
+      canProcessDelivery: (delivery) => isAdmin || getDeliveryOwnerWallet(delivery) === req.walletAddress
+    })
     res.json({ success: true, dryRun, processed: results.length, results })
   } catch (error) {
     next(error)
@@ -1981,7 +1991,12 @@ app.post('/api/ops/webhooks/process', authenticateToken, requireScopes('ops:*'),
 })
 
 app.get('/api/ops/webhooks/deliveries', authenticateToken, requireScopes('ops:*'), (req, res) => {
-  const deliveries = Array.from(webhookDeliveries.values())
+  const isAdmin = hasScope(safeArray(req.scopes), 'admin:*')
+  const deliveries = Array.from(webhookDeliveries.values()).filter((delivery) => {
+    if (isAdmin) return true
+    return getDeliveryOwnerWallet(delivery) === req.walletAddress
+  })
+
   res.json({ success: true, count: deliveries.length, deliveries })
 })
 

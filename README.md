@@ -80,6 +80,7 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 	- Domain events enqueue delivery jobs for matching hooks.
 	- Webhook processing supports retry/dead states and dry-run execution.
 	- Outbound webhook payloads are signed as `x-paytray-signature` (`v1=` HMAC) when `WEBHOOK_SIGNING_SECRET` is configured.
+	- Webhook delivery processing and visibility under `/api/ops/webhooks/*` are scoped to the hook owner wallet (unless admin scope is present).
 - Realtime reliability:
 	- `POST /api/livekit/token` returns HTTP 503 when LiveKit credentials are missing instead of issuing placeholder auth tokens.
 	- LiveKit session tokens are signed with `LIVEKIT_API_SECRET` rather than the core JWT auth secret.

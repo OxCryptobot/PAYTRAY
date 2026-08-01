@@ -842,6 +842,42 @@ describe('PayTray backend skeleton', () => {
     }
   })
 
+  it('scopes webhook delivery visibility to hook owner', async () => {
+    const owner = new Wallet('0xb7b9b97af72dcb1ff9d37a2b9712db4e8d42ce5ab9f8fb48f0d72f3c8dd7f5ad')
+    const actor = new Wallet('0x58d30407ef8786fa130f820ec7d5a0f1a16c4fa83f7792fbeb6a8f9f9cc23544')
+    const outsider = new Wallet('0xa74773cd26c07e98d53caecc5c659f3d70c25db513a7bcc8673de76979cb0a2c')
+    const ownerToken = await loginWallet(owner)
+    const actorToken = await loginWallet(actor)
+    const outsiderToken = await loginWallet(outsider)
+
+    const hookResponse = await request(app)
+      .post('/api/extensions/hooks')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ event: 'reputation.event.created', callbackUrl: 'https://example.com/visibility-hook' })
+
+    expect(hookResponse.status).toBe(200)
+
+    const eventResponse = await request(app)
+      .post('/api/reputation/events')
+      .set('Authorization', `Bearer ${actorToken}`)
+      .send({
+        wallet: owner.address,
+        outcome: 'completed',
+        paidMinutes: 15,
+        expertise: ['backend']
+      })
+
+    expect(eventResponse.status).toBe(200)
+
+    const outsiderDeliveries = await request(app)
+      .get('/api/ops/webhooks/deliveries')
+      .set('Authorization', `Bearer ${outsiderToken}`)
+
+    expect(outsiderDeliveries.status).toBe(200)
+    const leakedDelivery = outsiderDeliveries.body.deliveries.find((delivery) => delivery.hookId === hookResponse.body.hook.id)
+    expect(leakedDelivery).toBeUndefined()
+  })
+
   it('persists runtime state through ops endpoint', async () => {
     const user = new Wallet('0x2f517e876e2633ac2dcdf5f6a11a95a38d2dd59af09ee4b5f7fa4dbca6055ea8')
     const token = await loginWallet(user)

@@ -343,6 +343,43 @@ function safeArray(value) {
   return Array.isArray(value) ? value : []
 }
 
+function getIdempotencyKey(req) {
+  const raw = req.headers['x-idempotency-key']
+  if (raw == null) {
+    return null
+  }
+
+  if (typeof raw !== 'string') {
+    throw new ValidationError('x-idempotency-key must be a string')
+  }
+
+  const key = raw.trim()
+  if (!key) {
+    return null
+  }
+
+  if (key.length > 128) {
+    throw new ValidationError('x-idempotency-key must be 128 characters or fewer')
+  }
+
+  if (!/^[a-zA-Z0-9:_-]+$/.test(key)) {
+    throw new ValidationError('x-idempotency-key contains unsupported characters')
+  }
+
+  return key
+}
+
+function fingerprintPaymentCreateRequest(senderWallet, chainId, validated) {
+  return JSON.stringify({
+    senderWallet: senderWallet.toLowerCase(),
+    recipientWallet: validated.recipient.toLowerCase(),
+    token: String(validated.token).toUpperCase(),
+    amount: Number(validated.amount),
+    duration: Number(validated.duration),
+    chainId: Number(chainId)
+  })
+}
+
 function buildAuthChallengeMessage(walletAddress, nonce, issuedAt, expiresAt) {
   return [
     'PayTray wants you to sign in with your Ethereum account:',

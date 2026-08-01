@@ -923,6 +923,93 @@ describe('PayTray backend skeleton', () => {
     expect(leakedJob).toBeUndefined()
   })
 
+  it('retries failed queue jobs through ops retry endpoint', async () => {
+    const owner = new Wallet('0xf4cc0214d75a76a67c90fbf89f8f275561370f8033fb4a5e65e8f4be59cb0f84')
+    const token = await loginWallet(owner)
+
+    const queueCreateResponse = await request(app)
+      .post('/api/ops/queue/jobs')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'reconcile_stream', payload: { streamId: 'missing-stream' }, maxAttempts: 1 })
+
+    expect(queueCreateResponse.status).toBe(200)
+
+    const processResponse = await request(app)
+      .post('/api/ops/queue/process')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(processResponse.status).toBe(200)
+
+    const retryResponse = await request(app)
+      .post(`/api/ops/queue/jobs/${queueCreateResponse.body.job.id}/retry`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(retryResponse.status).toBe(200)
+    expect(retryResponse.body.job.status).toBe('pending')
+    expect(retryResponse.body.job.attempts).toBe(0)
+  })
+
+  it('retries failed webhook deliveries through ops retry endpoint', async () => {
+    const owner = new Wallet('0x8ca89dc1aa20496e6bb84d355efd4f53a85fa6d75c3c77f882f9d3c2e7f4f9a1')
+    const actor = new Wallet('0x851884dd6d5faf074a976f98b6cc3992e1367b9341ab9ceaa4beca2cc8d7704f')
+    const ownerToken = await loginWallet(owner)
+    const actorToken = await loginWallet(actor)
+    const originalMaxAttempts = config.webhooks.maxAttempts
+
+    try {
+      config.webhooks.maxAttempts = 1
+
+      const hookResponse = await request(app)
+        .post('/api/extensions/hooks')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ event: 'reputation.event.created', callbackUrl: 'http://127.0.0.1:9/hook' })
+
+      expect(hookResponse.status).toBe(200)
+
+      const eventResponse = await request(app)
+        .post('/api/reputation/events')
+        .set('Authorization', `Bearer ${actorToken}`)
+        .send({
+          wallet: owner.address,
+          outcome: 'completed',
+          paidMinutes: 21,
+          expertise: ['backend']
+        })
+
+      expect(eventResponse.status).toBe(200)
+
+      const processResponse = await request(app)
+        .post('/api/ops/webhooks/process')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ dryRun: false })
+
+      expect(processResponse.status).toBe(200)
+      expect(processResponse.body.processed).toBeGreaterThan(0)
+
+      const deliveriesResponse = await request(app)
+        .get('/api/ops/webhooks/deliveries')
+        .set('Authorization', `Bearer ${ownerToken}`)
+
+      expect(deliveriesResponse.status).toBe(200)
+      const failedDelivery = deliveriesResponse.body.deliveries.find((delivery) => delivery.hookId === hookResponse.body.hook.id)
+      expect(failedDelivery).toBeDefined()
+      expect(['failed', 'dead']).toContain(failedDelivery.status)
+
+      const retryResponse = await request(app)
+        .post(`/api/ops/webhooks/deliveries/${failedDelivery.id}/retry`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({})
+
+      expect(retryResponse.status).toBe(200)
+      expect(retryResponse.body.delivery.status).toBe('pending')
+      expect(retryResponse.body.delivery.attempts).toBe(0)
+    } finally {
+      config.webhooks.maxAttempts = originalMaxAttempts
+    }
+  })
+
   it('persists runtime state through ops endpoint', async () => {
     const user = new Wallet('0x2f517e876e2633ac2dcdf5f6a11a95a38d2dd59af09ee4b5f7fa4dbca6055ea8')
     const token = await loginWallet(user)

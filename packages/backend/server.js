@@ -2060,6 +2060,35 @@ app.get('/api/ops/queue/jobs', authenticateToken, requireScopes('ops:*'), (req, 
   res.json({ success: true, count: jobs.length, jobs })
 })
 
+app.post('/api/ops/queue/jobs/:jobId/retry', authenticateToken, requireScopes('ops:*'), (req, res, next) => {
+  try {
+    const job = queueJobs.get(String(req.params.jobId))
+    if (!job) {
+      throw new NotFoundError('Queue job')
+    }
+
+    const isAdmin = hasScope(safeArray(req.scopes), 'admin:*')
+    if (!canManageQueueJob(job, req.walletAddress, isAdmin)) {
+      throw new AuthorizationError('Cannot retry this queue job')
+    }
+
+    if (!['failed', 'dead'].includes(job.status)) {
+      throw new ConflictError(`Queue job in ${job.status} state cannot be retried`)
+    }
+
+    job.status = 'pending'
+    job.attempts = 0
+    job.lastError = null
+    job.updatedAt = nowIso()
+    queueJobs.set(job.id, job)
+    markStateDirty()
+
+    res.json({ success: true, job })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.post('/api/ops/reconciliation/run', authenticateToken, requireScopes('ops:*'), (req, res) => {
   const report = []
 
@@ -2143,6 +2172,35 @@ app.post('/api/ops/webhooks/process', authenticateToken, requireScopes('ops:*'),
       canProcessDelivery: (delivery) => isAdmin || getDeliveryOwnerWallet(delivery) === req.walletAddress
     })
     res.json({ success: true, dryRun, processed: results.length, results })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/ops/webhooks/deliveries/:deliveryId/retry', authenticateToken, requireScopes('ops:*'), (req, res, next) => {
+  try {
+    const delivery = webhookDeliveries.get(String(req.params.deliveryId))
+    if (!delivery) {
+      throw new NotFoundError('Webhook delivery')
+    }
+
+    const isAdmin = hasScope(safeArray(req.scopes), 'admin:*')
+    if (!isAdmin && getDeliveryOwnerWallet(delivery) !== req.walletAddress) {
+      throw new AuthorizationError('Cannot retry this webhook delivery')
+    }
+
+    if (!['failed', 'dead'].includes(delivery.status)) {
+      throw new ConflictError(`Webhook delivery in ${delivery.status} state cannot be retried`)
+    }
+
+    delivery.status = 'pending'
+    delivery.attempts = 0
+    delivery.lastError = null
+    delivery.updatedAt = nowIso()
+    webhookDeliveries.set(delivery.id, delivery)
+    markStateDirty()
+
+    res.json({ success: true, delivery })
   } catch (error) {
     next(error)
   }

@@ -61,9 +61,11 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 	- Chain expansion additionally requires a minimum reliability sample size before target checks are evaluated.
 	- Queue and reconciliation endpoints under `/api/ops/queue/*` and `/api/ops/reconciliation/run`.
 	- Queue job visibility and processing are scoped to the job owner wallet unless admin scope is present.
+	- Failed/dead queue jobs can be redriven via `POST /api/ops/queue/jobs/:jobId/retry`.
 	- SLO metrics via `GET /api/ops/slo`.
 	- Runtime state persistence via `POST /api/ops/state/persist`.
 	- Webhook delivery processing under `/api/ops/webhooks/*`.
+	- Failed/dead webhook deliveries can be redriven via `POST /api/ops/webhooks/deliveries/:deliveryId/retry`.
 	- Extension hook registration under `/api/extensions/hooks`.
 	- Public API endpoints under `/api/public/*` (requires `PUBLIC_API_KEY`).
 

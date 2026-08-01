@@ -58,7 +58,8 @@ export const config = {
   },
   webhooks: {
     timeoutMs: Number.parseInt(process.env.WEBHOOK_TIMEOUT_MS || '2500', 10),
-    maxAttempts: Number.parseInt(process.env.WEBHOOK_MAX_ATTEMPTS || '3', 10)
+    maxAttempts: Number.parseInt(process.env.WEBHOOK_MAX_ATTEMPTS || '3', 10),
+    signingSecret: process.env.WEBHOOK_SIGNING_SECRET || null
   },
   observability: {
     availabilityTargetPct: Number.parseInt(process.env.SLO_AVAILABILITY_TARGET || '99', 10),

@@ -769,40 +769,57 @@ describe('PayTray backend skeleton', () => {
     const actor = new Wallet('0x909ffb91c379f5f9a22b366ec66785c00f4f56cc64df2f09cb5d9321cdb30daa')
     const ownerToken = await loginWallet(owner)
     const actorToken = await loginWallet(actor)
+    const originalSigningSecret = config.webhooks.signingSecret
 
-    const hookResponse = await request(app)
-      .post('/api/extensions/hooks')
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ event: 'reputation.event.created', callbackUrl: 'https://example.com/hook' })
+    try {
+      config.webhooks.signingSecret = 'test-webhook-signing-secret'
 
-    expect(hookResponse.status).toBe(200)
+      const hookResponse = await request(app)
+        .post('/api/extensions/hooks')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ event: 'reputation.event.created', callbackUrl: 'https://example.com/hook' })
 
-    const eventResponse = await request(app)
-      .post('/api/reputation/events')
-      .set('Authorization', `Bearer ${actorToken}`)
-      .send({
-        wallet: owner.address,
-        outcome: 'completed',
-        paidMinutes: 30,
-        expertise: ['backend']
-      })
+      expect(hookResponse.status).toBe(200)
 
-    expect(eventResponse.status).toBe(200)
+      const eventResponse = await request(app)
+        .post('/api/reputation/events')
+        .set('Authorization', `Bearer ${actorToken}`)
+        .send({
+          wallet: owner.address,
+          outcome: 'completed',
+          paidMinutes: 30,
+          expertise: ['backend']
+        })
 
-    const deliveriesResponse = await request(app)
-      .get('/api/ops/webhooks/deliveries')
-      .set('Authorization', `Bearer ${ownerToken}`)
+      expect(eventResponse.status).toBe(200)
 
-    expect(deliveriesResponse.status).toBe(200)
-    expect(deliveriesResponse.body.count).toBeGreaterThan(0)
+      const deliveriesResponse = await request(app)
+        .get('/api/ops/webhooks/deliveries')
+        .set('Authorization', `Bearer ${ownerToken}`)
 
-    const processResponse = await request(app)
-      .post('/api/ops/webhooks/process')
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ dryRun: true })
+      expect(deliveriesResponse.status).toBe(200)
+      expect(deliveriesResponse.body.count).toBeGreaterThan(0)
 
-    expect(processResponse.status).toBe(200)
-    expect(processResponse.body.processed).toBeGreaterThan(0)
+      const processResponse = await request(app)
+        .post('/api/ops/webhooks/process')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ dryRun: true })
+
+      expect(processResponse.status).toBe(200)
+      expect(processResponse.body.processed).toBeGreaterThan(0)
+
+      const signedDeliveryResponse = await request(app)
+        .get('/api/ops/webhooks/deliveries')
+        .set('Authorization', `Bearer ${ownerToken}`)
+
+      expect(signedDeliveryResponse.status).toBe(200)
+      const signedDelivery = signedDeliveryResponse.body.deliveries.find((delivery) => delivery.hookId === hookResponse.body.hook.id)
+      expect(typeof signedDelivery.lastSignature).toBe('string')
+      expect(signedDelivery.lastSignature.startsWith('v1=')).toBe(true)
+      expect(typeof signedDelivery.lastSignatureTimestamp).toBe('string')
+    } finally {
+      config.webhooks.signingSecret = originalSigningSecret
+    }
   })
 
   it('persists runtime state through ops endpoint', async () => {

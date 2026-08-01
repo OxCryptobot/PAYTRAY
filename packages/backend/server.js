@@ -423,6 +423,24 @@ function createWalletVerifyChallenge(walletAddress, chainId) {
   return challenge
 }
 
+function createWebhookDispatchEnvelope(delivery) {
+  const timestamp = String(Date.now())
+  const bodyPayload = {
+    event: delivery.event,
+    payload: delivery.payload
+  }
+  const body = JSON.stringify(bodyPayload)
+  const signatureValue = config.webhooks.signingSecret
+    ? crypto.createHmac('sha256', config.webhooks.signingSecret).update(`${timestamp}.${body}`).digest('hex')
+    : null
+
+  return {
+    timestamp,
+    body,
+    signatureHeader: signatureValue ? `v1=${signatureValue}` : null
+  }
+}
+
 function consumeWalletVerifyChallenge(challengeId, walletAddress, message, chainId) {
   cleanupExpiredWalletVerifyChallenges()
 
@@ -2041,6 +2059,7 @@ export async function startServer() {
   })
 
   if (!stateFlushTimer) {
+
     stateFlushTimer = setInterval(() => {
       flushStateSnapshot(false).catch((error) => {
         logger.error('State snapshot flush failed', error)
@@ -2050,15 +2069,15 @@ export async function startServer() {
 
   server = app.listen(config.server.port, config.server.host, () => {
     logger.info('PayTray backend skeleton started', {
+
       host: config.server.host,
       port: config.server.port,
       environment: config.env
+
     })
   })
-
-  return server
-}
-
+            headers,
+            body: envelope.body,
 process.on('SIGTERM', async () => {
   if (server) {
     server.close(async () => {

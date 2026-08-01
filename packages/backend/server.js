@@ -222,17 +222,28 @@ async function processWebhookDeliveries({ dryRun = false } = {}) {
     delivery.status = 'processing'
 
     try {
+      const envelope = createWebhookDispatchEnvelope(delivery)
+      delivery.lastSignature = envelope.signatureHeader
+      delivery.lastSignatureTimestamp = envelope.timestamp
+
       if (!dryRun) {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), config.webhooks.timeoutMs)
 
         try {
+          const headers = {
+            'content-type': 'application/json',
+            'x-paytray-timestamp': envelope.timestamp
+          }
+
+          if (envelope.signatureHeader) {
+            headers['x-paytray-signature'] = envelope.signatureHeader
+          }
+
           const response = await fetch(delivery.callbackUrl, {
             method: 'POST',
-            headers: {
-              'content-type': 'application/json'
-            },
-            body: JSON.stringify({ event: delivery.event, payload: delivery.payload }),
+            headers,
+            body: envelope.body,
             signal: controller.signal
           })
 
@@ -2076,8 +2087,8 @@ export async function startServer() {
 
     })
   })
-            headers,
-            body: envelope.body,
+}
+
 process.on('SIGTERM', async () => {
   if (server) {
     server.close(async () => {

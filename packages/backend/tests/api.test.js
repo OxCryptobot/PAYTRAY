@@ -32,6 +32,19 @@ async function loginWallet(wallet) {
   return response.body.tokens.accessToken
 }
 
+async function createWalletVerifyChallenge(walletAddress, chainId = 8453) {
+  const response = await request(app).post('/api/wallet/verify/challenge').send({
+    wallet: walletAddress,
+    chainId
+  })
+
+  expect(response.status).toBe(200)
+  expect(response.body.success).toBe(true)
+  expect(response.body.challenge.id).toBeDefined()
+
+  return response.body.challenge
+}
+
 describe('PayTray backend skeleton', () => {
   it('returns health status', async () => {
     const response = await request(app).get('/health')
@@ -220,6 +233,25 @@ describe('PayTray backend skeleton', () => {
 
   it('verifies wallet ownership with signed message on supported chain', async () => {
     const wallet = new Wallet('0x8ef6fdcff63f330083f31fc3a6fc76437c5fbf58cb8f2ecf332db7378158f42f')
+    const challenge = await createWalletVerifyChallenge(wallet.address, 8453)
+    const signature = await wallet.signMessage(challenge.message)
+
+    const response = await request(app).post('/api/wallet/verify').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message,
+      chainId: 8453
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body.verified).toBe(true)
+    expect(response.body.wallet).toBe(wallet.address.toLowerCase())
+    expect(response.body.chainId).toBe(8453)
+  })
+
+  it('rejects wallet verification without challenge', async () => {
+    const wallet = new Wallet('0xdd070a88d977f39f0572c0f4a77185159cb2f43ef4a64c0f906f32e56d335f7a')
     const message = 'PayTray wallet verification payload'
     const signature = await wallet.signMessage(message)
 
@@ -230,21 +262,41 @@ describe('PayTray backend skeleton', () => {
       chainId: 8453
     })
 
-    expect(response.status).toBe(200)
-    expect(response.body.verified).toBe(true)
-    expect(response.body.wallet).toBe(wallet.address.toLowerCase())
-    expect(response.body.chainId).toBe(8453)
+    expect(response.status).toBe(401)
+    expect(response.body.error).toBe('Wallet verification challenge is required')
   })
 
-  it('rejects wallet verification on unsupported chain', async () => {
-    const wallet = new Wallet('0x1be31a94361a391bbafb2a4ccd704f57dc04d4bb4d273ca1894300e6e8eb0311')
-    const message = 'PayTray wallet verification payload'
-    const signature = await wallet.signMessage(message)
+  it('rejects replayed wallet verification challenges', async () => {
+    const wallet = new Wallet('0xd4de6f8f429ef8f8aeff31d3f56bece57d7eec1b6f38f80cddd5d5ce18f5d472')
+    const challenge = await createWalletVerifyChallenge(wallet.address, 8453)
+    const signature = await wallet.signMessage(challenge.message)
 
-    const response = await request(app).post('/api/wallet/verify').send({
+    const firstResponse = await request(app).post('/api/wallet/verify').send({
       wallet: wallet.address,
       signature,
-      message,
+      challengeId: challenge.id,
+      message: challenge.message,
+      chainId: 8453
+    })
+
+    expect(firstResponse.status).toBe(200)
+
+    const replayResponse = await request(app).post('/api/wallet/verify').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message,
+      chainId: 8453
+    })
+
+    expect(replayResponse.status).toBe(401)
+    expect(replayResponse.body.error).toBe('Wallet verification challenge is invalid or expired')
+  })
+
+  it('rejects wallet verification challenge on unsupported chain', async () => {
+    const wallet = new Wallet('0x1be31a94361a391bbafb2a4ccd704f57dc04d4bb4d273ca1894300e6e8eb0311')
+    const response = await request(app).post('/api/wallet/verify/challenge').send({
+      wallet: wallet.address,
       chainId: 137
     })
 

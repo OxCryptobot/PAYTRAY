@@ -48,6 +48,7 @@ const queueJobs = new Map()
 const extensionHooks = new Map()
 const webhookDeliveries = new Map()
 const authChallenges = new Map()
+const walletVerifyChallenges = new Map()
 const requestMetrics = {
   total: 0,
   errors: 0,
@@ -58,6 +59,13 @@ const requestMetrics = {
     loginSuccess: 0,
     loginFailed: 0,
     loginRateLimited: 0
+  },
+  walletVerification: {
+    challengesIssued: 0,
+    challengeRateLimited: 0,
+    verifySuccess: 0,
+    verifyFailed: 0,
+    verifyRateLimited: 0
   }
 }
 
@@ -366,6 +374,88 @@ function consumeAuthChallenge(challengeId, walletAddress, message) {
 
   authChallenges.delete(challengeId)
   return challenge
+}
+
+function buildWalletVerifyChallengeMessage(walletAddress, chainId, nonce, issuedAt, expiresAt) {
+  return [
+    'PayTray wallet verification challenge:',
+    walletAddress,
+    `Chain ID: ${chainId}`,
+    '',
+    `Nonce: ${nonce}`,
+    `Issued At: ${issuedAt}`,
+    `Expiration Time: ${expiresAt}`
+  ].join('\n')
+}
+
+function cleanupExpiredWalletVerifyChallenges() {
+  const now = Date.now()
+
+  for (const [challengeId, challenge] of walletVerifyChallenges.entries()) {
+    if (now > challenge.expiresAtMs) {
+      walletVerifyChallenges.delete(challengeId)
+    }
+  }
+}
+
+function createWalletVerifyChallenge(walletAddress, chainId) {
+  cleanupExpiredWalletVerifyChallenges()
+
+  const challengeId = crypto.randomUUID()
+  const nonce = crypto.randomBytes(16).toString('hex')
+  const issuedAt = nowIso()
+  const expiresAtMs = Date.now() + (config.auth.walletVerifyChallengeTTLSeconds * 1000)
+  const expiresAt = new Date(expiresAtMs).toISOString()
+  const message = buildWalletVerifyChallengeMessage(walletAddress, chainId, nonce, issuedAt, expiresAt)
+
+  const challenge = {
+    id: challengeId,
+    wallet: walletAddress,
+    chainId,
+    nonce,
+    issuedAt,
+    expiresAt,
+    expiresAtMs,
+    message
+  }
+
+  walletVerifyChallenges.set(challengeId, challenge)
+  return challenge
+}
+
+function consumeWalletVerifyChallenge(challengeId, walletAddress, message, chainId) {
+  cleanupExpiredWalletVerifyChallenges()
+
+  const challenge = walletVerifyChallenges.get(challengeId)
+  if (!challenge) {
+    throw new AuthenticationError('Wallet verification challenge is invalid or expired')
+  }
+
+  if (challenge.wallet !== walletAddress.toLowerCase()) {
+    walletVerifyChallenges.delete(challengeId)
+    throw new AuthenticationError('Wallet verification challenge wallet mismatch')
+  }
+
+  if (challenge.chainId !== chainId) {
+    walletVerifyChallenges.delete(challengeId)
+    throw new AuthenticationError('Wallet verification challenge chain mismatch')
+  }
+
+  if (challenge.message !== message) {
+    throw new AuthenticationError('Wallet verification challenge message mismatch')
+  }
+
+  if (Date.now() > challenge.expiresAtMs) {
+    walletVerifyChallenges.delete(challengeId)
+    throw new AuthenticationError('Wallet verification challenge is invalid or expired')
+  }
+
+  walletVerifyChallenges.delete(challengeId)
+  return challenge
+}
+
+function getSupportedVerificationChainIds() {
+  return new Set([1, 10, 42161, 11155111, config.payments.settlementChainId])
 }
 
 function computeReliabilityMetrics() {
@@ -1236,6 +1326,7 @@ app.post('/api/wallet/verify', (req, res, next) => {
 
     const chainId = Number.parseInt(req.body.chainId || '1', 10)
     const message = String(req.body.message || '').trim()
+    const challengeId = String(req.body.challengeId || '').trim()
 
     if (!message) {
       throw new ValidationError('Message is required')
@@ -1249,15 +1340,24 @@ app.post('/api/wallet/verify', (req, res, next) => {
       throw new ValidationError('Chain id must be an integer')
     }
 
-    const supportedChainIds = new Set([1, 10, 42161, 11155111, config.payments.settlementChainId])
+    const supportedChainIds = getSupportedVerificationChainIds()
     if (!supportedChainIds.has(chainId)) {
       throw new ValidationError('Chain not supported')
     }
+
+    if (!challengeId) {
+      throw new AuthenticationError('Wallet verification challenge is required')
+    }
+
+    checkRateLimit(`wallet:verify:${validated.wallet}:${getClientIP(req)}`, config.auth.walletVerifyAttemptLimit, config.rateLimit.windowMs)
+    consumeWalletVerifyChallenge(challengeId, validated.wallet, message, chainId)
 
     const verification = verifyWalletSignature(message, validated.signature, validated.wallet)
     if (!verification.verified) {
       throw new AuthenticationError('Invalid signature')
     }
+
+    requestMetrics.walletVerification.verifySuccess += 1
 
     res.json({
       valid: true,
@@ -1268,6 +1368,50 @@ app.post('/api/wallet/verify', (req, res, next) => {
       message: verification.message
     })
   } catch (error) {
+    if (error instanceof RateLimitError) {
+      requestMetrics.walletVerification.verifyRateLimited += 1
+    }
+
+    requestMetrics.walletVerification.verifyFailed += 1
+    next(error)
+  }
+})
+
+app.post('/api/wallet/verify/challenge', (req, res, next) => {
+  try {
+    const wallet = schemas.wallet.address(req.body.wallet)
+    const chainId = Number.parseInt(req.body.chainId || String(config.payments.settlementChainId), 10)
+
+    if (!Number.isFinite(chainId)) {
+      throw new ValidationError('Chain id must be an integer')
+    }
+
+    const supportedChainIds = getSupportedVerificationChainIds()
+    if (!supportedChainIds.has(chainId)) {
+      throw new ValidationError('Chain not supported')
+    }
+
+    checkRateLimit(`wallet:verify:challenge:${wallet}:${getClientIP(req)}`, config.rateLimit.tokenGenLimit, config.rateLimit.windowMs)
+    const challenge = createWalletVerifyChallenge(wallet, chainId)
+    requestMetrics.walletVerification.challengesIssued += 1
+
+    res.json({
+      success: true,
+      challenge: {
+        id: challenge.id,
+        wallet: challenge.wallet,
+        chainId: challenge.chainId,
+        nonce: challenge.nonce,
+        issuedAt: challenge.issuedAt,
+        expiresAt: challenge.expiresAt,
+        message: challenge.message
+      }
+    })
+  } catch (error) {
+    if (error instanceof RateLimitError) {
+      requestMetrics.walletVerification.challengeRateLimited += 1
+    }
+
     next(error)
   }
 })
@@ -1609,6 +1753,13 @@ app.get('/api/ops/slo', authenticateToken, requireScopes('ops:*'), (req, res) =>
         loginSuccess: requestMetrics.auth.loginSuccess,
         loginFailed: requestMetrics.auth.loginFailed,
         loginRateLimited: requestMetrics.auth.loginRateLimited
+      },
+      walletVerification: {
+        challengesIssued: requestMetrics.walletVerification.challengesIssued,
+        challengeRateLimited: requestMetrics.walletVerification.challengeRateLimited,
+        verifySuccess: requestMetrics.walletVerification.verifySuccess,
+        verifyFailed: requestMetrics.walletVerification.verifyFailed,
+        verifyRateLimited: requestMetrics.walletVerification.verifyRateLimited
       }
     }
   })

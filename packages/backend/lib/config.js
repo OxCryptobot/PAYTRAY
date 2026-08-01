@@ -32,7 +32,9 @@ export const config = {
       .map((item) => item.trim().toLowerCase())
       .filter(Boolean),
     challengeTTLSeconds: Number.parseInt(process.env.AUTH_CHALLENGE_TTL_SECONDS || '300', 10),
-    loginAttemptLimit: Number.parseInt(process.env.AUTH_LOGIN_ATTEMPT_LIMIT || '20', 10)
+    loginAttemptLimit: Number.parseInt(process.env.AUTH_LOGIN_ATTEMPT_LIMIT || '20', 10),
+    walletVerifyChallengeTTLSeconds: Number.parseInt(process.env.WALLET_VERIFY_CHALLENGE_TTL_SECONDS || '300', 10),
+    walletVerifyAttemptLimit: Number.parseInt(process.env.WALLET_VERIFY_ATTEMPT_LIMIT || '20', 10)
   },
   cors: {
     origin: (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5173').split(','),

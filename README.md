@@ -38,7 +38,7 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 - Error behavior:
 	- Validation failures return HTTP 400.
 	- Authenticated but unauthorized actions return HTTP 403.
-	- `POST /api/wallet/verify` now validates signed message ownership and returns explicit chain-validation failures.
+	- Wallet verification uses `POST /api/wallet/verify/challenge` then signed challenge submission to `POST /api/wallet/verify`.
 
 ## Phase B, C, D API Surface
 

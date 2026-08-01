@@ -2,13 +2,25 @@ import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { verifyMessage } from 'ethers'
 import config from './config.js'
-import { AuthenticationError } from './errors.js'
+import { AuthenticationError, RateLimitError } from './errors.js'
 
 export function generateToken(payload, expiresIn = config.jwt.accessTokenTTL) {
   return jwt.sign(payload, config.jwt.secret, {
     expiresIn,
     algorithm: 'HS256',
     issuer: 'paytray'
+  })
+}
+
+export function generateServiceToken(payload, secret, expiresIn, issuer = 'paytray-service') {
+  if (!secret || typeof secret !== 'string') {
+    throw new AuthenticationError('Service token secret is missing')
+  }
+
+  return jwt.sign(payload, secret, {
+    expiresIn,
+    algorithm: 'HS256',
+    issuer
   })
 }
 
@@ -24,10 +36,10 @@ export function decodeToken(token) {
   return jwt.decode(token)
 }
 
-export function generateTokenPair(userId, walletAddress) {
+export function generateTokenPair(userId, walletAddress, scopes = ['core:access']) {
   return {
-    accessToken: generateToken({ userId, walletAddress, type: 'access' }, config.jwt.accessTokenTTL),
-    refreshToken: generateToken({ userId, walletAddress, type: 'refresh' }, config.jwt.refreshTokenTTL)
+    accessToken: generateToken({ userId, walletAddress, scopes, type: 'access' }, config.jwt.accessTokenTTL),
+    refreshToken: generateToken({ userId, walletAddress, scopes, type: 'refresh' }, config.jwt.refreshTokenTTL)
   }
 }
 
@@ -89,7 +101,8 @@ export function checkRateLimit(key, limit = config.rateLimit.max, windowMs = con
   rateLimitMap.set(key, record)
 
   if (record.count > limit) {
-    throw new AuthenticationError(`Rate limit exceeded. Retry after ${Math.ceil((record.resetAt - now) / 1000)}s`)
+    const retryAfter = Math.ceil((record.resetAt - now) / 1000)
+    throw new RateLimitError(`Rate limit exceeded. Retry after ${retryAfter}s`, retryAfter)
   }
 
   return {
@@ -110,6 +123,7 @@ export function getClientIP(req) {
 
 export default {
   generateToken,
+  generateServiceToken,
   verifyToken,
   decodeToken,
   generateTokenPair,

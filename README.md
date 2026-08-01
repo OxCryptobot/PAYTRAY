@@ -24,4 +24,61 @@ The codebase is intentionally small and focused on Phase 1 infrastructure work:
 - database schema initialization
 - baseline testing and linting
 
+## Phase 1 API Contract Notes
+
+The backend currently exposes stable Phase 1 skeleton contracts under `packages/backend/server.js`.
+
+- Profile endpoints:
+	- `POST /api/profiles` creates or updates the authenticated wallet profile and returns `{ success, profile, exists }`.
+	- `GET /api/profiles/search?q=...` returns `{ success, query, count, results }`.
+	- `GET /api/profiles/trending` returns `{ success, count, profiles }`.
+- Payment stream endpoints:
+	- `GET /api/payments/streams` returns `{ success, count, streams }` scoped to the authenticated wallet.
+	- `GET /api/payments/streams/:streamId` and `/stats` enforce participant-only access.
+- Error behavior:
+	- Validation failures return HTTP 400.
+	- Authenticated but unauthorized actions return HTTP 403.
+	- `POST /api/wallet/verify` now validates signed message ownership and returns explicit chain-validation failures.
+
+## Phase B, C, D API Surface
+
+- Phase B MVP coherence loop:
+	- `POST /api/discovery/search` for structured filters and ranked candidates.
+	- `POST /api/matches/:sessionId/select` and `POST /api/matches/:sessionId/handoff` for match-to-chat context handoff.
+	- `POST /api/threads/:threadId/messages` and `GET /api/threads/:threadId` for session communication artifacts.
+	- `POST /api/reputation/events` and `GET /api/reputation/:wallet` for outcome capture.
+- Phase B payments UX:
+	- Streams start in `submitted` state and can transition through `included` then `reflected` via `POST /api/payments/streams/:streamId/confirm`.
+- Phase C intelligence:
+	- `POST /api/intelligence/ranking/train` and `GET /api/intelligence/ranking/model`.
+	- `POST /api/intelligence/conversations/:threadId/assist`.
+	- `POST /api/intelligence/risk/payments/score`.
+- Phase D scale/resilience:
+	- Reliability-gated chain expansion via `POST /api/ops/chains/enable`.
+	- Queue and reconciliation endpoints under `/api/ops/queue/*` and `/api/ops/reconciliation/run`.
+	- SLO metrics via `GET /api/ops/slo`.
+	- Runtime state persistence via `POST /api/ops/state/persist`.
+	- Webhook delivery processing under `/api/ops/webhooks/*`.
+	- Extension hook registration under `/api/extensions/hooks`.
+	- Public API endpoints under `/api/public/*` (requires `PUBLIC_API_KEY`).
+
+## Hardening Sequence (Post-Phase D)
+
+- Auth scopes:
+	- Wallet login now uses a challenge-first flow via `POST /api/auth/challenge` and `POST /api/auth/login`.
+	- Challenge payloads include nonce and expiry and are one-time use.
+	- Challenge issuance is rate limited per wallet and client IP.
+	- Login attempts are rate limited per wallet and client IP.
+	- JWT access tokens now include scope claims.
+	- Sensitive intelligence/ops/extensions routes enforce scope checks.
+- Durable state:
+	- In-memory runtime state snapshots persist to `STATE_FILE_PATH`.
+	- Snapshot restore runs at server startup.
+- Webhook reliability:
+	- Domain events enqueue delivery jobs for matching hooks.
+	- Webhook processing supports retry/dead states and dry-run execution.
+- Realtime reliability:
+	- `POST /api/livekit/token` returns HTTP 503 when LiveKit credentials are missing instead of issuing placeholder auth tokens.
+	- LiveKit session tokens are signed with `LIVEKIT_API_SECRET` rather than the core JWT auth secret.
+
 The old peerstream implementation, deployment cruft, and unrelated application surface have been removed so the team can build forward from a clean baseline.

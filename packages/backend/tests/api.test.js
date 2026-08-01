@@ -1,6 +1,36 @@
 import { describe, it, expect } from 'vitest'
 import request from 'supertest'
+import { Wallet } from 'ethers'
+import config from '../lib/config.js'
+import { rateLimitMap } from '../lib/security.js'
 import app from '../server.js'
+
+async function createChallenge(walletAddress) {
+  const response = await request(app).post('/api/auth/challenge').send({
+    wallet: walletAddress
+  })
+
+  expect(response.status).toBe(200)
+  expect(response.body.success).toBe(true)
+  expect(response.body.challenge.id).toBeDefined()
+
+  return response.body.challenge
+}
+
+async function loginWallet(wallet) {
+  const challenge = await createChallenge(wallet.address)
+  const signature = await wallet.signMessage(challenge.message)
+
+  const response = await request(app).post('/api/auth/login').send({
+    wallet: wallet.address,
+    signature,
+    challengeId: challenge.id,
+    message: challenge.message
+  })
+
+  expect(response.status).toBe(200)
+  return response.body.tokens.accessToken
+}
 
 describe('PayTray backend skeleton', () => {
   it('returns health status', async () => {
@@ -9,17 +39,675 @@ describe('PayTray backend skeleton', () => {
     expect(response.status).toBe(200)
     expect(response.body.status).toBe('healthy')
     expect(response.body.service).toBe('paytray-backend')
+    expect(response.body.checks.database).toBe('unconfigured')
   })
 
   it('rejects invalid wallet signatures at login', async () => {
+    const challengeResponse = await request(app).post('/api/auth/challenge').send({
+      wallet: '0x742d35Cc6634C0532925a3b844Bc9e7595f42bE0'
+    })
+
+    expect(challengeResponse.status).toBe(200)
+
     const response = await request(app)
       .post('/api/auth/login')
       .send({
         wallet: '0x742d35Cc6634C0532925a3b844Bc9e7595f42bE0',
         signature: '0x1234',
-        message: 'PayTray Login'
+        challengeId: challengeResponse.body.challenge.id,
+        message: challengeResponse.body.challenge.message
       })
 
     expect(response.status).toBe(401)
+  })
+
+  it('rejects replayed auth challenges', async () => {
+    const wallet = new Wallet('0xe30fcaee69dd76f6ca7b2852f31f24a3912666bcf9b178ddfd4896f4187fbe4c')
+    const challenge = await createChallenge(wallet.address)
+    const signature = await wallet.signMessage(challenge.message)
+
+    const firstLogin = await request(app).post('/api/auth/login').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message
+    })
+
+    expect(firstLogin.status).toBe(200)
+
+    const replayLogin = await request(app).post('/api/auth/login').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message
+    })
+
+    expect(replayLogin.status).toBe(401)
+  })
+
+  it('rejects expired auth challenges', async () => {
+    const wallet = new Wallet('0x82ef4188ca4d2dc6a9af4a8f97bb7c6d402ec9e0a5b98018fb33985a8de6bf98')
+    const originalTTL = config.auth.challengeTTLSeconds
+
+    try {
+      config.auth.challengeTTLSeconds = -1
+      const challenge = await createChallenge(wallet.address)
+      const signature = await wallet.signMessage(challenge.message)
+
+      const loginResponse = await request(app).post('/api/auth/login').send({
+        wallet: wallet.address,
+        signature,
+        challengeId: challenge.id,
+        message: challenge.message
+      })
+
+      expect(loginResponse.status).toBe(401)
+    } finally {
+      config.auth.challengeTTLSeconds = originalTTL
+    }
+  })
+
+  it('rate limits repeated auth challenge requests', async () => {
+    const wallet = new Wallet('0x2dc9535f9e16fd6ea2ce9e53e5d1ee097dbb6f709580fce39387c190f74b9131')
+    const originalLimit = config.rateLimit.tokenGenLimit
+
+    try {
+      config.rateLimit.tokenGenLimit = 1
+      rateLimitMap.clear()
+
+      const firstResponse = await request(app).post('/api/auth/challenge').send({
+        wallet: wallet.address
+      })
+
+      expect(firstResponse.status).toBe(200)
+
+      const secondResponse = await request(app).post('/api/auth/challenge').send({
+        wallet: wallet.address
+      })
+
+      expect(secondResponse.status).toBe(429)
+    } finally {
+      config.rateLimit.tokenGenLimit = originalLimit
+      rateLimitMap.clear()
+    }
+  })
+
+  it('rate limits repeated auth login attempts', async () => {
+    const wallet = new Wallet('0x9b4db8b8341f8e7f730a31f9656e5f6cf0a8a0c75c2b9113ed0fbb47b4a8fca9')
+    const originalLimit = config.auth.loginAttemptLimit
+
+    try {
+      config.auth.loginAttemptLimit = 1
+      rateLimitMap.clear()
+
+      const firstChallenge = await createChallenge(wallet.address)
+      const firstSignature = await wallet.signMessage(firstChallenge.message)
+
+      const firstLogin = await request(app).post('/api/auth/login').send({
+        wallet: wallet.address,
+        signature: firstSignature,
+        challengeId: firstChallenge.id,
+        message: firstChallenge.message
+      })
+
+      expect(firstLogin.status).toBe(200)
+
+      const secondChallenge = await createChallenge(wallet.address)
+      const secondSignature = await wallet.signMessage(secondChallenge.message)
+
+      const secondLogin = await request(app).post('/api/auth/login').send({
+        wallet: wallet.address,
+        signature: secondSignature,
+        challengeId: secondChallenge.id,
+        message: secondChallenge.message
+      })
+
+      expect(secondLogin.status).toBe(429)
+    } finally {
+      config.auth.loginAttemptLimit = originalLimit
+      rateLimitMap.clear()
+    }
+  })
+
+  it('returns explicit degraded state when livekit token service is unconfigured', async () => {
+    const wallet = new Wallet('0x4da4d0325dfef9ce2a53a8e5f4ed970f7c7e20c4d9afdbec8d244f2d5c491027')
+    const token = await loginWallet(wallet)
+    const originalApiKey = config.livekit.apiKey
+    const originalApiSecret = config.livekit.apiSecret
+
+    try {
+      config.livekit.apiKey = null
+      config.livekit.apiSecret = null
+
+      const response = await request(app)
+        .post('/api/livekit/token')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ roomName: 'phaseb-room', username: 'planner' })
+
+      expect(response.status).toBe(503)
+      expect(response.body.error).toBe('LiveKit token service is not configured')
+    } finally {
+      config.livekit.apiKey = originalApiKey
+      config.livekit.apiSecret = originalApiSecret
+    }
+  })
+
+  it('issues livekit session token when service is configured', async () => {
+    const wallet = new Wallet('0x49fba95fbeb2f9044f7bf3e823206fcaefda4e1747f60d182f57af7fce2fd0af')
+    const authToken = await loginWallet(wallet)
+    const originalApiKey = config.livekit.apiKey
+    const originalApiSecret = config.livekit.apiSecret
+
+    try {
+      config.livekit.apiKey = 'dev-livekit-key'
+      config.livekit.apiSecret = 'dev-livekit-secret'
+
+      const response = await request(app)
+        .post('/api/livekit/token')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ roomName: 'phaseb-room', username: 'planner' })
+
+      expect(response.status).toBe(200)
+      expect(typeof response.body.token).toBe('string')
+      expect(response.body.token).not.toBe(authToken)
+      expect(response.body.room).toBe('phaseb-room')
+      expect(response.body.identity).toBe(wallet.address.toLowerCase())
+    } finally {
+      config.livekit.apiKey = originalApiKey
+      config.livekit.apiSecret = originalApiSecret
+    }
+  })
+
+  it('verifies wallet ownership with signed message on supported chain', async () => {
+    const wallet = new Wallet('0x8ef6fdcff63f330083f31fc3a6fc76437c5fbf58cb8f2ecf332db7378158f42f')
+    const message = 'PayTray wallet verification payload'
+    const signature = await wallet.signMessage(message)
+
+    const response = await request(app).post('/api/wallet/verify').send({
+      wallet: wallet.address,
+      signature,
+      message,
+      chainId: 8453
+    })
+
+    expect(response.status).toBe(200)
+    expect(response.body.verified).toBe(true)
+    expect(response.body.wallet).toBe(wallet.address.toLowerCase())
+    expect(response.body.chainId).toBe(8453)
+  })
+
+  it('rejects wallet verification on unsupported chain', async () => {
+    const wallet = new Wallet('0x1be31a94361a391bbafb2a4ccd704f57dc04d4bb4d273ca1894300e6e8eb0311')
+    const message = 'PayTray wallet verification payload'
+    const signature = await wallet.signMessage(message)
+
+    const response = await request(app).post('/api/wallet/verify').send({
+      wallet: wallet.address,
+      signature,
+      message,
+      chainId: 137
+    })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error).toBe('Chain not supported')
+  })
+
+  it('restricts payment stream access to participating wallets', async () => {
+    const sender = new Wallet('0x59c6995e998f97a5a0044966f094538e4c7c9c5a1c1e8f2a4d4e0f3f1f3a7c5d')
+    const recipient = new Wallet('0x8b3a350cf5c34c9194ca3a545d79f8d8b8d3d1e8e8d0b6d2e6a0d3d4c2d1e9f3')
+    const outsider = new Wallet('0x5de4111afa1a4bca0b1d5f0b5b2f1b0d4c3a2e1f0f9e8d7c6b5a4a3a2b1c0d0e')
+    const senderToken = await loginWallet(sender)
+    const outsiderToken = await loginWallet(outsider)
+
+    const createResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${senderToken}`)
+      .send({
+        recipientWallet: recipient.address,
+        token: 'USDC',
+        amount: 12.5,
+        duration: 3600
+      })
+
+    expect(createResponse.status).toBe(200)
+    expect(createResponse.body.success).toBe(true)
+
+    const streamId = createResponse.body.stream.id
+
+    const forbiddenResponse = await request(app)
+      .get(`/api/payments/streams/${streamId}/stats`)
+      .set('Authorization', `Bearer ${outsiderToken}`)
+
+    expect(forbiddenResponse.status).toBe(403)
+  })
+
+  it('returns explicit validation error when profile search query is missing', async () => {
+    const response = await request(app).get('/api/profiles/search')
+
+    expect(response.status).toBe(400)
+    expect(response.body.error).toBe('Search query is required')
+  })
+
+  it('supports profile search route without being shadowed by wallet route', async () => {
+    const expert = new Wallet('0x2f4b6ce95f2f1c9de2814e65f540fdf7c0f59a2f7649fd763987791dc3f4b8bc')
+    const expertToken = await loginWallet(expert)
+
+    const profileResponse = await request(app)
+      .post('/api/profiles')
+      .set('Authorization', `Bearer ${expertToken}`)
+      .send({
+        name: 'Solidity Expert',
+        bio: 'Audits and protocol design',
+        hourlyRate: 200,
+        expertise: ['solidity', 'defi']
+      })
+
+    expect(profileResponse.status).toBe(200)
+    expect(profileResponse.body.success).toBe(true)
+    expect(profileResponse.body.exists).toBe(true)
+
+    const searchResponse = await request(app).get('/api/profiles/search?q=solidity')
+
+    expect(searchResponse.status).toBe(200)
+    expect(searchResponse.body.success).toBe(true)
+    expect(searchResponse.body.count).toBeGreaterThanOrEqual(1)
+  })
+
+  it('returns 403 when updating another user profile', async () => {
+    const owner = new Wallet('0x93b6f590f0a873a3f385431d0e81ad0fcf45a8fc1d74f3905ac9f7dd4ee3cd18')
+    const attacker = new Wallet('0xaa9f6eeceb6d78d8f4fb7d88f7656db304fb0f6340f6df05f8dd09c7ed0eb6d2')
+    const ownerToken = await loginWallet(owner)
+    const attackerToken = await loginWallet(attacker)
+
+    await request(app)
+      .post('/api/profiles')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({
+        name: 'Owner Profile',
+        bio: 'Primary profile',
+        hourlyRate: 120,
+        expertise: ['backend']
+      })
+
+    const response = await request(app)
+      .post(`/api/profiles/${owner.address}`)
+      .set('Authorization', `Bearer ${attackerToken}`)
+      .send({
+        name: 'Hijacked',
+        bio: 'Should fail',
+        hourlyRate: 1,
+        expertise: ['none']
+      })
+
+    expect(response.status).toBe(403)
+  })
+
+  it('uses normalized payment stream list and stats contracts', async () => {
+    const sender = new Wallet('0x4ea1bf0dc20e5b47a5e6df4027c9864f4586d2f8f3778a0b85afe7ea28982031')
+    const recipient = new Wallet('0x60ac09be8d132f01f95d2e2d88ac4f410ea84d89d16df4f9ac58d5ecce967e91')
+    const token = await loginWallet(sender)
+
+    const createResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        recipientWallet: recipient.address,
+        token: 'USDC',
+        amount: 5,
+        duration: 1800
+      })
+
+    expect(createResponse.status).toBe(200)
+
+    const listResponse = await request(app)
+      .get('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(listResponse.status).toBe(200)
+    expect(listResponse.body.success).toBe(true)
+    expect(listResponse.body.count).toBeGreaterThanOrEqual(1)
+
+    const statsResponse = await request(app)
+      .get(`/api/payments/streams/${createResponse.body.stream.id}/stats`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(statsResponse.status).toBe(200)
+    expect(statsResponse.body.success).toBe(true)
+    expect(statsResponse.body.stats.streamId).toBe(createResponse.body.stream.id)
+  })
+
+  it('completes phase B coherence loop from discovery to reputation event', async () => {
+    const expert = new Wallet('0x275d7ff5f5ddf7eb2bcda6acd67d65317e4bc6fa42a7f629e6c0f4f8c0f6f6b1')
+    const requester = new Wallet('0x3482fdd64f835f5eab5f32ae72f574f9edac6d9bc7a04d728c3cac6519f6a9f2')
+    const expertToken = await loginWallet(expert)
+    const requesterToken = await loginWallet(requester)
+
+    const profileResponse = await request(app)
+      .post('/api/profiles')
+      .set('Authorization', `Bearer ${expertToken}`)
+      .send({
+        name: 'DeFi Planner',
+        bio: 'Liquidity strategy and risk planning',
+        hourlyRate: 150,
+        expertise: ['defi', 'strategy'],
+        timezone: 'UTC',
+        languages: ['en'],
+        chainPreference: 8453
+      })
+
+    expect(profileResponse.status).toBe(200)
+
+    const discoveryResponse = await request(app)
+      .post('/api/discovery/search')
+      .set('Authorization', `Bearer ${requesterToken}`)
+      .send({
+        domain: 'defi',
+        maxBudget: 200,
+        timezone: 'UTC',
+        language: 'en',
+        chainPreference: 8453
+      })
+
+    expect(discoveryResponse.status).toBe(200)
+    expect(discoveryResponse.body.success).toBe(true)
+    expect(discoveryResponse.body.count).toBeGreaterThan(0)
+
+    const selectResponse = await request(app)
+      .post(`/api/matches/${discoveryResponse.body.matchSession.id}/select`)
+      .set('Authorization', `Bearer ${requesterToken}`)
+      .send({
+        expertWallet: expert.address,
+        pricingMode: 'hourly',
+        expectedDurationMinutes: 45
+      })
+
+    expect(selectResponse.status).toBe(200)
+    expect(selectResponse.body.success).toBe(true)
+
+    const handoffResponse = await request(app)
+      .post(`/api/matches/${discoveryResponse.body.matchSession.id}/handoff`)
+      .set('Authorization', `Bearer ${requesterToken}`)
+      .send({
+        objective: 'ship integration architecture',
+        budget: 300,
+        suggestedAgenda: ['scope', 'milestones']
+      })
+
+    expect(handoffResponse.status).toBe(200)
+    expect(handoffResponse.body.thread.id).toBeDefined()
+
+    const messageResponse = await request(app)
+      .post(`/api/threads/${handoffResponse.body.thread.id}/messages`)
+      .set('Authorization', `Bearer ${requesterToken}`)
+      .send({ text: 'Need scope and budget alignment by deadline' })
+
+    expect(messageResponse.status).toBe(200)
+
+    const reputationResponse = await request(app)
+      .post('/api/reputation/events')
+      .set('Authorization', `Bearer ${requesterToken}`)
+      .send({
+        wallet: expert.address,
+        sessionId: discoveryResponse.body.matchSession.id,
+        outcome: 'completed',
+        paidMinutes: 42,
+        repeatBooking: true,
+        expertise: ['defi']
+      })
+
+    expect(reputationResponse.status).toBe(200)
+    expect(reputationResponse.body.summary.completed).toBeGreaterThan(0)
+  })
+
+  it('supports phase B single-chain payment state transitions', async () => {
+    const sender = new Wallet('0x77610febafb4be98df30395b2bf2de932f3ef327ae5dddadf79f4d896092d712')
+    const recipient = new Wallet('0xe22f9e80b8deec4f4cecc0f617f6c9723f35db3bc89f37f78b2dc53f21239087')
+    const token = await loginWallet(sender)
+
+    const createResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        recipientWallet: recipient.address,
+        token: 'USDC',
+        amount: 8,
+        duration: 1200,
+        chainId: 8453
+      })
+
+    expect(createResponse.status).toBe(200)
+    expect(createResponse.body.uxState).toBe('submitted')
+
+    const includeResponse = await request(app)
+      .post(`/api/payments/streams/${createResponse.body.stream.id}/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ state: 'included' })
+
+    expect(includeResponse.status).toBe(200)
+    expect(includeResponse.body.uxState).toBe('included')
+
+    const reflectResponse = await request(app)
+      .post(`/api/payments/streams/${createResponse.body.stream.id}/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ state: 'reflected' })
+
+    expect(reflectResponse.status).toBe(200)
+    expect(reflectResponse.body.uxState).toBe('reflected')
+  })
+
+  it('completes phase C intelligence endpoints', async () => {
+    const user = new Wallet('0xc54584c06c5aa642ce0ed3afb4f5f1885edfad5393012615ad66cb7cc477a643')
+    const expert = new Wallet('0x0e5f5f87687f84bd8226bb9a2a0cf5dd8cb97ee8ff06f08d3fee93f6f1290f7b')
+    const token = await loginWallet(user)
+    const expertToken = await loginWallet(expert)
+
+    await request(app)
+      .post('/api/profiles')
+      .set('Authorization', `Bearer ${expertToken}`)
+      .send({
+        name: 'Security Expert',
+        bio: 'Audits and threat modeling',
+        hourlyRate: 180,
+        expertise: ['security'],
+        timezone: 'UTC',
+        languages: ['en']
+      })
+
+    const discoveryResponse = await request(app)
+      .post('/api/discovery/search')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ domain: 'security' })
+
+    await request(app)
+      .post(`/api/matches/${discoveryResponse.body.matchSession.id}/select`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ expertWallet: expert.address })
+
+    const handoffResponse = await request(app)
+      .post(`/api/matches/${discoveryResponse.body.matchSession.id}/handoff`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ objective: 'scope security review' })
+
+    await request(app)
+      .post(`/api/threads/${handoffResponse.body.thread.id}/messages`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ text: 'Need scope and deadline alignment with clear risk notes' })
+
+    const assistResponse = await request(app)
+      .post(`/api/intelligence/conversations/${handoffResponse.body.thread.id}/assist`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(assistResponse.status).toBe(200)
+    expect(assistResponse.body.assistance.goals.length).toBeGreaterThan(0)
+
+    const trainResponse = await request(app)
+      .post('/api/intelligence/ranking/train')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(trainResponse.status).toBe(200)
+    expect(trainResponse.body.model.trainedAt).toBeDefined()
+
+    const riskResponse = await request(app)
+      .post('/api/intelligence/risk/payments/score')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        recipientWallet: expert.address,
+        amount: 500,
+        duration: 240,
+        chainId: 8453
+      })
+
+    expect(riskResponse.status).toBe(200)
+    expect(riskResponse.body.score.riskScore).toBeGreaterThanOrEqual(0)
+  })
+
+  it('completes phase D resilience and extension endpoints', async () => {
+    const user = new Wallet('0x0478fe9f56db75c9797729ddf915f6ec4fca7ce866d4bc6228db653bd0dbfcec')
+    const receiver = new Wallet('0x8c11f7f09a9529cff1327ebfef5fc8fa6d7f9e81f2055f2f5b64f6ddf53e72b0')
+    const token = await loginWallet(user)
+
+    const streamResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        recipientWallet: receiver.address,
+        token: 'USDC',
+        amount: 6,
+        duration: 900,
+        chainId: 8453
+      })
+
+    expect(streamResponse.status).toBe(200)
+
+    const reconciliationResponse = await request(app)
+      .post('/api/ops/reconciliation/run')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(reconciliationResponse.status).toBe(200)
+    expect(reconciliationResponse.body.success).toBe(true)
+
+    const queueCreateResponse = await request(app)
+      .post('/api/ops/queue/jobs')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'reconcile_stream', payload: { streamId: streamResponse.body.stream.id } })
+
+    expect(queueCreateResponse.status).toBe(200)
+
+    const queueProcessResponse = await request(app)
+      .post('/api/ops/queue/process')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(queueProcessResponse.status).toBe(200)
+    expect(queueProcessResponse.body.success).toBe(true)
+
+    const chainEnableResponse = await request(app)
+      .post('/api/ops/chains/enable')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ chainId: 42161, reason: 'scale testing' })
+
+    expect([200, 409]).toContain(chainEnableResponse.status)
+
+    const sloResponse = await request(app)
+      .get('/api/ops/slo')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(sloResponse.status).toBe(200)
+    expect(sloResponse.body.slo).toBeDefined()
+
+    const hookResponse = await request(app)
+      .post('/api/extensions/hooks')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ event: 'payment.reflected', callbackUrl: 'https://example.com/hook' })
+
+    expect(hookResponse.status).toBe(200)
+
+    const publicApiResponse = await request(app).get('/api/public/experts')
+    expect([401, 503]).toContain(publicApiResponse.status)
+  })
+
+  it('includes scopes in login response and token-driven operations remain authorized', async () => {
+    const wallet = new Wallet('0x92f4eb27a4324de90fa6a5cb6cbfa95f5f4d67e8f413f6077a2d5ef1b5d8a813')
+    const challenge = await createChallenge(wallet.address)
+    const signature = await wallet.signMessage(challenge.message)
+
+    const loginResponse = await request(app).post('/api/auth/login').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message
+    })
+
+    expect(loginResponse.status).toBe(200)
+    expect(Array.isArray(loginResponse.body.user.scopes)).toBe(true)
+    expect(loginResponse.body.user.scopes).toContain('ops:*')
+
+    const sloResponse = await request(app)
+      .get('/api/ops/slo')
+      .set('Authorization', `Bearer ${loginResponse.body.tokens.accessToken}`)
+
+    expect(sloResponse.status).toBe(200)
+    expect(sloResponse.body.success).toBe(true)
+    expect(sloResponse.body.slo.auth).toBeDefined()
+    expect(typeof sloResponse.body.slo.auth.challengesIssued).toBe('number')
+    expect(typeof sloResponse.body.slo.auth.loginRateLimited).toBe('number')
+  })
+
+  it('queues and processes webhook deliveries in dry-run mode', async () => {
+    const owner = new Wallet('0x4f6918b69000f92df9f2b7a5d9163b91d8c1d74a0cd20dd6bf22ef90c6b2cc5f')
+    const actor = new Wallet('0x909ffb91c379f5f9a22b366ec66785c00f4f56cc64df2f09cb5d9321cdb30daa')
+    const ownerToken = await loginWallet(owner)
+    const actorToken = await loginWallet(actor)
+
+    const hookResponse = await request(app)
+      .post('/api/extensions/hooks')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ event: 'reputation.event.created', callbackUrl: 'https://example.com/hook' })
+
+    expect(hookResponse.status).toBe(200)
+
+    const eventResponse = await request(app)
+      .post('/api/reputation/events')
+      .set('Authorization', `Bearer ${actorToken}`)
+      .send({
+        wallet: owner.address,
+        outcome: 'completed',
+        paidMinutes: 30,
+        expertise: ['backend']
+      })
+
+    expect(eventResponse.status).toBe(200)
+
+    const deliveriesResponse = await request(app)
+      .get('/api/ops/webhooks/deliveries')
+      .set('Authorization', `Bearer ${ownerToken}`)
+
+    expect(deliveriesResponse.status).toBe(200)
+    expect(deliveriesResponse.body.count).toBeGreaterThan(0)
+
+    const processResponse = await request(app)
+      .post('/api/ops/webhooks/process')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ dryRun: true })
+
+    expect(processResponse.status).toBe(200)
+    expect(processResponse.body.processed).toBeGreaterThan(0)
+  })
+
+  it('persists runtime state through ops endpoint', async () => {
+    const user = new Wallet('0x2f517e876e2633ac2dcdf5f6a11a95a38d2dd59af09ee4b5f7fa4dbca6055ea8')
+    const token = await loginWallet(user)
+
+    const persistResponse = await request(app)
+      .post('/api/ops/state/persist')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(persistResponse.status).toBe(200)
+    expect(persistResponse.body.success).toBe(true)
+    expect(typeof persistResponse.body.path).toBe('string')
   })
 })

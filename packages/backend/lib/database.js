@@ -5,13 +5,24 @@ import { ExternalServiceError } from './errors.js'
 const { Pool } = pg
 
 let pool = null
+let databaseStatus = 'uninitialized'
+
+export function getDatabaseStatus() {
+  if (!config.database.url) {
+    return 'unconfigured'
+  }
+
+  return databaseStatus
+}
 
 export async function initializeDatabase() {
   if (!config.database.url) {
+    databaseStatus = 'unconfigured'
     return null
   }
 
   try {
+    databaseStatus = 'connecting'
     pool = new Pool({
       connectionString: config.database.url,
       max: config.database.pool.max,
@@ -21,8 +32,10 @@ export async function initializeDatabase() {
     })
 
     await pool.query('SELECT 1')
+    databaseStatus = 'ready'
     return pool
   } catch (error) {
+    databaseStatus = 'error'
     throw new ExternalServiceError('Database', error.message)
   }
 }
@@ -114,10 +127,13 @@ export async function closeDatabase() {
     await pool.end()
     pool = null
   }
+
+  databaseStatus = config.database.url ? 'closed' : 'unconfigured'
 }
 
 export default {
   initializeDatabase,
+  getDatabaseStatus,
   getPool,
   query,
   transaction,

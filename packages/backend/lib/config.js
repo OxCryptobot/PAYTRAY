@@ -47,7 +47,8 @@ export const config = {
   },
   payments: {
     settlementChainId: Number.parseInt(process.env.SETTLEMENT_CHAIN_ID || '8453', 10),
-    reliabilityTargetPct: Number.parseInt(process.env.RELIABILITY_TARGET_PCT || '99', 10)
+    reliabilityTargetPct: Number.parseInt(process.env.RELIABILITY_TARGET_PCT || '99', 10),
+    reliabilityMinSamples: Number.parseInt(process.env.RELIABILITY_MIN_SAMPLES || '3', 10)
   },
   publicApi: {
     key: process.env.PUBLIC_API_KEY || null

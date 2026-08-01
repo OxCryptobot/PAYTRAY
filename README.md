@@ -56,6 +56,7 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 	- `POST /api/intelligence/risk/payments/score`.
 - Phase D scale/resilience:
 	- Reliability-gated chain expansion via `POST /api/ops/chains/enable`.
+	- Chain expansion additionally requires a minimum reliability sample size before target checks are evaluated.
 	- Queue and reconciliation endpoints under `/api/ops/queue/*` and `/api/ops/reconciliation/run`.
 	- SLO metrics via `GET /api/ops/slo`.
 	- Runtime state persistence via `POST /api/ops/state/persist`.

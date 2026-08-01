@@ -1802,6 +1802,13 @@ app.post('/api/ops/chains/enable', authenticateToken, requireScopes('ops:*'), (r
     }
 
     const reliability = computeReliabilityMetrics()
+    if (reliability.totalStreams < config.payments.reliabilityMinSamples) {
+      throw new AppError(
+        `Insufficient reliability evidence: ${reliability.totalStreams} streams < ${config.payments.reliabilityMinSamples} required`,
+        409
+      )
+    }
+
     if (reliability.reliabilityPct < config.payments.reliabilityTargetPct) {
       throw new AppError(`Reliability target not met: ${reliability.reliabilityPct}% < ${config.payments.reliabilityTargetPct}%`, 409)
     }

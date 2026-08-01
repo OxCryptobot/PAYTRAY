@@ -737,6 +737,26 @@ describe('PayTray backend skeleton', () => {
     expect([401, 503]).toContain(publicApiResponse.status)
   })
 
+  it('rejects chain expansion when reliability sample size is below threshold', async () => {
+    const operator = new Wallet('0xc5c45e7048ea387ee2eb7a9cef381fd27a7da3f3ebf4f11fbc87ba66dcf6b31f')
+    const token = await loginWallet(operator)
+    const originalMinSamples = config.payments.reliabilityMinSamples
+
+    try {
+      config.payments.reliabilityMinSamples = Number.MAX_SAFE_INTEGER
+
+      const chainEnableResponse = await request(app)
+        .post('/api/ops/chains/enable')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ chainId: 42161, reason: 'sample-size gate test' })
+
+      expect(chainEnableResponse.status).toBe(409)
+      expect(chainEnableResponse.body.error).toContain('Insufficient reliability evidence')
+    } finally {
+      config.payments.reliabilityMinSamples = originalMinSamples
+    }
+  })
+
   it('includes scopes in login response and token-driven operations remain authorized', async () => {
     const wallet = new Wallet('0x92f4eb27a4324de90fa6a5cb6cbfa95f5f4d67e8f413f6077a2d5ef1b5d8a813')
     const challenge = await createChallenge(wallet.address)

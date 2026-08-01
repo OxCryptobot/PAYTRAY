@@ -49,6 +49,7 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 	- `POST /api/reputation/events` and `GET /api/reputation/:wallet` for outcome capture.
 - Phase B payments UX:
 	- Streams start in `submitted` state and can transition through `included` then `reflected` via `POST /api/payments/streams/:streamId/confirm`.
+	- Confirmation transitions are strict: backward or duplicate transitions return HTTP 409 conflict errors.
 - Phase C intelligence:
 	- `POST /api/intelligence/ranking/train` and `GET /api/intelligence/ranking/model`.
 	- `POST /api/intelligence/conversations/:threadId/assist`.

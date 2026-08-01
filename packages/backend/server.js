@@ -10,6 +10,7 @@ import {
   AppError,
   AuthenticationError,
   AuthorizationError,
+  ConflictError,
   NotFoundError,
   RateLimitError,
   ValidationError,
@@ -1408,12 +1409,24 @@ app.post('/api/payments/streams/:streamId/confirm', authenticateToken, async (re
       throw new ValidationError('State must be included or reflected')
     }
 
+    if (stream.confirmationState === 'reflected') {
+      throw new ConflictError('Stream is already reflected')
+    }
+
     if (state === 'included') {
+      if (stream.confirmationState !== 'submitted') {
+        throw new ConflictError(`Cannot transition from ${stream.confirmationState} to included`)
+      }
+
       stream.confirmationState = 'included'
       stream.includedAt = nowIso()
     }
 
     if (state === 'reflected') {
+      if (stream.confirmationState !== 'included') {
+        throw new ConflictError(`Cannot transition from ${stream.confirmationState} to reflected`)
+      }
+
       if (!stream.includedAt) {
         throw new ValidationError('Stream must be included before reflection')
       }

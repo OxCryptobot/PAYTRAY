@@ -495,6 +495,62 @@ describe('PayTray backend skeleton', () => {
     expect(reflectResponse.body.uxState).toBe('reflected')
   })
 
+  it('enforces strict payment confirmation state progression', async () => {
+    const sender = new Wallet('0x7552d476f163f5a2b10a12f1e9f3ee2cd4d76eecf872b82ac0f9d6d6c04d87c1')
+    const recipient = new Wallet('0xb686d59f8f8d4d812ad8e751adfa6acfd4b580b3ceec737beef98ec6df6b8fdf')
+    const token = await loginWallet(sender)
+
+    const createResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        recipientWallet: recipient.address,
+        token: 'USDC',
+        amount: 10,
+        duration: 1800,
+        chainId: 8453
+      })
+
+    expect(createResponse.status).toBe(200)
+
+    const directReflectResponse = await request(app)
+      .post(`/api/payments/streams/${createResponse.body.stream.id}/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ state: 'reflected' })
+
+    expect(directReflectResponse.status).toBe(409)
+    expect(directReflectResponse.body.error).toContain('Cannot transition')
+
+    const includeResponse = await request(app)
+      .post(`/api/payments/streams/${createResponse.body.stream.id}/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ state: 'included' })
+
+    expect(includeResponse.status).toBe(200)
+
+    const repeatedIncludeResponse = await request(app)
+      .post(`/api/payments/streams/${createResponse.body.stream.id}/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ state: 'included' })
+
+    expect(repeatedIncludeResponse.status).toBe(409)
+
+    const reflectResponse = await request(app)
+      .post(`/api/payments/streams/${createResponse.body.stream.id}/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ state: 'reflected' })
+
+    expect(reflectResponse.status).toBe(200)
+
+    const repeatedReflectResponse = await request(app)
+      .post(`/api/payments/streams/${createResponse.body.stream.id}/confirm`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ state: 'reflected' })
+
+    expect(repeatedReflectResponse.status).toBe(409)
+    expect(repeatedReflectResponse.body.error).toBe('Stream is already reflected')
+  })
+
   it('completes phase C intelligence endpoints', async () => {
     const user = new Wallet('0xc54584c06c5aa642ce0ed3afb4f5f1885edfad5393012615ad66cb7cc477a643')
     const expert = new Wallet('0x0e5f5f87687f84bd8226bb9a2a0cf5dd8cb97ee8ff06f08d3fee93f6f1290f7b')

@@ -428,6 +428,80 @@ describe('PayTray backend skeleton', () => {
     expect(statsResponse.body.stats.streamId).toBe(createResponse.body.stream.id)
   })
 
+  it('supports idempotent payment stream creation retries', async () => {
+    const sender = new Wallet('0x7307fc132099f4fd31f7b2d2bc415dc2c4f8624ce00e4d4584342063774dc47a')
+    const recipient = new Wallet('0x15aa21574f20ac8de79ba2f0db1e8c5a76852212dc47fbafca20c5dc7f28a4e9')
+    const token = await loginWallet(sender)
+    const idempotencyKey = 'stream-create-001'
+
+    const firstResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+      .set('x-idempotency-key', idempotencyKey)
+      .send({
+        recipientWallet: recipient.address,
+        token: 'USDC',
+        amount: 7,
+        duration: 2400,
+        chainId: 8453
+      })
+
+    expect(firstResponse.status).toBe(200)
+    expect(firstResponse.body.idempotentReplay).toBe(false)
+
+    const replayResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+      .set('x-idempotency-key', idempotencyKey)
+      .send({
+        recipientWallet: recipient.address,
+        token: 'USDC',
+        amount: 7,
+        duration: 2400,
+        chainId: 8453
+      })
+
+    expect(replayResponse.status).toBe(200)
+    expect(replayResponse.body.idempotentReplay).toBe(true)
+    expect(replayResponse.body.stream.id).toBe(firstResponse.body.stream.id)
+  })
+
+  it('rejects idempotency key reuse with different stream payload', async () => {
+    const sender = new Wallet('0xc0124e7d88472681a59c7d25f0d1e45d42bd5a6f1db11d308392f3eb7f97f0f6')
+    const recipient = new Wallet('0x5f674d7257baa23cb2893620ef0cc14763f4eec7f3e8e3fd4d3f2d8b7f94c73e')
+    const token = await loginWallet(sender)
+    const idempotencyKey = 'stream-create-002'
+
+    const firstResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+      .set('x-idempotency-key', idempotencyKey)
+      .send({
+        recipientWallet: recipient.address,
+        token: 'USDC',
+        amount: 9,
+        duration: 1800,
+        chainId: 8453
+      })
+
+    expect(firstResponse.status).toBe(200)
+
+    const conflictingResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+      .set('x-idempotency-key', idempotencyKey)
+      .send({
+        recipientWallet: recipient.address,
+        token: 'USDC',
+        amount: 10,
+        duration: 1800,
+        chainId: 8453
+      })
+
+    expect(conflictingResponse.status).toBe(409)
+    expect(conflictingResponse.body.error).toBe('Idempotency key reuse with different payment request')
+  })
+
   it('completes phase B coherence loop from discovery to reputation event', async () => {
     const expert = new Wallet('0x275d7ff5f5ddf7eb2bcda6acd67d65317e4bc6fa42a7f629e6c0f4f8c0f6f6b1')
     const requester = new Wallet('0x3482fdd64f835f5eab5f32ae72f574f9edac6d9bc7a04d728c3cac6519f6a9f2')
@@ -805,6 +879,11 @@ describe('PayTray backend skeleton', () => {
     expect(sloResponse.body.slo.auth).toBeDefined()
     expect(typeof sloResponse.body.slo.auth.challengesIssued).toBe('number')
     expect(typeof sloResponse.body.slo.auth.loginRateLimited).toBe('number')
+    expect(sloResponse.body.slo.operations).toBeDefined()
+    expect(typeof sloResponse.body.slo.operations.queue.total).toBe('number')
+    expect(typeof sloResponse.body.slo.operations.webhooks.total).toBe('number')
+    expect(typeof sloResponse.body.slo.operations.retryableQueueJobs).toBe('number')
+    expect(typeof sloResponse.body.slo.operations.retryableWebhookDeliveries).toBe('number')
   })
 
   it('queues and processes webhook deliveries in dry-run mode', async () => {

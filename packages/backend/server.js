@@ -66,6 +66,7 @@ const rankingModel = {
   }
 }
 const chainRegistry = new Map([[String(config.payments.settlementChainId), { enabled: true, reason: 'default settlement chain' }]])
+const paymentCreateIdempotency = new Map()
 const queueJobs = new Map()
 const extensionHooks = new Map()
 const webhookDeliveries = new Map()
@@ -161,6 +162,7 @@ function serializeState() {
     reputationEvents,
     rankingModel,
     chainRegistry: Array.from(chainRegistry.entries()),
+    paymentCreateIdempotency: Array.from(paymentCreateIdempotency.entries()),
     queueJobs: Array.from(queueJobs.entries()),
     extensionHooks: Array.from(extensionHooks.entries()),
     webhookDeliveries: Array.from(webhookDeliveries.entries())
@@ -197,6 +199,7 @@ function restoreState(snapshot) {
   }
 
   for (const [key, value] of safeArray(snapshot.queueJobs)) queueJobs.set(key, value)
+  for (const [key, value] of safeArray(snapshot.paymentCreateIdempotency)) paymentCreateIdempotency.set(key, value)
   for (const [key, value] of safeArray(snapshot.extensionHooks)) extensionHooks.set(key, value)
   for (const [key, value] of safeArray(snapshot.webhookDeliveries)) webhookDeliveries.set(key, value)
 }
@@ -544,6 +547,36 @@ function computeReliabilityMetrics() {
     totalStreams: streamValues.length,
     reflectedStreams,
     reliabilityPct
+  }
+}
+
+function computeOperationalBacklogMetrics() {
+  const jobs = Array.from(queueJobs.values())
+  const deliveries = Array.from(webhookDeliveries.values())
+
+  const queue = {
+    total: jobs.length,
+    pending: jobs.filter((job) => job.status === 'pending').length,
+    processing: jobs.filter((job) => job.status === 'processing').length,
+    failed: jobs.filter((job) => job.status === 'failed').length,
+    dead: jobs.filter((job) => job.status === 'dead').length,
+    completed: jobs.filter((job) => job.status === 'completed').length
+  }
+
+  const webhooks = {
+    total: deliveries.length,
+    pending: deliveries.filter((delivery) => delivery.status === 'pending').length,
+    processing: deliveries.filter((delivery) => delivery.status === 'processing').length,
+    failed: deliveries.filter((delivery) => delivery.status === 'failed').length,
+    dead: deliveries.filter((delivery) => delivery.status === 'dead').length,
+    delivered: deliveries.filter((delivery) => delivery.status === 'delivered').length
+  }
+
+  return {
+    queue,
+    webhooks,
+    retryableQueueJobs: queue.failed + queue.dead,
+    retryableWebhookDeliveries: webhooks.failed + webhooks.dead
   }
 }
 
@@ -1620,6 +1653,32 @@ app.post('/api/payments/streams', authenticateToken, (req, res, next) => {
       }
     )
 
+    const idempotencyKey = getIdempotencyKey(req)
+    const createFingerprint = fingerprintPaymentCreateRequest(req.walletAddress, chainId, validated)
+
+    if (idempotencyKey) {
+      const existing = paymentCreateIdempotency.get(idempotencyKey)
+      if (existing) {
+        if (existing.ownerWallet !== req.walletAddress || existing.fingerprint !== createFingerprint) {
+          throw new ConflictError('Idempotency key reuse with different payment request')
+        }
+
+        const existingStream = paymentStreams.get(existing.streamId)
+        if (!existingStream) {
+          throw new AppError('Idempotent stream reference is missing', 500)
+        }
+
+        return res.json({
+          success: true,
+          stream: existingStream,
+          uxState: existingStream.confirmationState,
+          risk: existing.risk,
+          idempotentReplay: true,
+          idempotencyKey
+        })
+      }
+    }
+
     const riskCheck = scorePaymentRisk({
       senderWallet: req.walletAddress,
       recipientWallet: validated.recipient,
@@ -1653,8 +1712,26 @@ app.post('/api/payments/streams', authenticateToken, (req, res, next) => {
     }
 
     paymentStreams.set(streamId, stream)
+
+    if (idempotencyKey) {
+      paymentCreateIdempotency.set(idempotencyKey, {
+        ownerWallet: req.walletAddress,
+        fingerprint: createFingerprint,
+        streamId,
+        risk: riskCheck,
+        createdAt: nowIso()
+      })
+    }
+
     markStateDirty()
-    res.json({ success: true, stream, uxState: stream.confirmationState, risk: riskCheck })
+    res.json({
+      success: true,
+      stream,
+      uxState: stream.confirmationState,
+      risk: riskCheck,
+      idempotentReplay: false,
+      idempotencyKey
+    })
   } catch (error) {
     next(error)
   }
@@ -1923,6 +2000,7 @@ app.post('/api/intelligence/risk/payments/score', authenticateToken, requireScop
 app.get('/api/ops/slo', authenticateToken, requireScopes('ops:*'), (req, res) => {
   const latencyP95 = percentile(requestMetrics.latencies, 95)
   const availability = requestMetrics.total === 0 ? 100 : Number((((requestMetrics.total - requestMetrics.errors) / requestMetrics.total) * 100).toFixed(2))
+  const operations = computeOperationalBacklogMetrics()
 
   res.json({
     success: true,
@@ -1947,7 +2025,8 @@ app.get('/api/ops/slo', authenticateToken, requireScopes('ops:*'), (req, res) =>
         verifySuccess: requestMetrics.walletVerification.verifySuccess,
         verifyFailed: requestMetrics.walletVerification.verifyFailed,
         verifyRateLimited: requestMetrics.walletVerification.verifyRateLimited
-      }
+      },
+      operations
     }
   })
 })

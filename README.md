@@ -50,6 +50,7 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 - Phase B payments UX:
 	- Streams start in `submitted` state and can transition through `included` then `reflected` via `POST /api/payments/streams/:streamId/confirm`.
 	- Confirmation transitions are strict: backward or duplicate transitions return HTTP 409 conflict errors.
+	- Stream creation supports `x-idempotency-key` to safely replay client retries without duplicate stream creation.
 - Phase C intelligence:
 	- `POST /api/intelligence/ranking/train` and `GET /api/intelligence/ranking/model`.
 	- `POST /api/intelligence/ranking/evaluate` for offline ranking quality metrics.
@@ -62,7 +63,7 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 	- Queue and reconciliation endpoints under `/api/ops/queue/*` and `/api/ops/reconciliation/run`.
 	- Queue job visibility and processing are scoped to the job owner wallet unless admin scope is present.
 	- Failed/dead queue jobs can be redriven via `POST /api/ops/queue/jobs/:jobId/retry`.
-	- SLO metrics via `GET /api/ops/slo`.
+	- SLO metrics via `GET /api/ops/slo`, including operational backlog counters for queue/webhook pipelines.
 	- Runtime state persistence via `POST /api/ops/state/persist`.
 	- Webhook delivery processing under `/api/ops/webhooks/*`.
 	- Failed/dead webhook deliveries can be redriven via `POST /api/ops/webhooks/deliveries/:deliveryId/retry`.

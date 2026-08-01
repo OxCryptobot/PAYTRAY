@@ -52,8 +52,10 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 	- Confirmation transitions are strict: backward or duplicate transitions return HTTP 409 conflict errors.
 - Phase C intelligence:
 	- `POST /api/intelligence/ranking/train` and `GET /api/intelligence/ranking/model`.
+	- `POST /api/intelligence/ranking/evaluate` for offline ranking quality metrics.
 	- `POST /api/intelligence/conversations/:threadId/assist`.
-	- `POST /api/intelligence/risk/payments/score`.
+	- `POST /api/intelligence/risk/payments/score` with severity, reason codes, and recommended action.
+	- Discovery candidates include ranking score breakdown and explanation metadata.
 - Phase D scale/resilience:
 	- Reliability-gated chain expansion via `POST /api/ops/chains/enable`.
 	- Chain expansion additionally requires a minimum reliability sample size before target checks are evaluated.

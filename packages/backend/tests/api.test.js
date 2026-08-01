@@ -463,6 +463,9 @@ describe('PayTray backend skeleton', () => {
     expect(discoveryResponse.status).toBe(200)
     expect(discoveryResponse.body.success).toBe(true)
     expect(discoveryResponse.body.count).toBeGreaterThan(0)
+    expect(discoveryResponse.body.candidates[0].scoreBreakdown).toBeDefined()
+    expect(Array.isArray(discoveryResponse.body.candidates[0].scoreExplanation)).toBe(true)
+    expect(discoveryResponse.body.rankingModel.version).toBeDefined()
 
     const selectResponse = await request(app)
       .post(`/api/matches/${discoveryResponse.body.matchSession.id}/select`)
@@ -655,7 +658,25 @@ describe('PayTray backend skeleton', () => {
       .send({})
 
     expect(trainResponse.status).toBe(200)
+    expect(trainResponse.body.model.version).toBeGreaterThan(0)
     expect(trainResponse.body.model.trainedAt).toBeDefined()
+    expect(trainResponse.body.model.evaluation.sampleSize).toBeGreaterThan(0)
+
+    const evaluateResponse = await request(app)
+      .post('/api/intelligence/ranking/evaluate')
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(evaluateResponse.status).toBe(200)
+    expect(evaluateResponse.body.evaluation.metrics.completionPaidRate).toBeGreaterThanOrEqual(0)
+
+    const modelResponse = await request(app)
+      .get('/api/intelligence/ranking/model')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(modelResponse.status).toBe(200)
+    expect(modelResponse.body.evaluation).toBeDefined()
+    expect(modelResponse.body.model.weights).toBeDefined()
 
     const riskResponse = await request(app)
       .post('/api/intelligence/risk/payments/score')
@@ -669,6 +690,8 @@ describe('PayTray backend skeleton', () => {
 
     expect(riskResponse.status).toBe(200)
     expect(riskResponse.body.score.riskScore).toBeGreaterThanOrEqual(0)
+    expect(Array.isArray(riskResponse.body.score.reasons)).toBe(true)
+    expect(typeof riskResponse.body.score.recommendedAction).toBe('string')
   })
 
   it('completes phase D resilience and extension endpoints', async () => {

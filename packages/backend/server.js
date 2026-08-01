@@ -39,9 +39,31 @@ const matchSessions = new Map()
 const conversationThreads = new Map()
 const engagementContracts = new Map()
 const reputationEvents = []
+const RANKING_WEIGHTS = Object.freeze({
+  skillMatch: 0.3,
+  budgetScore: 0.15,
+  timezoneScore: 0.1,
+  languageScore: 0.1,
+  chainScore: 0.1,
+  completionRate: 0.15,
+  outcomeHistoryBoost: 0.1
+})
+
 const rankingModel = {
+  version: 1,
   trainedAt: null,
-  expertiseScores: {}
+  expertiseScores: {},
+  weights: RANKING_WEIGHTS,
+  evaluation: {
+    sampleSize: 0,
+    metrics: {
+      completionPaidRate: 0,
+      disputedRate: 0,
+      repeatBookingRate: 0,
+      avgPaidMinutes: 0,
+      skillCoverage: 0
+    }
+  }
 }
 const chainRegistry = new Map([[String(config.payments.settlementChainId), { enabled: true, reason: 'default settlement chain' }]])
 const queueJobs = new Map()
@@ -159,8 +181,11 @@ function restoreState(snapshot) {
   for (const value of safeArray(snapshot.reputationEvents)) reputationEvents.push(value)
 
   if (snapshot.rankingModel && typeof snapshot.rankingModel === 'object') {
+    rankingModel.version = Number(snapshot.rankingModel.version || rankingModel.version)
     rankingModel.trainedAt = snapshot.rankingModel.trainedAt || null
     rankingModel.expertiseScores = snapshot.rankingModel.expertiseScores || {}
+    rankingModel.weights = snapshot.rankingModel.weights || rankingModel.weights
+    rankingModel.evaluation = snapshot.rankingModel.evaluation || rankingModel.evaluation
   }
 
   chainRegistry.clear()
@@ -559,17 +584,63 @@ function trainRankingModelFromOutcomes() {
     expertiseScores[skill] = Number((data.completed / data.total).toFixed(4))
   }
 
+  rankingModel.version += 1
   rankingModel.trainedAt = nowIso()
   rankingModel.expertiseScores = expertiseScores
+  rankingModel.weights = RANKING_WEIGHTS
+  rankingModel.evaluation = evaluateRankingModel()
 
   return {
+    version: rankingModel.version,
     trainedAt: rankingModel.trainedAt,
     sampleSize: reputationEvents.length,
-    expertiseScores
+    expertiseScores,
+    evaluation: rankingModel.evaluation
   }
 }
 
-function scoreDiscoveryCandidate(profile, filters = {}) {
+function evaluateRankingModel() {
+  const totalEvents = reputationEvents.length
+
+  if (totalEvents === 0) {
+    return {
+      sampleSize: 0,
+      metrics: {
+        completionPaidRate: 0,
+        disputedRate: 0,
+        repeatBookingRate: 0,
+        avgPaidMinutes: 0,
+        skillCoverage: 0
+      }
+    }
+  }
+
+  const completedPaid = reputationEvents.filter((event) => event.outcome === 'completed' && event.paidMinutes > 0 && event.disputed !== true).length
+  const disputed = reputationEvents.filter((event) => event.disputed === true).length
+  const repeatBookings = reputationEvents.filter((event) => event.repeatBooking === true).length
+  const paidMinutes = reputationEvents.map((event) => Number(event.paidMinutes || 0))
+  const avgPaidMinutes = paidMinutes.length > 0 ? Number((paidMinutes.reduce((sum, value) => sum + value, 0) / paidMinutes.length).toFixed(2)) : 0
+  const expertiseSet = new Set()
+
+  for (const event of reputationEvents) {
+    for (const skill of safeArray(event.expertise)) {
+      expertiseSet.add(String(skill).toLowerCase())
+    }
+  }
+
+  return {
+    sampleSize: totalEvents,
+    metrics: {
+      completionPaidRate: Number((completedPaid / totalEvents).toFixed(4)),
+      disputedRate: Number((disputed / totalEvents).toFixed(4)),
+      repeatBookingRate: Number((repeatBookings / totalEvents).toFixed(4)),
+      avgPaidMinutes,
+      skillCoverage: expertiseSet.size
+    }
+  }
+}
+
+function scoreDiscoveryCandidate(profile, filters = {}, { includeBreakdown = false } = {}) {
   const skills = safeArray(profile.expertise).map((skill) => String(skill).toLowerCase())
   const targetSkill = String(filters.domain || '').trim().toLowerCase()
   const skillMatch = targetSkill && skills.includes(targetSkill) ? 1 : 0
@@ -590,9 +661,47 @@ function scoreDiscoveryCandidate(profile, filters = {}) {
   const completionRate = reputation.events > 0 ? reputation.completed / reputation.events : 0.5
 
   const outcomeHistoryBoost = targetSkill ? rankingModel.expertiseScores[targetSkill] || 0.5 : 0.5
-  const weighted = (skillMatch * 0.3) + (budgetScore * 0.15) + (timezoneScore * 0.1) + (languageScore * 0.1) + (chainScore * 0.1) + (completionRate * 0.15) + (outcomeHistoryBoost * 0.1)
+  const weightedComponents = {
+    skillMatch: skillMatch * rankingModel.weights.skillMatch,
+    budgetScore: budgetScore * rankingModel.weights.budgetScore,
+    timezoneScore: timezoneScore * rankingModel.weights.timezoneScore,
+    languageScore: languageScore * rankingModel.weights.languageScore,
+    chainScore: chainScore * rankingModel.weights.chainScore,
+    completionRate: completionRate * rankingModel.weights.completionRate,
+    outcomeHistoryBoost: outcomeHistoryBoost * rankingModel.weights.outcomeHistoryBoost
+  }
+  const weighted = Object.values(weightedComponents).reduce((sum, value) => sum + value, 0)
+  const totalScore = Number((weighted * 100).toFixed(2))
 
-  return Number((weighted * 100).toFixed(2))
+  if (!includeBreakdown) {
+    return totalScore
+  }
+
+  const breakdown = {
+    skillMatch: Number((weightedComponents.skillMatch * 100).toFixed(2)),
+    budgetFit: Number((weightedComponents.budgetScore * 100).toFixed(2)),
+    timezoneFit: Number((weightedComponents.timezoneScore * 100).toFixed(2)),
+    languageFit: Number((weightedComponents.languageScore * 100).toFixed(2)),
+    chainFit: Number((weightedComponents.chainScore * 100).toFixed(2)),
+    completionHistory: Number((weightedComponents.completionRate * 100).toFixed(2)),
+    outcomeHistoryBoost: Number((weightedComponents.outcomeHistoryBoost * 100).toFixed(2))
+  }
+
+  const explanation = []
+  if (targetSkill && skillMatch > 0) explanation.push('direct skill match')
+  if (budget > 0 && budgetScore === 1) explanation.push('within requested budget')
+  if (timezone && timezoneScore === 1) explanation.push('timezone aligned')
+  if (language && languageScore === 1) explanation.push('language aligned')
+  if (chainPreference && chainScore === 1) explanation.push('chain preference aligned')
+  if (reputation.events > 0) explanation.push('has prior outcomes history')
+  if (explanation.length === 0) explanation.push('baseline compatibility profile')
+
+  return {
+    totalScore,
+    breakdown,
+    explanation,
+    modelVersion: rankingModel.version
+  }
 }
 
 function buildConversationAssist(thread) {
@@ -658,7 +767,22 @@ function scorePaymentRisk({ senderWallet, recipientWallet, amount, duration, cha
   return {
     riskScore: Math.min(100, riskScore),
     severity: riskScore >= 70 ? 'high' : riskScore >= 40 ? 'medium' : 'low',
-    flags
+    flags,
+    reasons: flags.length
+      ? flags.map((flag) => ({
+        code: flag,
+        message: flag === 'amount_spike'
+          ? 'Payment amount is significantly above recent median'
+          : flag === 'high_velocity'
+            ? 'High payment initiation velocity detected'
+            : flag === 'short_duration'
+              ? 'Very short stream duration may indicate misuse'
+              : flag === 'unsupported_chain'
+                ? 'Requested chain is not enabled for settlement'
+                : 'Sender and recipient are the same wallet'
+      }))
+      : [{ code: 'normal_pattern', message: 'No abnormal payment risk pattern detected' }],
+    recommendedAction: riskScore >= 70 ? 'block_and_manual_review' : riskScore >= 40 ? 'allow_with_confirmation' : 'allow'
   }
 }
 
@@ -1088,10 +1212,16 @@ app.post('/api/discovery/search', authenticateToken, (req, res, next) => {
     const candidates = Array.from(profiles.values())
       .map((record) => record.profile)
       .filter((profile) => Boolean(profile) && profile.wallet !== req.walletAddress)
-      .map((profile) => ({
-        profile,
-        score: scoreDiscoveryCandidate(profile, filters)
-      }))
+      .map((profile) => {
+        const ranked = scoreDiscoveryCandidate(profile, filters, { includeBreakdown: true })
+        return {
+          profile,
+          score: ranked.totalScore,
+          scoreBreakdown: ranked.breakdown,
+          scoreExplanation: ranked.explanation,
+          modelVersion: ranked.modelVersion
+        }
+      })
       .sort((a, b) => b.score - a.score)
 
     const sessionId = String(matchSessions.size + 1)
@@ -1111,7 +1241,12 @@ app.post('/api/discovery/search', authenticateToken, (req, res, next) => {
       success: true,
       matchSession: session,
       count: candidates.length,
-      candidates
+      candidates,
+      rankingModel: {
+        version: rankingModel.version,
+        trainedAt: rankingModel.trainedAt,
+        weights: rankingModel.weights
+      }
     })
   } catch (error) {
     next(error)
@@ -1719,7 +1854,16 @@ app.post('/api/intelligence/ranking/train', authenticateToken, requireScopes('in
 })
 
 app.get('/api/intelligence/ranking/model', authenticateToken, requireScopes('intelligence:*'), (req, res) => {
-  res.json({ success: true, model: rankingModel })
+  res.json({ success: true, model: rankingModel, evaluation: evaluateRankingModel() })
+})
+
+app.post('/api/intelligence/ranking/evaluate', authenticateToken, requireScopes('intelligence:*'), (req, res, next) => {
+  try {
+    const evaluation = evaluateRankingModel()
+    res.json({ success: true, evaluation })
+  } catch (error) {
+    next(error)
+  }
 })
 
 app.post('/api/intelligence/conversations/:threadId/assist', authenticateToken, requireScopes('intelligence:*'), (req, res, next) => {

@@ -58,6 +58,7 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 	- Reliability-gated chain expansion via `POST /api/ops/chains/enable`.
 	- Chain expansion additionally requires a minimum reliability sample size before target checks are evaluated.
 	- Queue and reconciliation endpoints under `/api/ops/queue/*` and `/api/ops/reconciliation/run`.
+	- Queue job visibility and processing are scoped to the job owner wallet unless admin scope is present.
 	- SLO metrics via `GET /api/ops/slo`.
 	- Runtime state persistence via `POST /api/ops/state/persist`.
 	- Webhook delivery processing under `/api/ops/webhooks/*`.

@@ -493,6 +493,14 @@ function getDeliveryOwnerWallet(delivery) {
   return hook?.ownerWallet || null
 }
 
+function canManageQueueJob(job, walletAddress, isAdmin) {
+  if (isAdmin) {
+    return true
+  }
+
+  return job.ownerWallet === walletAddress
+}
+
 function computeReliabilityMetrics() {
   const streamValues = Array.from(paymentStreams.values())
 
@@ -1845,6 +1853,7 @@ app.post('/api/ops/queue/jobs', authenticateToken, requireScopes('ops:*'), (req,
     const id = String(queueJobs.size + 1)
     const job = {
       id,
+      ownerWallet: req.walletAddress,
       type,
       payload: req.body.payload || {},
       status: 'pending',
@@ -1864,9 +1873,11 @@ app.post('/api/ops/queue/jobs', authenticateToken, requireScopes('ops:*'), (req,
 
 app.post('/api/ops/queue/process', authenticateToken, requireScopes('ops:*'), (req, res) => {
   const results = []
+  const isAdmin = hasScope(safeArray(req.scopes), 'admin:*')
 
   for (const job of queueJobs.values()) {
     if (!['pending', 'failed'].includes(job.status)) continue
+    if (!canManageQueueJob(job, req.walletAddress, isAdmin)) continue
 
     job.attempts += 1
     job.updatedAt = nowIso()
@@ -1900,7 +1911,9 @@ app.post('/api/ops/queue/process', authenticateToken, requireScopes('ops:*'), (r
 })
 
 app.get('/api/ops/queue/jobs', authenticateToken, requireScopes('ops:*'), (req, res) => {
-  res.json({ success: true, count: queueJobs.size, jobs: Array.from(queueJobs.values()) })
+  const isAdmin = hasScope(safeArray(req.scopes), 'admin:*')
+  const jobs = Array.from(queueJobs.values()).filter((job) => canManageQueueJob(job, req.walletAddress, isAdmin))
+  res.json({ success: true, count: jobs.length, jobs })
 })
 
 app.post('/api/ops/reconciliation/run', authenticateToken, requireScopes('ops:*'), (req, res) => {
@@ -1931,6 +1944,7 @@ app.post('/api/ops/reconciliation/run', authenticateToken, requireScopes('ops:*'
       const jobId = String(queueJobs.size + 1)
       queueJobs.set(jobId, {
         id: jobId,
+        ownerWallet: null,
         type: 'reconcile_stream',
         payload: { streamId: stream.id },
         status: 'pending',

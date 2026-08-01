@@ -878,6 +878,28 @@ describe('PayTray backend skeleton', () => {
     expect(leakedDelivery).toBeUndefined()
   })
 
+  it('scopes queue job visibility to owner wallet', async () => {
+    const owner = new Wallet('0x9514e4f267db2d453cff018bc73bec3f4c7c764ab965f0b970f2b646e4534a46')
+    const outsider = new Wallet('0xb4ca1c0f55ca94f22f4b6ce66ccded9a3e2b64c651f722f0c0a53568f5e8a6e9')
+    const ownerToken = await loginWallet(owner)
+    const outsiderToken = await loginWallet(outsider)
+
+    const queueCreateResponse = await request(app)
+      .post('/api/ops/queue/jobs')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ type: 'reconcile_stream', payload: { streamId: '1' } })
+
+    expect(queueCreateResponse.status).toBe(200)
+
+    const outsiderQueueResponse = await request(app)
+      .get('/api/ops/queue/jobs')
+      .set('Authorization', `Bearer ${outsiderToken}`)
+
+    expect(outsiderQueueResponse.status).toBe(200)
+    const leakedJob = outsiderQueueResponse.body.jobs.find((job) => job.id === queueCreateResponse.body.job.id)
+    expect(leakedJob).toBeUndefined()
+  })
+
   it('persists runtime state through ops endpoint', async () => {
     const user = new Wallet('0x2f517e876e2633ac2dcdf5f6a11a95a38d2dd59af09ee4b5f7fa4dbca6055ea8')
     const token = await loginWallet(user)

@@ -1,264 +1,155 @@
-/**
- * PayTray Backend Server v2.0
- * Production-grade Express server with full infrastructure
- */
-
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import helmet from 'helmet'
 
-// Internal modules
 import config, { validateConfig } from './lib/config.js'
 import {
   AppError,
-  ValidationError,
   AuthenticationError,
+  NotFoundError,
   RateLimitError,
-  ExternalServiceError,
   schemas,
   validate
 } from './lib/errors.js'
+import { getLogger, requestLogger, errorLogger } from './lib/logger.js'
 import {
-  initializeDatabase,
-  getPool,
-  query,
-  createModel
-} from './lib/database.js'
-import {
-  generateToken,
-  verifyToken,
   generateTokenPair,
+  verifyToken,
   verifyWalletSignature,
   checkRateLimit,
   getClientIP
 } from './lib/security.js'
-import { getLogger, requestLogger, errorLogger } from './lib/logger.js'
-import { initializeCeramic, getCeramicService } from './services/ceramicService.js'
-import { initializeSablier, getSablierService } from './services/sablierService.js'
 
-// Scalability improvements (Phase 4)
-import { createRateLimitMiddleware, createSensitiveRateLimitMiddleware } from './lib/rateLimiter.js'
-import { getQueueManager } from './lib/messageQueue.js'
-import { getProfileStorageAdapter } from './lib/profileStorageAdapter.js'
-import { getPaymentStreamAdapter } from './lib/paymentStreamAdapter.js'
-import { getCommunicationAdapter } from './lib/communicationAdapter.js'
-import { getVersionManager, createVersionedRoute, deprecationMiddleware } from './lib/apiVersioning.js'
-
-// Load environment
 dotenv.config({ path: '.env.local' })
-// Note: .env.local is optional - will be skipped if not found
 
-// Initialize logger
 const logger = getLogger('Server')
-
-// Initialize app
 const app = express()
+const profiles = new Map()
+const paymentStreams = new Map()
+const calls = new Map()
 
-// Validate configuration
-try {
-  validateConfig()
-  logger.info('✅ Configuration validated')
-} catch (error) {
-  logger.error('Configuration validation failed', error)
-  process.exit(1)
+function nowSeconds() {
+  return Math.floor(Date.now() / 1000)
 }
 
-// ============================================================================
-// SECURITY MIDDLEWARE
-// ============================================================================
+function getOrCreateUser(wallet) {
+  const walletAddress = wallet.toLowerCase()
+  const existing = profiles.get(walletAddress)?.user || null
 
-// Helmet for security headers
+  if (existing) {
+    return existing
+  }
+
+  const user = {
+    id: walletAddress,
+    wallet_address: walletAddress,
+    wallet_type: 'injected',
+    ens_name: null,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+
+  profiles.set(walletAddress, { user, profile: null })
+  return user
+}
+
+function calculateProfileCompleteness(profile) {
+  const fields = ['name', 'bio', 'hourlyRate', 'expertise']
+  const filled = fields.filter((field) => profile[field] != null && profile[field] !== '').length
+  return Math.round((filled / fields.length) * 100)
+}
+
+function calculateStreamedAmount(stream) {
+  const currentTime = nowSeconds()
+
+  if (currentTime <= stream.start_time) {
+    return 0
+  }
+
+  if (currentTime >= stream.stop_time) {
+    return stream.amount
+  }
+
+  const progress = (currentTime - stream.start_time) / (stream.stop_time - stream.start_time)
+  return Number((stream.amount * progress).toFixed(8))
+}
+
+try {
+  validateConfig()
+} catch (error) {
+  logger.error('Configuration validation failed', error)
+  throw error
+}
+
 app.use(helmet())
-
-// CORS with configuration
 app.use(cors(config.cors))
-
-// Body parser
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ limit: '10mb', extended: true }))
-
-// Request logging
+app.use(express.json({ limit: '1mb' }))
+app.use(express.urlencoded({ extended: true }))
 app.use(requestLogger)
-
-// Trust proxy for IP extraction
 app.set('trust proxy', 1)
 
-// ============================================================================
-// RATE LIMITING (Distributed - Redis with in-memory fallback)
-// ============================================================================
-
-// Global rate limiter (100 req/min per IP)
-const globalLimiter = createRateLimitMiddleware({
-  windowMs: 60000,
-  maxRequests: 100,
-  keyGenerator: (req) => getClientIP(req),
-  redisEnabled: process.env.REDIS_ENABLED === 'true'
-})
-
-// Sensitive operations rate limiter (10 req/min per wallet)
-const sensitiveRateLimiter = createSensitiveRateLimitMiddleware()
-
-app.use(globalLimiter)
-
-// API versioning deprecation warnings
-app.use(deprecationMiddleware)
-
-// ============================================================================
-// AUTHENTICATION MIDDLEWARE
-// ============================================================================
-
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers.authorization
-  const token = authHeader?.split(' ')[1]
+  const token = req.headers.authorization?.split(' ')[1]
 
   if (!token) {
     return next(new AuthenticationError('No token provided'))
   }
 
   try {
-    const decoded = verifyToken(token)
-    req.user = decoded
-    req.userId = decoded.userId
-    req.walletAddress = decoded.walletAddress
+    req.user = verifyToken(token)
+    req.userId = req.user.userId
+    req.walletAddress = req.user.walletAddress
     next()
   } catch (error) {
     next(new AuthenticationError(error.message))
   }
 }
 
-// ============================================================================
-// MODELS
-// ============================================================================
-
-const Users = createModel('users')
-const Profiles = createModel('profiles')
-const PaymentStreams = createModel('payment_streams')
-const VideoCalls = createModel('video_calls')
-const WalletConnections = createModel('wallet_connections')
-
-// ============================================================================
-// HEALTH CHECK
-// ============================================================================
-
-app.get('/health', async (req, res, next) => {
-  try {
-    const checks = {
-      database: 'unavailable',
-      livekit: config.livekit.apiKey ? 'configured' : 'missing',
-      ceramic: config.ceramic.enabled ? 'enabled' : 'disabled'
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    service: 'paytray-backend',
+    version: '0.1.0',
+    environment: config.env,
+    timestamp: new Date().toISOString(),
+    checks: {
+      database: 'not-initialized',
+      livekit: config.livekit.apiKey ? 'configured' : 'missing'
     }
-
-    // Try to check database, but don't fail if unavailable
-    try {
-      const pool = getPool()
-      if (pool) {
-        const dbCheck = await pool.query('SELECT NOW()')
-        checks.database = dbCheck.rows.length > 0 ? 'ok' : 'error'
-      }
-    } catch (dbError) {
-      checks.database = 'unavailable'
-      // Don't fail - just log
-      logger.warn('Database unavailable for health check', dbError.message)
-    }
-
-    res.json({
-      status: 'healthy',
-      service: 'paytray-backend',
-      version: '2.0.0',
-      environment: config.env,
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      checks
-    })
-  } catch (error) {
-    // Return 503 Service Unavailable but include status
-    res.status(503).json({
-      status: 'degraded',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    })
-  }
+  })
 })
 
-// Alias for API health check
-app.get('/api/health', async (req, res) => {
-  try {
-    const checks = {
-      database: 'unavailable',
-      livekit: config.livekit.apiKey ? 'configured' : 'missing',
-      ceramic: config.ceramic.enabled ? 'enabled' : 'disabled'
-    }
-
-    try {
-      const pool = getPool()
-      if (pool) {
-        const dbCheck = await pool.query('SELECT NOW()')
-        checks.database = dbCheck.rows.length > 0 ? 'ok' : 'error'
-      }
-    } catch (dbError) {
-      checks.database = 'unavailable'
-    }
-
-    res.json({
-      status: 'healthy',
-      service: 'paytray-backend',
-      version: '2.0.0',
-      environment: config.env,
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      checks
-    })
-  } catch (error) {
-    res.status(503).json({
-      status: 'degraded',
-      error: error.message,
-      timestamp: new Date().toISOString()
-    })
-  }
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    service: 'paytray-backend',
+    version: '0.1.0',
+    environment: config.env,
+    timestamp: new Date().toISOString()
+  })
 })
 
-// ============================================================================
-// AUTHENTICATION ENDPOINTS
-// ============================================================================
-
-/**
- * POST /api/auth/login - Web3 wallet login
- */
-app.post('/api/auth/login', sensitiveRateLimiter, async (req, res, next) => {
+app.post('/api/auth/login', (req, res, next) => {
   try {
-    const { wallet, signature, message } = req.body
+    const { wallet, signature, message = 'PayTray Login' } = req.body
+    const validated = validate(
+      {
+        wallet: schemas.wallet.address,
+        signature: schemas.wallet.signature
+      },
+      { wallet, signature }
+    )
 
-    // Validate input
-    const validatedData = validate({
-      wallet: schemas.wallet.address,
-      signature: schemas.wallet.signature
-    }, { wallet, signature })
+    const verification = verifyWalletSignature(message, validated.signature, validated.wallet)
 
-    // Verify wallet signature
-    const verification = verifyWalletSignature(message || 'PayTray Login', signature, wallet)
     if (!verification.verified) {
       throw new AuthenticationError('Invalid signature')
     }
 
-    // Find or create user
-    let user = await Users.findOne('wallet_address', wallet.toLowerCase())
-
-    if (!user) {
-      user = await Users.create({
-        wallet_address: wallet.toLowerCase(),
-        wallet_type: 'injected',
-        is_active: true
-      })
-
-      logger.info('New user registered', { wallet: wallet.toLowerCase() })
-    }
-
-    // Generate tokens
-    const { accessToken, refreshToken } = generateTokenPair(user.id, user.wallet_address)
-
-    // Update last login
-    await Users.update(user.id, { last_login: new Date() })
+    const user = getOrCreateUser(validated.wallet)
+    const tokens = generateTokenPair(user.id, user.wallet_address)
 
     res.json({
       success: true,
@@ -267,88 +158,50 @@ app.post('/api/auth/login', sensitiveRateLimiter, async (req, res, next) => {
         wallet: user.wallet_address,
         ensName: user.ens_name
       },
-      tokens: {
-        accessToken,
-        refreshToken,
-        expiresIn: 900 // 15 minutes
-      }
+      tokens
     })
   } catch (error) {
     next(error)
   }
 })
 
-// ============================================================================
-// USER & PROFILE ENDPOINTS
-// ============================================================================
-
-/**
- * GET /api/users/me - Get current user
- */
-app.get('/api/users/me', authenticateToken, async (req, res, next) => {
+app.get('/api/users/me', authenticateToken, (req, res, next) => {
   try {
-    const user = await Users.findById(req.userId)
+    const user = profiles.get(req.walletAddress)?.user
+
     if (!user) {
-      throw new AppError('User not found', 404)
+      throw new NotFoundError('User')
     }
 
-    const profile = await Profiles.findOne('user_id', req.userId)
-
-    res.json({
-      user,
-      profile
-    })
+    res.json({ user, profile: profiles.get(req.walletAddress)?.profile || null })
   } catch (error) {
     next(error)
   }
 })
 
-/**
- * POST /api/profiles - Create/update user profile
- */
-app.post('/api/profiles', authenticateToken, async (req, res, next) => {
+app.post('/api/profiles', authenticateToken, (req, res, next) => {
   try {
-    const { name, bio, hourlyRate, expertise, socialLinks } = req.body
+    const validated = validate(
+      {
+        name: schemas.user.name,
+        bio: schemas.user.bio,
+        hourlyRate: schemas.user.hourlyRate,
+        expertise: schemas.user.expertise
+      },
+      req.body
+    )
 
-    // Validate input
-    const validatedData = validate({
-      name: schemas.user.name,
-      bio: schemas.user.bio,
-      hourlyRate: schemas.user.hourly_rate,
-      expertise: schemas.user.expertise
-    }, { name, bio, hourlyRate, expertise })
-
-    let profile = await Profiles.findOne('user_id', req.userId)
-
-    if (profile) {
-      // Update existing
-      profile = await Profiles.update(profile.id, {
-        name: validatedData.name,
-        bio: validatedData.bio,
-        hourly_rate: validatedData.hourlyRate,
-        expertise: validatedData.expertise,
-        social_twitter: socialLinks?.twitter,
-        social_github: socialLinks?.github,
-        social_linkedin: socialLinks?.linkedin,
-        is_expert: true
-      })
-    } else {
-      // Create new
-      profile = await Profiles.create({
-        user_id: req.userId,
-        name: validatedData.name,
-        bio: validatedData.bio,
-        hourly_rate: validatedData.hourlyRate,
-        expertise: validatedData.expertise,
-        social_twitter: socialLinks?.twitter,
-        social_github: socialLinks?.github,
-        social_linkedin: socialLinks?.linkedin,
-        is_expert: true,
-        profile_completeness: 60
-      })
+    const profile = {
+      wallet: req.walletAddress,
+      ...validated,
+      socialLinks: req.body.socialLinks || null,
+      isExpert: true,
+      updatedAt: new Date().toISOString(),
+      completeness: calculateProfileCompleteness(validated)
     }
 
-    logger.info('Profile updated', { userId: req.userId })
+    const userRecord = getOrCreateUser(req.walletAddress)
+    profiles.set(req.walletAddress, { user: userRecord, profile })
 
     res.json({ success: true, profile })
   } catch (error) {
@@ -356,304 +209,90 @@ app.post('/api/profiles', authenticateToken, async (req, res, next) => {
   }
 })
 
-// ============================================================================
-// LIVEKIT ENDPOINTS (Phase 1)
-// ============================================================================
-
-/**
- * POST /api/livekit/token - Generate LiveKit token
- */
-app.post('/api/livekit/token', authenticateToken, tokenLimiter, async (req, res, next) => {
+app.get('/api/profiles/:wallet', (req, res, next) => {
   try {
-    const { roomName, username, canPublish, canSubscribe } = req.body
-
-    // Validate
-    const validatedData = validate({
-      roomName: schemas.livekit.roomName,
-      username: schemas.livekit.username
-    }, { roomName, username })
-
-    // Check rate limiting per wallet
-    try {
-      checkRateLimit(req.walletAddress, config.rateLimit.tokenGenLimit)
-    } catch (error) {
-      throw new RateLimitError(error.message)
-    }
-
-    // Generate token (placeholder - requires livekit-server-sdk)
-    const token = generateToken(
-      {
-        userId: req.userId,
-        wallet: req.walletAddress,
-        room: roomName,
-        identity: req.walletAddress,
-        type: 'livekit'
-      },
-      '24h'
-    )
+    const wallet = schemas.wallet.address(req.params.wallet)
+    const record = profiles.get(wallet)
 
     res.json({
-      token,
-      url: config.livekit.url,
-      room: roomName,
-      identity: req.walletAddress,
-      expiresIn: 86400
+      wallet,
+      profile: record?.profile || null,
+      exists: Boolean(record?.profile)
     })
   } catch (error) {
     next(error)
   }
 })
 
-// ============================================================================
-// WALLET VERIFICATION ENDPOINTS
-// ============================================================================
-
-/**
- * POST /api/wallet/verify - Verify wallet address
- */
-app.post('/api/wallet/verify', async (req, res, next) => {
+app.post('/api/profiles/:wallet', authenticateToken, (req, res, next) => {
   try {
-    const { wallet, chainId = 1 } = req.body
+    const wallet = schemas.wallet.address(req.params.wallet)
 
-    // Validate
-    const validatedWallet = schemas.wallet.address(wallet)
-
-    // Check if chain is supported
-    if (!config.rpc[Object.keys(config.rpc).find((k) => {
-      const chains = { ethereum: 1, sepolia: 11155111, arbitrum: 42161, optimism: 10 }
-      return chains[k] === chainId
-    })]) {
-      throw new ValidationError('Chain not supported')
-    }
-
-    res.json({
-      valid: true,
-      wallet: validatedWallet,
-      chainId,
-      verified: true
-    })
-  } catch (error) {
-    next(error)
-  }
-})
-
-// ============================================================================
-// PAYMENT ENDPOINTS (Phase 3 - Sablier)
-// ============================================================================
-
-/**
- * POST /api/payments/streams - Create payment stream
- */
-app.post('/api/payments/streams', authenticateToken, async (req, res, next) => {
-  try {
-    const { recipientWallet, token, amount, duration, durationUnit } = req.body
-
-    // Validate
-    const validatedData = validate({
-      recipient: schemas.wallet.address,
-      token: schemas.payment.token,
-      amount: schemas.payment.amount,
-      duration: schemas.payment.duration
-    }, {
-      recipient: recipientWallet,
-      token,
-      amount,
-      duration
-    })
-
-    // Find or create recipient user
-    let recipient = await Users.findOne('wallet_address', validatedData.recipient.toLowerCase())
-    if (!recipient) {
-      recipient = await Users.create({
-        wallet_address: validatedData.recipient.toLowerCase(),
-        wallet_type: 'unknown',
-        is_active: true
-      })
-    }
-
-    // Create payment stream
-    const stream = await PaymentStreams.create({
-      sender_id: req.userId,
-      recipient_id: recipient.id,
-      token_address: token,
-      token_symbol: validatedData.token,
-      amount: validatedData.amount,
-      start_time: Math.floor(Date.now() / 1000),
-      stop_time: Math.floor(Date.now() / 1000) + validatedData.duration,
-      status: 'pending',
-      metadata: { durationUnit }
-    })
-
-    logger.info('Payment stream created', { streamId: stream.id, sender: req.userId })
-
-    res.json({ success: true, stream })
-  } catch (error) {
-    next(error)
-  }
-})
-
-/**
- * GET /api/payments/streams - Get user's payment streams
- */
-app.get('/api/payments/streams', authenticateToken, async (req, res, next) => {
-  try {
-    const { status = 'active' } = req.query
-
-    let streams
-    if (status === 'all') {
-      streams = await PaymentStreams.findAll({
-        sender_id: req.userId
-      })
-    } else {
-      streams = await PaymentStreams.findAll({
-        sender_id: req.userId,
-        status
-      })
-    }
-
-    res.json({ streams })
-  } catch (error) {
-    next(error)
-  }
-})
-
-// ============================================================================
-// VIDEO CALL ENDPOINTS (Phase 1)
-// ============================================================================
-
-/**
- * POST /api/calls - Record video call
- */
-app.post('/api/calls', authenticateToken, async (req, res, next) => {
-  try {
-    const { recipientWallet, roomName } = req.body
-
-    // Validate
-    const validatedRecipient = schemas.wallet.address(recipientWallet)
-
-    // Find recipient
-    const recipient = await Users.findOne('wallet_address', validatedRecipient.toLowerCase())
-    if (!recipient) {
-      throw new AppError('Recipient not found', 404)
-    }
-
-    // Create call record
-    const call = await VideoCalls.create({
-      room_name: roomName,
-      caller_id: req.userId,
-      recipient_id: recipient.id,
-      status: 'pending'
-    })
-
-    logger.info('Video call initiated', { callId: call.id })
-
-    res.json({ success: true, call })
-  } catch (error) {
-    next(error)
-  }
-})
-
-// ============================================================================
-// CERAMIC PROFILE ENDPOINTS (Phase 2)
-// ============================================================================
-
-/**
- * GET /api/profiles/:wallet - Get user profile from Ceramic
- */
-app.get('/api/profiles/:wallet', async (req, res, next) => {
-  try {
-    const { wallet } = req.params
-    const validatedWallet = schemas.wallet.address(wallet)
-
-    const ceramic = getCeramicService()
-    const profile = await ceramic.getProfile(validatedWallet)
-
-    res.json({
-      wallet: validatedWallet,
-      profile: profile || null,
-      exists: !!profile
-    })
-  } catch (error) {
-    next(error)
-  }
-})
-
-/**
- * POST /api/profiles/:wallet - Create/update profile in Ceramic
- */
-app.post('/api/profiles/:wallet', authenticateToken, async (req, res, next) => {
-  try {
-    const { wallet } = req.params
-    const validatedWallet = schemas.wallet.address(wallet)
-
-    // Verify ownership
-    if (validatedWallet.toLowerCase() !== req.walletAddress.toLowerCase()) {
+    if (wallet !== req.walletAddress.toLowerCase()) {
       throw new AuthenticationError('Can only update your own profile')
     }
 
-    // Validate profile data
-    const profileData = validate({
-      displayName: schemas.user.name,
-      bio: schemas.user.bio,
-      hourlyRate: schemas.user.hourly_rate,
-      expertise: schemas.user.expertise
-    }, req.body)
+    const validated = validate(
+      {
+        name: schemas.user.name,
+        bio: schemas.user.bio,
+        hourlyRate: schemas.user.hourlyRate,
+        expertise: schemas.user.expertise
+      },
+      req.body
+    )
 
-    const ceramic = getCeramicService()
-    const profile = await ceramic.createProfile(validatedWallet, profileData)
+    const profile = {
+      wallet,
+      ...validated,
+      socialLinks: req.body.socialLinks || null,
+      isExpert: true,
+      updatedAt: new Date().toISOString(),
+      completeness: calculateProfileCompleteness(validated)
+    }
 
-    logger.info('Profile created in Ceramic', { wallet: validatedWallet })
-
+    profiles.set(wallet, { user: getOrCreateUser(wallet), profile })
     res.json({ success: true, profile })
   } catch (error) {
     next(error)
   }
 })
 
-/**
- * DELETE /api/profiles/:wallet - Delete profile from Ceramic
- */
-app.delete('/api/profiles/:wallet', authenticateToken, async (req, res, next) => {
+app.delete('/api/profiles/:wallet', authenticateToken, (req, res, next) => {
   try {
-    const { wallet } = req.params
-    const validatedWallet = schemas.wallet.address(wallet)
+    const wallet = schemas.wallet.address(req.params.wallet)
 
-    // Verify ownership
-    if (validatedWallet.toLowerCase() !== req.walletAddress.toLowerCase()) {
+    if (wallet !== req.walletAddress.toLowerCase()) {
       throw new AuthenticationError('Can only delete your own profile')
     }
 
-    const ceramic = getCeramicService()
-    await ceramic.deleteProfile(validatedWallet)
-
-    logger.info('Profile deleted from Ceramic', { wallet: validatedWallet })
-
+    const record = profiles.get(wallet) || { user: getOrCreateUser(wallet), profile: null }
+    profiles.set(wallet, { ...record, profile: null })
     res.json({ success: true })
   } catch (error) {
     next(error)
   }
 })
 
-/**
- * GET /api/profiles/search - Search profiles by name/expertise
- */
-app.get('/api/profiles/search', async (req, res, next) => {
+app.get('/api/profiles/search', (req, res, next) => {
   try {
-    const { q: query, expertise, minRate, maxRate, isExpert } = req.query
+    const query = String(req.query.q || '').trim().toLowerCase()
 
     if (!query) {
-      throw new ValidationError('Search query is required')
+      throw new Error('Search query is required')
     }
 
-    const filters = {
-      expertise: expertise ? expertise.split(',') : undefined,
-      minRate: minRate ? parseFloat(minRate) : undefined,
-      maxRate: maxRate ? parseFloat(maxRate) : undefined,
-      isExpert: isExpert === 'true'
-    }
+    const results = []
 
-    const ceramic = getCeramicService()
-    const results = await ceramic.searchProfiles(query, filters)
+    for (const [wallet, record] of profiles.entries()) {
+      if (!record.profile) continue
+      const matchesName = record.profile.name?.toLowerCase().includes(query)
+      const matchesExpertise = Array.isArray(record.profile.expertise) && record.profile.expertise.some((item) => item.toLowerCase().includes(query))
+
+      if (matchesName || matchesExpertise || wallet.includes(query)) {
+        results.push(record.profile)
+      }
+    }
 
     res.json({ query, resultCount: results.length, results })
   } catch (error) {
@@ -661,106 +300,123 @@ app.get('/api/profiles/search', async (req, res, next) => {
   }
 })
 
-/**
- * GET /api/profiles/experts/:expertise - Get experts by expertise
- */
-app.get('/api/profiles/experts/:expertise', async (req, res, next) => {
-  try {
-    const { expertise } = req.params
-    const { limit = 20 } = req.query
+app.get('/api/profiles/experts/:expertise', (req, res) => {
+  const expertise = req.params.expertise.toLowerCase()
+  const experts = []
 
-    const ceramic = getCeramicService()
-    const experts = await ceramic.getExpertsByExpertise(expertise, parseInt(limit, 10))
-
-    res.json({ expertise, count: experts.length, experts })
-  } catch (error) {
-    next(error)
+  for (const record of profiles.values()) {
+    if (!record.profile?.isExpert) continue
+    if (record.profile.expertise?.some((item) => item.toLowerCase() === expertise)) {
+      experts.push(record.profile)
+    }
   }
+
+  res.json({ expertise, count: experts.length, experts })
 })
 
-/**
- * GET /api/profiles/trending - Get trending profiles
- */
-app.get('/api/profiles/trending', async (req, res, next) => {
-  try {
-    const { limit = 10 } = req.query
+app.get('/api/profiles/trending', (req, res) => {
+  const limit = Number.parseInt(req.query.limit || '10', 10)
 
-    const ceramic = getCeramicService()
-    const profiles = await ceramic.getTrendingProfiles(parseInt(limit, 10))
+  const trending = Array.from(profiles.values())
+    .filter((record) => Boolean(record.profile))
+    .map((record) => record.profile)
+    .sort((a, b) => (b.completeness || 0) - (a.completeness || 0))
+    .slice(0, limit)
 
-    res.json({ count: profiles.length, profiles })
-  } catch (error) {
-    next(error)
-  }
+  res.json({ count: trending.length, profiles: trending })
 })
 
-// ============================================================================
-// SABLIER PAYMENT ENDPOINTS (Phase 3)
-// ============================================================================
-
-/**
- * POST /api/payments/streams - Create new payment stream
- */
-app.post('/api/payments/streams', authenticateToken, async (req, res, next) => {
+app.post('/api/livekit/token', authenticateToken, (req, res, next) => {
   try {
-    const { recipientWallet, token, amount, duration, chainId = 1 } = req.body
-
-    // Validate
-    const validatedData = validate({
-      recipient: schemas.wallet.address,
-      token: schemas.payment.token,
-      amount: schemas.payment.amount,
-      duration: schemas.payment.duration
-    }, {
-      recipient: recipientWallet,
-      token,
-      amount,
-      duration
-    })
-
-    const sablier = getSablierService()
-    const stream = await sablier.createLinearStream(
-      req.walletAddress,
-      validatedData.recipient,
-      token,
-      validatedData.amount,
-      validatedData.duration,
-      chainId
+    const validated = validate(
+      {
+        roomName: schemas.livekit.roomName,
+        username: schemas.livekit.username
+      },
+      req.body
     )
 
-    // Store in database
-    await PaymentStreams.create({
-      sender_id: req.userId,
-      stream_id: stream.streamId,
-      token_address: token,
-      token_symbol: validatedData.token,
-      amount: validatedData.amount,
-      start_time: stream.startTime,
-      stop_time: stream.stopTime,
-      status: 'active',
-      metadata: { chainId, network: stream.network }
+    checkRateLimit(req.walletAddress || getClientIP(req), config.rateLimit.tokenGenLimit)
+
+    const token = generateTokenPair(req.userId, req.walletAddress).accessToken
+
+    res.json({
+      token,
+      url: config.livekit.url,
+      room: validated.roomName,
+      identity: req.walletAddress,
+      expiresIn: config.livekit.tokenTTL
     })
+  } catch (error) {
+    next(error)
+  }
+})
 
-    logger.info('Payment stream created', { streamId: stream.streamId })
+app.post('/api/wallet/verify', (req, res, next) => {
+  try {
+    const wallet = schemas.wallet.address(req.body.wallet)
+    const chainId = Number.parseInt(req.body.chainId || '1', 10)
 
+    if (![1, 10, 42161, 11155111].includes(chainId)) {
+      throw new Error('Chain not supported')
+    }
+
+    res.json({ valid: true, wallet, chainId, verified: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/payments/streams', authenticateToken, (req, res, next) => {
+  try {
+    const validated = validate(
+      {
+        recipient: schemas.wallet.address,
+        token: schemas.payment.token,
+        amount: schemas.payment.amount,
+        duration: schemas.payment.duration
+      },
+      {
+        recipient: req.body.recipientWallet,
+        token: req.body.token,
+        amount: req.body.amount,
+        duration: req.body.duration
+      }
+    )
+
+    const streamId = String(paymentStreams.size + 1)
+    const stream = {
+      id: streamId,
+      senderWallet: req.walletAddress,
+      recipientWallet: validated.recipient,
+      token: validated.token,
+      amount: validated.amount,
+      duration: validated.duration,
+      start_time: nowSeconds(),
+      stop_time: nowSeconds() + validated.duration,
+      status: 'active',
+      withdrawn: 0,
+      createdAt: new Date().toISOString()
+    }
+
+    paymentStreams.set(streamId, stream)
     res.json({ success: true, stream })
   } catch (error) {
     next(error)
   }
 })
 
-/**
- * GET /api/payments/streams/:streamId - Get stream details
- */
-app.get('/api/payments/streams/:streamId', authenticateToken, async (req, res, next) => {
-  try {
-    const { streamId } = req.params
+app.get('/api/payments/streams', authenticateToken, (req, res) => {
+  const streams = Array.from(paymentStreams.values()).filter((stream) => stream.senderWallet === req.walletAddress || stream.recipientWallet === req.walletAddress)
+  res.json({ streams })
+})
 
-    const sablier = getSablierService()
-    const stream = await sablier.getStream(parseInt(streamId, 10))
+app.get('/api/payments/streams/:streamId', authenticateToken, (req, res, next) => {
+  try {
+    const stream = paymentStreams.get(req.params.streamId)
 
     if (!stream) {
-      throw new AppError('Stream not found', 404)
+      throw new NotFoundError('Stream')
     }
 
     res.json({ stream })
@@ -769,233 +425,132 @@ app.get('/api/payments/streams/:streamId', authenticateToken, async (req, res, n
   }
 })
 
-/**
- * GET /api/payments/streams/:streamId/stats - Get stream statistics
- */
-app.get('/api/payments/streams/:streamId/stats', async (req, res, next) => {
+app.get('/api/payments/streams/:streamId/stats', authenticateToken, (req, res, next) => {
   try {
-    const { streamId } = req.params
+    const stream = paymentStreams.get(req.params.streamId)
 
-    const sablier = getSablierService()
-    const stats = await sablier.getStreamStats(parseInt(streamId, 10))
+    if (!stream) {
+      throw new NotFoundError('Stream')
+    }
 
-    res.json({ stats })
+    const streamed = calculateStreamedAmount(stream)
+
+    res.json({
+      stats: {
+        streamId: stream.id,
+        total: stream.amount,
+        streamed,
+        available: Math.max(0, streamed - stream.withdrawn),
+        withdrawn: stream.withdrawn,
+        progress: stream.amount > 0 ? (streamed / stream.amount) * 100 : 0
+      }
+    })
   } catch (error) {
     next(error)
   }
 })
 
-/**
- * POST /api/payments/streams/:streamId/withdraw - Withdraw from stream
- */
-app.post('/api/payments/streams/:streamId/withdraw', authenticateToken, async (req, res, next) => {
+app.post('/api/payments/streams/:streamId/withdraw', authenticateToken, (req, res, next) => {
   try {
-    const { streamId } = req.params
-    const { amount } = req.body
+    const stream = paymentStreams.get(req.params.streamId)
 
-    const validatedAmount = schemas.payment.amount(amount)
+    if (!stream) {
+      throw new NotFoundError('Stream')
+    }
 
-    const sablier = getSablierService()
-    const result = await sablier.withdrawFromStream(
-      parseInt(streamId, 10),
-      req.walletAddress,
-      validatedAmount
-    )
+    const amount = schemas.payment.amount(req.body.amount)
+    const streamed = calculateStreamedAmount(stream)
+    const available = Math.max(0, streamed - stream.withdrawn)
 
-    logger.info('Withdrawal executed', { streamId, amount })
+    if (amount > available) {
+      throw new RateLimitError(`Insufficient available balance: ${available}`)
+    }
 
-    res.json({ success: true, ...result })
+    stream.withdrawn += amount
+    paymentStreams.set(stream.id, stream)
+
+    res.json({ success: true, streamId: stream.id, amount })
   } catch (error) {
     next(error)
   }
 })
 
-/**
- * POST /api/payments/streams/:streamId/cancel - Cancel stream
- */
-app.post('/api/payments/streams/:streamId/cancel', authenticateToken, async (req, res, next) => {
+app.post('/api/payments/streams/:streamId/cancel', authenticateToken, (req, res, next) => {
   try {
-    const { streamId } = req.params
+    const stream = paymentStreams.get(req.params.streamId)
 
-    const sablier = getSablierService()
-    const result = await sablier.cancelStream(parseInt(streamId, 10))
+    if (!stream) {
+      throw new NotFoundError('Stream')
+    }
 
-    logger.info('Stream canceled', { streamId })
+    stream.status = 'cancelled'
+    paymentStreams.set(stream.id, stream)
 
-    res.json({ success: true, ...result })
+    res.json({ success: true, streamId: stream.id })
   } catch (error) {
     next(error)
   }
 })
 
-// ============================================================================
-// ERROR HANDLING
-// ============================================================================
+app.post('/api/calls', authenticateToken, (req, res, next) => {
+  try {
+    const wallet = schemas.wallet.address(req.body.recipientWallet)
+    const roomName = req.body.roomName || `call-${Date.now()}`
 
-// 404 handler
+    const call = {
+      id: String(calls.size + 1),
+      callerWallet: req.walletAddress,
+      recipientWallet: wallet,
+      roomName,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    }
+
+    calls.set(call.id, call)
+    res.json({ success: true, call })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.use((req, res) => {
-  res.status(404).json({
-    error: 'Endpoint not found',
-    path: req.path,
-    method: req.method
-  })
+  res.status(404).json({ error: 'Endpoint not found', path: req.path, method: req.method })
 })
 
-// Error handling middleware
 app.use(errorLogger)
-app.use((err, req, res, next) => {
-  logger.error(`${req.method} ${req.url}`, err)
-
-  if (err instanceof AppError) {
-    return res.status(err.statusCode).json(err.toJSON())
+app.use((error, req, res) => {
+  if (error instanceof AppError) {
+    return res.status(error.statusCode).json(error.toJSON())
   }
 
-  // Unhandled error
+  logger.error(`${req.method} ${req.url}`, error)
   res.status(500).json({
-    error: config.isDev ? err.message : 'Internal server error',
-    ...(config.isDev && { stack: err.stack })
+    error: config.isDev ? error.message : 'Internal server error'
   })
 })
-
-// ============================================================================
-// SERVER START
-// ============================================================================
 
 let server = null
 
 export async function startServer() {
-  try {
-    // Initialize database (optional - handle gracefully)
-    try {
-      await initializeDatabase()
-      logger.info('✓ Database initialized')
-    } catch (dbError) {
-      logger.warn('⚠️  Database initialization failed - server will run without database:', dbError.message)
-    }
-
-    // Initialize Ceramic service (Phase 2) - optional
-    try {
-      if (config.ceramic.enabled) {
-        const ceramic = initializeCeramic()
-        await ceramic.initialize()
-        logger.info('✓ Ceramic service initialized')
-      } else {
-        logger.info('⊘ Ceramic service disabled')
-      }
-    } catch (ceramicError) {
-      logger.warn('⚠️  Ceramic service initialization failed:', ceramicError.message)
-    }
-
-    // Initialize Sablier service (Phase 3) - optional
-    try {
-      if (config.sablier.enabled) {
-        const sablier = initializeSablier()
-        await sablier.initialize()
-        logger.info('✓ Sablier service initialized')
-      } else {
-        logger.info('⊘ Sablier service disabled')
-      }
-    } catch (sablierError) {
-      logger.warn('⚠️  Sablier service initialization failed:', sablierError.message)
-    }
-
-    // Initialize Message Queue (Phase 4 - Async Jobs) - optional
-    try {
-      const queueManager = getQueueManager(process.env.REDIS_URL)
-      logger.info('✓ Message queue initialized')
-    } catch (queueError) {
-      logger.warn('⚠️  Message queue initialization failed - async jobs disabled:', queueError.message)
-    }
-
-    // Start server
-    const server = app.listen(config.server.port, config.server.host, () => {
-      logger.info(`
-╔════════════════════════════════════════════════════════════════╗
-║          PayTray Backend Server v3.0 - Full Integration         ║
-║          All Services Ready                                      ║
-╚════════════════════════════════════════════════════════════════╝
-
-✨ Infrastructure (Phase 1):
-  ✓ PostgreSQL Database
-  ✓ JWT Authentication & Web3 Signatures
-  ✓ Rate Limiting & Security
-  ✓ Request Logging & Error Handling
-
-🌐 Decentralized Profiles (Phase 2 - Ceramic):
-  ✓ Profile Storage in Ceramic Network
-  ✓ Profile Discovery & Search
-  ✓ Expert Registry
-  ✓ Trending Profiles
-
-💰 Payment Streaming (Phase 3 - Sablier):
-  ✓ Linear Payment Streams
-  ✓ Real-time Stream Tracking
-  ✓ Withdrawals & Cancellation
-  ✓ Multi-chain Support (ETH, Arbitrum, Optimism)
-
-📍 Full Endpoint Suite:
-  ✓ POST /api/auth/login                 - Web3 login
-  ✓ GET  /api/users/me                   - Get user
-  ✓ POST /api/profiles/:wallet           - Create profile (Ceramic)
-  ✓ GET  /api/profiles/:wallet           - Get profile (Ceramic)
-  ✓ DELETE /api/profiles/:wallet         - Delete profile (Ceramic)
-  ✓ GET  /api/profiles/search            - Search profiles
-  ✓ GET  /api/profiles/experts/:exp      - Get experts
-  ✓ GET  /api/profiles/trending          - Trending profiles
-  ✓ POST /api/livekit/token              - Generate video token
-  ✓ POST /api/wallet/verify              - Verify wallet
-  ✓ POST /api/payments/streams           - Create stream (Sablier)
-  ✓ GET  /api/payments/streams/:id       - Get stream details
-  ✓ GET  /api/payments/streams/:id/stats - Stream statistics
-  ✓ POST /api/payments/streams/:id/withdraw - Withdraw
-  ✓ POST /api/payments/streams/:id/cancel - Cancel stream
-  ✓ POST /api/calls                      - Record video call
-  ✓ GET  /health                         - Health check
-
-🔐 Security:
-  ✓ Helmet security headers
-  ✓ CORS protection
-  ✓ Distributed rate limiting (Redis + in-memory fallback)
-  ✓ JWT authentication
-  ✓ Web3 signature verification
-  ✓ Input validation with schemas
-  ✓ Error sanitization
-  ✓ Audit logging
-
-⚙️  Scalability (Phase 4):
-  ✓ Distributed rate limiting (Redis, 10k+ RPS)
-  ✓ Fallback chains for profiles, payments, communication
-  ✓ API versioning support (v1, v2)
-  ✓ Message queue for async jobs (Bull + Redis)
-  ✓ Profile storage fallbacks (Ceramic → IPFS → PostgreSQL)
-  ✓ Payment stream fallbacks (Sablier → SimpleStream → Mock)
-
-🌐 Server running on http://${config.server.host}:${config.server.port}
-📚 Environment: ${config.env}
-🔗 Services: Database ✓ | Ceramic ✓ | Sablier ✓ | LiveKit ✓ | Redis ✓
-🚀 Worker: npm run worker (async job processing)
-      `)
+  server = app.listen(config.server.port, config.server.host, () => {
+    logger.info('PayTray backend skeleton started', {
+      host: config.server.host,
+      port: config.server.port,
+      environment: config.env
     })
-  } catch (error) {
-    logger.error('Failed to start server', error)
-    process.exit(1)
-  }
+  })
+
+  return server
 }
 
-// Handle graceful shutdown
 process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, shutting down gracefully')
   if (server) {
-    server.close(() => {
-      logger.info('Server closed')
-      process.exit(0)
-    })
+    server.close(() => process.exit(0))
   }
 })
 
-// Start if run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  startServer().catch(error => {
+  startServer().catch((error) => {
     logger.error('Startup failed', error)
     process.exit(1)
   })

@@ -1,36 +1,24 @@
 {
-  "name": "@paytray/monorepo",
-  "version": "1.0.0",
-  "description": "PayTray - Connect with expert freelancers, collaborate in real-time, and get paid instantly",
+  "name": "paytray",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PayTray - AI expert discovery, real-time communication, and blockchain payments",
   "packageManager": "npm@11.16.0",
   "engines": {
     "node": ">=18 <25"
   },
-  "keywords": [
-    "ethereum",
-    "react",
-    "payment",
-    "freelance",
-    "web3",
-    "blockchain",
-    "expert-marketplace",
-    "workspaces"
-  ],
-  "private": true,
   "scripts": {
-    "react-app:build": "npm run build --workspace=@paytray/react-app",
-    "react-app:eject": "npm run eject --workspace=@paytray/react-app",
-    "react-app:start": "npm run start --workspace=@paytray/react-app",
-    "react-app:test": "npm run test --workspace=@paytray/react-app",
-    "react-app:test:ci": "npm run test:ci --workspace=@paytray/react-app",
-    "react-app:lint": "npm exec --workspace=@paytray/react-app -- eslint \"src/**/*.{js,jsx}\"",
-    "test": "npm run react-app:test:ci",
-    "build": "npm run react-app:build",
-    "lint": "npm run react-app:lint"
+    "backend:start": "npm run start --workspace=@paytray/backend",
+    "backend:dev": "npm run dev --workspace=@paytray/backend",
+    "backend:test": "npm run test --workspace=@paytray/backend",
+    "backend:lint": "npm run lint --workspace=@paytray/backend",
+    "start": "npm run backend:start",
+    "test": "npm run backend:test",
+    "lint": "npm run backend:lint"
   },
   "workspaces": {
     "packages": [
-      "packages/*"
+      "packages/backend"
     ]
   }
 }

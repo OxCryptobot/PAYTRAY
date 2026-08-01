@@ -1,231 +1,109 @@
-/**
- * Security Utilities
- * JWT generation, password hashing, encryption, and authentication
- */
-
-import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
+import jwt from 'jsonwebtoken'
+import { verifyMessage } from 'ethers'
 import config from './config.js'
-import { AuthenticationError, AuthorizationError } from './errors.js'
+import { AuthenticationError } from './errors.js'
 
-/**
- * Generate JWT token
- */
 export function generateToken(payload, expiresIn = config.jwt.accessTokenTTL) {
-  try {
-    return jwt.sign(payload, config.jwt.secret, {
-      expiresIn,
-      algorithm: 'HS256',
-      issuer: 'paytray-backend'
-    })
-  } catch (error) {
-    throw new Error(`Failed to generate token: ${error.message}`)
-  }
+  return jwt.sign(payload, config.jwt.secret, {
+    expiresIn,
+    algorithm: 'HS256',
+    issuer: 'paytray'
+  })
 }
 
-/**
- * Verify JWT token
- */
 export function verifyToken(token) {
   try {
-    return jwt.verify(token, config.jwt.secret, {
-      algorithms: ['HS256']
-    })
+    return jwt.verify(token, config.jwt.secret, { algorithms: ['HS256'] })
   } catch (error) {
-    throw new AuthenticationError(`Invalid token: ${error.message}`)
+    throw new AuthenticationError(error.message)
   }
 }
 
-/**
- * Decode token without verification (for debugging)
- */
 export function decodeToken(token) {
-  try {
-    return jwt.decode(token)
-  } catch (error) {
-    throw new AuthenticationError('Failed to decode token')
+  return jwt.decode(token)
+}
+
+export function generateTokenPair(userId, walletAddress) {
+  return {
+    accessToken: generateToken({ userId, walletAddress, type: 'access' }, config.jwt.accessTokenTTL),
+    refreshToken: generateToken({ userId, walletAddress, type: 'refresh' }, config.jwt.refreshTokenTTL)
   }
 }
 
-/**
- * Generate access and refresh tokens
- */
-export function generateTokenPair(userId, walletAddress) {
-  const accessToken = generateToken(
-    {
-      userId,
-      walletAddress,
-      type: 'access'
-    },
-    config.jwt.accessTokenTTL
-  )
-
-  const refreshToken = generateToken(
-    {
-      userId,
-      walletAddress,
-      type: 'refresh'
-    },
-    config.jwt.refreshTokenTTL
-  )
-
-  return { accessToken, refreshToken }
-}
-
-/**
- * Verify wallet signature (for Web3 authentication)
- */
 export function verifyWalletSignature(message, signature, address) {
   try {
-    // This is a simplified example - in production, use ethers.js or web3.js
-    // to properly verify EIP-191 signatures
-
-    const messageHash = crypto
-      .createHash('sha256')
-      .update(message)
-      .digest('hex')
-
-    // Basic validation
-    if (!signature || !signature.startsWith('0x')) {
-      throw new AuthenticationError('Invalid signature format')
+    if (typeof message !== 'string' || typeof signature !== 'string' || typeof address !== 'string') {
+      throw new AuthenticationError('Invalid signature payload')
     }
 
-    // In production: use ethers.verifyMessage() or similar
-    // This is a placeholder that shows the structure
+    const recoveredAddress = verifyMessage(message, signature)
+    const verified = recoveredAddress.toLowerCase() === address.toLowerCase()
+
     return {
-      verified: true,
-      address: address.toLowerCase(),
-      message,
-      timestamp: Date.now()
+      verified,
+      address: recoveredAddress.toLowerCase(),
+      message
     }
   } catch (error) {
     throw new AuthenticationError(`Signature verification failed: ${error.message}`)
   }
 }
 
-/**
- * Hash value (for storing sensitive data)
- */
 export function hashValue(value) {
-  return crypto
-    .createHash('sha256')
-    .update(value)
-    .digest('hex')
+  return crypto.createHash('sha256').update(String(value)).digest('hex')
 }
 
-/**
- * Hash with salt (for passwords, API keys)
- */
 export function hashWithSalt(value, salt = crypto.randomBytes(16)) {
-  const hash = crypto
-    .pbkdf2Sync(value, salt, 1000, 64, 'sha512')
-    .toString('hex')
-  return `${hash}:${salt.toString('hex')}`
+  const derivedKey = crypto.pbkdf2Sync(String(value), salt, 100000, 64, 'sha512').toString('hex')
+  return `${derivedKey}:${salt.toString('hex')}`
 }
 
-/**
- * Verify hashed value
- */
 export function verifyHash(value, hashedValue) {
   try {
-    const [hash, salt] = hashedValue.split(':')
-    const saltBuffer = Buffer.from(salt, 'hex')
-    const newHash = crypto
-      .pbkdf2Sync(value, saltBuffer, 1000, 64, 'sha512')
-      .toString('hex')
-    return newHash === hash
-  } catch (error) {
+    const [derivedKey, saltHex] = hashedValue.split(':')
+    const salt = Buffer.from(saltHex, 'hex')
+    const comparison = crypto.pbkdf2Sync(String(value), salt, 100000, 64, 'sha512').toString('hex')
+    return crypto.timingSafeEqual(Buffer.from(comparison, 'hex'), Buffer.from(derivedKey, 'hex'))
+  } catch {
     return false
   }
 }
 
-/**
- * Generate random token (for email verification, password reset, etc.)
- */
 export function generateRandomToken(length = 32) {
   return crypto.randomBytes(length).toString('hex')
 }
 
-/**
- * Encrypt sensitive data
- */
-export function encrypt(data) {
-  const iv = crypto.randomBytes(16)
-  const cipher = crypto.createCipheriv(
-    'aes-256-gcm',
-    Buffer.from(config.jwt.secret.slice(0, 32)),
-    iv
-  )
-
-  let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex')
-  encrypted += cipher.final('hex')
-  const authTag = cipher.getAuthTag()
-
-  return {
-    encrypted,
-    iv: iv.toString('hex'),
-    authTag: authTag.toString('hex')
-  }
-}
-
-/**
- * Decrypt sensitive data
- */
-export function decrypt({ encrypted, iv, authTag }) {
-  try {
-    const decipher = crypto.createDecipheriv(
-      'aes-256-gcm',
-      Buffer.from(config.jwt.secret.slice(0, 32)),
-      Buffer.from(iv, 'hex')
-    )
-
-    decipher.setAuthTag(Buffer.from(authTag, 'hex'))
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
-    decrypted += decipher.final('utf8')
-
-    return JSON.parse(decrypted)
-  } catch (error) {
-    throw new AuthenticationError(`Decryption failed: ${error.message}`)
-  }
-}
-
-/**
- * Rate limit check
- */
 export const rateLimitMap = new Map()
 
 export function checkRateLimit(key, limit = config.rateLimit.max, windowMs = config.rateLimit.windowMs) {
   const now = Date.now()
-  const limitData = rateLimitMap.get(key) || { count: 0, resetAt: now + windowMs }
+  const record = rateLimitMap.get(key) || { count: 0, resetAt: now + windowMs }
 
-  if (now > limitData.resetAt) {
-    // Window expired, reset
-    limitData.count = 1
-    limitData.resetAt = now + windowMs
-  } else {
-    limitData.count++
+  if (now > record.resetAt) {
+    record.count = 0
+    record.resetAt = now + windowMs
   }
 
-  rateLimitMap.set(key, limitData)
+  record.count += 1
+  rateLimitMap.set(key, record)
 
-  if (limitData.count > limit) {
-    throw new AuthenticationError(`Rate limit exceeded. Retry after ${Math.ceil((limitData.resetAt - now) / 1000)}s`)
+  if (record.count > limit) {
+    throw new AuthenticationError(`Rate limit exceeded. Retry after ${Math.ceil((record.resetAt - now) / 1000)}s`)
   }
 
   return {
-    remaining: limit - limitData.count,
-    resetAt: limitData.resetAt
+    remaining: Math.max(0, limit - record.count),
+    resetAt: record.resetAt
   }
 }
 
-/**
- * IP-based identification
- */
 export function getClientIP(req) {
+  const forwarded = req.headers['x-forwarded-for']
   return (
-    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    (typeof forwarded === 'string' && forwarded.split(',')[0].trim()) ||
     req.headers['x-client-ip'] ||
-    req.connection.remoteAddress ||
+    req.socket?.remoteAddress ||
     'unknown'
   )
 }
@@ -240,8 +118,7 @@ export default {
   hashWithSalt,
   verifyHash,
   generateRandomToken,
-  encrypt,
-  decrypt,
   checkRateLimit,
-  getClientIP
+  getClientIP,
+  rateLimitMap
 }

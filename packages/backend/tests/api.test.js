@@ -1170,6 +1170,56 @@ describe('PayTray backend skeleton', () => {
     }
   })
 
+  it('processes webhook deliveries without a signature when signing is disabled', async () => {
+    const owner = new Wallet('0x6adf0d8b7e7d6a5c4b3a291807f6e5d4c3b2a1908f7e6d5c4b3a291807f6e5d4')
+    const actor = new Wallet('0x1f6e5d4c3b2a1908f7e6d5c4b3a291807f6e5d4c3b2a1908f7e6d5c4b3a29180')
+    const ownerToken = await loginWallet(owner)
+    const actorToken = await loginWallet(actor)
+    const originalSigningSecret = config.webhooks.signingSecret
+
+    try {
+      config.webhooks.signingSecret = null
+
+      const hookResponse = await request(app)
+        .post('/api/extensions/hooks')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ event: 'reputation.event.created', callbackUrl: 'https://example.com/no-signature-hook' })
+
+      expect(hookResponse.status).toBe(200)
+
+      const eventResponse = await request(app)
+        .post('/api/reputation/events')
+        .set('Authorization', `Bearer ${actorToken}`)
+        .send({
+          wallet: owner.address,
+          outcome: 'completed',
+          paidMinutes: 18,
+          expertise: ['backend']
+        })
+
+      expect(eventResponse.status).toBe(200)
+
+      const processResponse = await request(app)
+        .post('/api/ops/webhooks/process')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ dryRun: true })
+
+      expect(processResponse.status).toBe(200)
+
+      const deliveriesResponse = await request(app)
+        .get('/api/ops/webhooks/deliveries')
+        .set('Authorization', `Bearer ${ownerToken}`)
+
+      expect(deliveriesResponse.status).toBe(200)
+      const delivery = deliveriesResponse.body.deliveries.find((item) => item.hookId === hookResponse.body.hook.id)
+      expect(delivery).toBeDefined()
+      expect(delivery.lastSignature).toBeNull()
+      expect(typeof delivery.lastSignatureTimestamp).toBe('string')
+    } finally {
+      config.webhooks.signingSecret = originalSigningSecret
+    }
+  })
+
   it('scopes webhook delivery visibility to hook owner', async () => {
     const owner = new Wallet('0xb7b9b97af72dcb1ff9d37a2b9712db4e8d42ce5ab9f8fb48f0d72f3c8dd7f5ad')
     const actor = new Wallet('0x58d30407ef8786fa130f820ec7d5a0f1a16c4fa83f7792fbeb6a8f9f9cc23544')

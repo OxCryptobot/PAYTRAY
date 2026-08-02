@@ -1063,6 +1063,23 @@ describe('PayTray backend skeleton', () => {
     }
   })
 
+  it('rejects public api requests with an invalid api key', async () => {
+    const originalPublicApiKey = config.publicApi.key
+
+    try {
+      config.publicApi.key = 'test-public-api-key'
+
+      const publicExpertsResponse = await request(app)
+        .get('/api/public/experts')
+        .set('x-api-key', 'incorrect-public-api-key')
+
+      expect(publicExpertsResponse.status).toBe(401)
+      expect(publicExpertsResponse.body.error).toBe('Invalid API key')
+    } finally {
+      config.publicApi.key = originalPublicApiKey
+    }
+  })
+
   it('includes scopes in login response and token-driven operations remain authorized', async () => {
     const wallet = new Wallet('0x92f4eb27a4324de90fa6a5cb6cbfa95f5f4d67e8f413f6077a2d5ef1b5d8a813')
     const challenge = await createChallenge(wallet.address)

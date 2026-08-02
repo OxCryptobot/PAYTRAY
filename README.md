@@ -75,6 +75,7 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 - Auth scopes:
 	- Wallet login now uses a challenge-first flow via `POST /api/auth/challenge` and `POST /api/auth/login`.
 	- Challenge payloads include nonce and expiry and are one-time use.
+	- Login can request a least-privilege scope subset by sending `scopes: string[]` to `POST /api/auth/login`; escalation beyond wallet defaults is rejected.
 	- Challenge issuance is rate limited per wallet and client IP.
 	- Login attempts are rate limited per wallet and client IP.
 	- JWT access tokens now include scope claims.

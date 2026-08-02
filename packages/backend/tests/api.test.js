@@ -17,16 +17,21 @@ async function createChallenge(walletAddress) {
   return response.body.challenge
 }
 
-async function loginWallet(wallet) {
+async function loginWallet(wallet, options = {}) {
   const challenge = await createChallenge(wallet.address)
   const signature = await wallet.signMessage(challenge.message)
-
-  const response = await request(app).post('/api/auth/login').send({
+  const payload = {
     wallet: wallet.address,
     signature,
     challengeId: challenge.id,
     message: challenge.message
-  })
+  }
+
+  if (options.scopes) {
+    payload.scopes = options.scopes
+  }
+
+  const response = await request(app).post('/api/auth/login').send(payload)
 
   expect(response.status).toBe(200)
   return response.body.tokens.accessToken
@@ -96,6 +101,47 @@ describe('PayTray backend skeleton', () => {
     })
 
     expect(replayLogin.status).toBe(401)
+  })
+
+  it('issues least-privilege access token when requested scopes are provided', async () => {
+    const wallet = new Wallet('0xa6db1f969c30188939ee7f95da89a5fd1a5fd004b0a2bdba9f7bcf0ab6141f6f')
+    const challenge = await createChallenge(wallet.address)
+    const signature = await wallet.signMessage(challenge.message)
+
+    const loginResponse = await request(app).post('/api/auth/login').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message,
+      scopes: ['profile:*']
+    })
+
+    expect(loginResponse.status).toBe(200)
+    expect(loginResponse.body.user.scopes).toEqual(['profile:*'])
+
+    const opsResponse = await request(app)
+      .get('/api/ops/slo')
+      .set('Authorization', `Bearer ${loginResponse.body.tokens.accessToken}`)
+
+    expect(opsResponse.status).toBe(403)
+    expect(opsResponse.body.error).toContain('Missing required scopes')
+  })
+
+  it('rejects login scope escalation beyond wallet default scopes', async () => {
+    const wallet = new Wallet('0x53d17d09c406910ae8d44b215268feca45de0f6e102e66595c22d14ee4ec504d')
+    const challenge = await createChallenge(wallet.address)
+    const signature = await wallet.signMessage(challenge.message)
+
+    const loginResponse = await request(app).post('/api/auth/login').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message,
+      scopes: ['admin:*']
+    })
+
+    expect(loginResponse.status).toBe(403)
+    expect(loginResponse.body.error).toContain('Requested scope is not allowed')
   })
 
   it('rejects expired auth challenges', async () => {

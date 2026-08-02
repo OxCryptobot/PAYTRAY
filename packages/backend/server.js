@@ -136,6 +136,41 @@ function getDefaultScopes(walletAddress) {
   return baseScopes
 }
 
+function resolveLoginScopes(defaultScopes, requestedScopesRaw) {
+  if (requestedScopesRaw == null) {
+    return defaultScopes
+  }
+
+  if (!Array.isArray(requestedScopesRaw)) {
+    throw new ValidationError('Requested scopes must be an array')
+  }
+
+  const requestedScopes = [...new Set(requestedScopesRaw.map((scope) => {
+    if (typeof scope !== 'string') {
+      throw new ValidationError('Requested scopes must contain only strings')
+    }
+
+    const normalized = scope.trim()
+    if (!normalized) {
+      throw new ValidationError('Requested scopes must not contain empty values')
+    }
+
+    return normalized
+  }))]
+
+  if (requestedScopes.length === 0) {
+    throw new ValidationError('Requested scopes must include at least one scope')
+  }
+
+  for (const scope of requestedScopes) {
+    if (!hasScope(defaultScopes, scope)) {
+      throw new AuthorizationError(`Requested scope is not allowed: ${scope}`)
+    }
+  }
+
+  return requestedScopes
+}
+
 function requireScopes(...requiredScopes) {
   return (req, res, next) => {
     const grantedScopes = safeArray(req.scopes)
@@ -1074,7 +1109,7 @@ app.post('/api/auth/challenge', (req, res, next) => {
 
 app.post('/api/auth/login', (req, res, next) => {
   try {
-    const { wallet, signature, challengeId, message } = req.body
+    const { wallet, signature, challengeId, message, scopes: requestedScopes } = req.body
     const validated = validate(
       {
         wallet: schemas.wallet.address,
@@ -1102,7 +1137,8 @@ app.post('/api/auth/login', (req, res, next) => {
     }
 
     const user = getOrCreateUser(validated.wallet)
-    const scopes = getDefaultScopes(user.wallet_address)
+  const defaultScopes = getDefaultScopes(user.wallet_address)
+  const scopes = resolveLoginScopes(defaultScopes, requestedScopes)
     const tokens = generateTokenPair(user.id, user.wallet_address, scopes)
     requestMetrics.auth.loginSuccess += 1
 

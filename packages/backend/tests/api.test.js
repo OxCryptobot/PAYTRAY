@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import request from 'supertest'
 import { Wallet } from 'ethers'
+import fs from 'fs/promises'
 import config from '../lib/config.js'
 import { rateLimitMap } from '../lib/security.js'
 import app from '../server.js'
@@ -1368,15 +1369,41 @@ describe('PayTray backend skeleton', () => {
   it('persists runtime state through ops endpoint', async () => {
     const user = new Wallet('0x2f517e876e2633ac2dcdf5f6a11a95a38d2dd59af09ee4b5f7fa4dbca6055ea8')
     const token = await loginWallet(user)
+    const originalStateFilePath = config.state.filePath
+    const stateFilePath = '/tmp/paytray-state-persist-test.json'
 
-    const persistResponse = await request(app)
-      .post('/api/ops/state/persist')
-      .set('Authorization', `Bearer ${token}`)
-      .send({})
+    try {
+      config.state.filePath = stateFilePath
 
-    expect(persistResponse.status).toBe(200)
-    expect(persistResponse.body.success).toBe(true)
-    expect(typeof persistResponse.body.path).toBe('string')
+      await request(app)
+        .post('/api/profiles')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'Persisted Expert',
+          bio: 'Ensures durable state persistence works',
+          hourlyRate: 175,
+          expertise: ['state', 'persistence'],
+          timezone: 'UTC',
+          languages: ['en'],
+          chainPreference: 8453
+        })
+
+      const persistResponse = await request(app)
+        .post('/api/ops/state/persist')
+        .set('Authorization', `Bearer ${token}`)
+        .send({})
+
+      expect(persistResponse.status).toBe(200)
+      expect(persistResponse.body.success).toBe(true)
+      expect(persistResponse.body.path).toBe(stateFilePath)
+
+      const persistedState = JSON.parse(await fs.readFile(stateFilePath, 'utf8'))
+      expect(persistedState.version).toBe(1)
+      expect(Array.isArray(persistedState.profiles)).toBe(true)
+      expect(persistedState.profiles.some(([wallet]) => wallet === user.address.toLowerCase())).toBe(true)
+    } finally {
+      config.state.filePath = originalStateFilePath
+    }
   })
 
   it('creates and retrieves an engagement contract', async () => {

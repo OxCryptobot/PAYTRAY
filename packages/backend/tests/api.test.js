@@ -1027,6 +1027,42 @@ describe('PayTray backend skeleton', () => {
     }
   })
 
+  it('serves public payment streams when the public api key is configured', async () => {
+    const sender = new Wallet('0x8c1a2d4b6f9e3d0c1b2a3f4e5d6c7b8a9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6')
+    const recipient = new Wallet('0x6e5d4c3b2a1908f7e6d5c4b3a291807f6e5d4c3b2a1908f7e6d5c4b3a291807f')
+    const token = await loginWallet(sender)
+    const originalPublicApiKey = config.publicApi.key
+
+    try {
+      const streamResponse = await request(app)
+        .post('/api/payments/streams')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          recipientWallet: recipient.address,
+          token: 'USDC',
+          amount: 12,
+          duration: 1200,
+          chainId: 8453
+        })
+
+      expect(streamResponse.status).toBe(200)
+
+      config.publicApi.key = 'test-public-api-key'
+
+      const publicStreamResponse = await request(app)
+        .get(`/api/public/payments/streams/${streamResponse.body.stream.id}`)
+        .set('x-api-key', 'test-public-api-key')
+
+      expect(publicStreamResponse.status).toBe(200)
+      expect(publicStreamResponse.body.success).toBe(true)
+      expect(publicStreamResponse.body.stream.id).toBe(streamResponse.body.stream.id)
+      expect(publicStreamResponse.body.stream.token).toBe('USDC')
+      expect(publicStreamResponse.body.stream.status).toBe(streamResponse.body.stream.status)
+    } finally {
+      config.publicApi.key = originalPublicApiKey
+    }
+  })
+
   it('includes scopes in login response and token-driven operations remain authorized', async () => {
     const wallet = new Wallet('0x92f4eb27a4324de90fa6a5cb6cbfa95f5f4d67e8f413f6077a2d5ef1b5d8a813')
     const challenge = await createChallenge(wallet.address)

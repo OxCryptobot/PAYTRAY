@@ -127,6 +127,62 @@ describe('PayTray backend skeleton', () => {
     expect(opsResponse.body.error).toContain('Missing required scopes')
   })
 
+  it('allows intelligence-scoped tokens for intelligence routes and blocks ops routes', async () => {
+    const wallet = new Wallet('0x8bb2cd804c6eea453f0f79fd4e276ca5a69481cf6be1dd3ee0835d3088c9f612')
+    const challenge = await createChallenge(wallet.address)
+    const signature = await wallet.signMessage(challenge.message)
+
+    const loginResponse = await request(app).post('/api/auth/login').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message,
+      scopes: ['intelligence:*']
+    })
+
+    expect(loginResponse.status).toBe(200)
+    expect(loginResponse.body.user.scopes).toEqual(['intelligence:*'])
+
+    const trainResponse = await request(app)
+      .post('/api/intelligence/ranking/train')
+      .set('Authorization', `Bearer ${loginResponse.body.tokens.accessToken}`)
+      .send({})
+
+    expect(trainResponse.status).toBe(200)
+    expect(trainResponse.body.success).toBe(true)
+
+    const opsResponse = await request(app)
+      .get('/api/ops/slo')
+      .set('Authorization', `Bearer ${loginResponse.body.tokens.accessToken}`)
+
+    expect(opsResponse.status).toBe(403)
+    expect(opsResponse.body.error).toContain('Missing required scopes')
+  })
+
+  it('blocks profile-only scoped tokens from intelligence routes', async () => {
+    const wallet = new Wallet('0xfe2d7f5e8c9c3cc95ad4e8fd1696a4450476e98ea3146f987be01bfd563ef6cf')
+    const challenge = await createChallenge(wallet.address)
+    const signature = await wallet.signMessage(challenge.message)
+
+    const loginResponse = await request(app).post('/api/auth/login').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message,
+      scopes: ['profile:*']
+    })
+
+    expect(loginResponse.status).toBe(200)
+
+    const trainResponse = await request(app)
+      .post('/api/intelligence/ranking/train')
+      .set('Authorization', `Bearer ${loginResponse.body.tokens.accessToken}`)
+      .send({})
+
+    expect(trainResponse.status).toBe(403)
+    expect(trainResponse.body.error).toContain('Missing required scopes')
+  })
+
   it('rejects login scope escalation beyond wallet default scopes', async () => {
     const wallet = new Wallet('0x53d17d09c406910ae8d44b215268feca45de0f6e102e66595c22d14ee4ec504d')
     const challenge = await createChallenge(wallet.address)

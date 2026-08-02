@@ -956,8 +956,21 @@ describe('PayTray backend skeleton', () => {
 
     expect(hookResponse.status).toBe(200)
 
-    const publicApiResponse = await request(app).get('/api/public/experts')
-    expect([401, 503]).toContain(publicApiResponse.status)
+    const originalPublicApiKey = config.publicApi.key
+
+    try {
+      config.publicApi.key = null
+
+      const publicExpertsResponse = await request(app).get('/api/public/experts')
+      expect(publicExpertsResponse.status).toBe(503)
+      expect(publicExpertsResponse.body.error).toBe('Public API is not configured')
+
+      const publicStreamResponse = await request(app).get('/api/public/payments/streams/123')
+      expect(publicStreamResponse.status).toBe(503)
+      expect(publicStreamResponse.body.error).toBe('Public API is not configured')
+    } finally {
+      config.publicApi.key = originalPublicApiKey
+    }
   })
 
   it('rejects chain expansion when reliability sample size is below threshold', async () => {

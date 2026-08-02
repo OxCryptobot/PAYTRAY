@@ -144,6 +144,30 @@ describe('PayTray backend skeleton', () => {
     expect(loginResponse.body.error).toContain('Requested scope is not allowed')
   })
 
+  it('rejects malformed requested scopes payloads during login', async () => {
+    const wallet = new Wallet('0xa5d8dd9cff638e6ea4faa333f9f7ed26b82d266bf35ec5c38d2924b97fd11783')
+    const invalidScopePayloads = [
+      'profile:*',
+      [],
+      ['profile:*', ''],
+      ['profile:*', 42]
+    ]
+
+    for (const scopes of invalidScopePayloads) {
+      const challenge = await createChallenge(wallet.address)
+      const signature = await wallet.signMessage(challenge.message)
+      const loginResponse = await request(app).post('/api/auth/login').send({
+        wallet: wallet.address,
+        signature,
+        challengeId: challenge.id,
+        message: challenge.message,
+        scopes
+      })
+
+      expect(loginResponse.status).toBe(400)
+    }
+  })
+
   it('rejects expired auth challenges', async () => {
     const wallet = new Wallet('0x82ef4188ca4d2dc6a9af4a8f97bb7c6d402ec9e0a5b98018fb33985a8de6bf98')
     const originalTTL = config.auth.challengeTTLSeconds

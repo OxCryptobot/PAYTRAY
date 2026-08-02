@@ -993,6 +993,40 @@ describe('PayTray backend skeleton', () => {
     }
   })
 
+  it('serves public experts when the public api key is configured', async () => {
+    const owner = new Wallet('0x7a1e8a2d5d4c1b7cf3d2cb1c8a31ddc0a6b8f6c9a5f3b0f1d7d6c3b4a2e1f000')
+    const ownerToken = await loginWallet(owner)
+    const originalPublicApiKey = config.publicApi.key
+
+    try {
+      await request(app)
+        .post('/api/profiles')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          name: 'Public Expert',
+          bio: 'Open access expert profile',
+          hourlyRate: 100,
+          expertise: ['open', 'public'],
+          timezone: 'UTC',
+          languages: ['en'],
+          chainPreference: 8453
+        })
+
+      config.publicApi.key = 'test-public-api-key'
+
+      const publicExpertsResponse = await request(app)
+        .get('/api/public/experts?expertise=public')
+        .set('x-api-key', 'test-public-api-key')
+
+      expect(publicExpertsResponse.status).toBe(200)
+      expect(publicExpertsResponse.body.success).toBe(true)
+      expect(publicExpertsResponse.body.count).toBeGreaterThan(0)
+      expect(publicExpertsResponse.body.experts[0].expertise).toContain('public')
+    } finally {
+      config.publicApi.key = originalPublicApiKey
+    }
+  })
+
   it('includes scopes in login response and token-driven operations remain authorized', async () => {
     const wallet = new Wallet('0x92f4eb27a4324de90fa6a5cb6cbfa95f5f4d67e8f413f6077a2d5ef1b5d8a813')
     const challenge = await createChallenge(wallet.address)

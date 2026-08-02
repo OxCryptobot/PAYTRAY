@@ -1102,4 +1102,285 @@ describe('PayTray backend skeleton', () => {
     expect(persistResponse.body.success).toBe(true)
     expect(typeof persistResponse.body.path).toBe('string')
   })
+
+  it('creates and retrieves an engagement contract', async () => {
+    const client = new Wallet('0x0101010101010101010101010101010101010101010101010101010101010101')
+    const expert = new Wallet('0x0202020202020202020202020202020202020202020202020202020202020202')
+    const clientToken = await loginWallet(client)
+
+    const createResponse = await request(app)
+      .post('/api/contracts')
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({
+        expertWallet: expert.address,
+        scope: 'DeFi protocol audit and strategy advisory',
+        pricingMode: 'hourly',
+        rate: 200,
+        currency: 'USDC',
+        expectedDuration: 3600,
+        cancellationPolicy: '24h_notice'
+      })
+
+    expect(createResponse.status).toBe(200)
+    expect(createResponse.body.success).toBe(true)
+    expect(createResponse.body.contract.status).toBe('active')
+    expect(createResponse.body.contract.clientWallet).toBe(client.address.toLowerCase())
+    expect(createResponse.body.contract.pricingMode).toBe('hourly')
+
+    const contractId = createResponse.body.contract.id
+
+    const expertToken = await loginWallet(expert)
+    const getResponse = await request(app)
+      .get(`/api/contracts/${contractId}`)
+      .set('Authorization', `Bearer ${expertToken}`)
+
+    expect(getResponse.status).toBe(200)
+    expect(getResponse.body.contract.id).toBe(contractId)
+  })
+
+  it('closes an engagement contract with outcome and auto-creates reputation event', async () => {
+    const client = new Wallet('0x0303030303030303030303030303030303030303030303030303030303030303')
+    const expert = new Wallet('0x0404040404040404040404040404040404040404040404040404040404040404')
+    const clientToken = await loginWallet(client)
+
+    const createResponse = await request(app)
+      .post('/api/contracts')
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({
+        expertWallet: expert.address,
+        scope: 'Smart contract security review',
+        pricingMode: 'fixed',
+        rate: 5000,
+        currency: 'USDC',
+        expectedDuration: 7200
+      })
+
+    expect(createResponse.status).toBe(200)
+    const contractId = createResponse.body.contract.id
+
+    const closeResponse = await request(app)
+      .post(`/api/contracts/${contractId}/close`)
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({
+        outcome: 'completed',
+        paidMinutes: 120,
+        expertise: ['security', 'solidity']
+      })
+
+    expect(closeResponse.status).toBe(200)
+    expect(closeResponse.body.contract.status).toBe('closed')
+    expect(closeResponse.body.contract.outcome).toBe('completed')
+    expect(closeResponse.body.reputationEvent).toBeDefined()
+    expect(closeResponse.body.reputationEvent.outcome).toBe('completed')
+    expect(closeResponse.body.reputationEvent.contractId).toBe(contractId)
+  })
+
+  it('disputes an active engagement contract', async () => {
+    const client = new Wallet('0x0505050505050505050505050505050505050505050505050505050505050505')
+    const expert = new Wallet('0x0606060606060606060606060606060606060606060606060606060606060606')
+    const clientToken = await loginWallet(client)
+
+    const createResponse = await request(app)
+      .post('/api/contracts')
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({
+        expertWallet: expert.address,
+        scope: 'Tokenomics design',
+        pricingMode: 'hourly',
+        rate: 300,
+        currency: 'USDC'
+      })
+
+    expect(createResponse.status).toBe(200)
+    const contractId = createResponse.body.contract.id
+
+    const disputeResponse = await request(app)
+      .post(`/api/contracts/${contractId}/dispute`)
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({ reason: 'Deliverables not met as agreed in scope' })
+
+    expect(disputeResponse.status).toBe(200)
+    expect(disputeResponse.body.contract.status).toBe('disputed')
+    expect(disputeResponse.body.contract.disputeReason).toBeTruthy()
+
+    const doubleDisputeResponse = await request(app)
+      .post(`/api/contracts/${contractId}/dispute`)
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({ reason: 'Again' })
+
+    expect(doubleDisputeResponse.status).toBe(409)
+  })
+
+  it('restricts contract visibility to participating wallets', async () => {
+    const client = new Wallet('0x0707070707070707070707070707070707070707070707070707070707070707')
+    const expert = new Wallet('0x0808080808080808080808080808080808080808080808080808080808080808')
+    const outsider = new Wallet('0x0909090909090909090909090909090909090909090909090909090909090909')
+    const clientToken = await loginWallet(client)
+    const outsiderToken = await loginWallet(outsider)
+
+    const createResponse = await request(app)
+      .post('/api/contracts')
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({
+        expertWallet: expert.address,
+        scope: 'Private advisory',
+        pricingMode: 'fixed',
+        rate: 1000,
+        currency: 'USDC'
+      })
+
+    expect(createResponse.status).toBe(200)
+    const contractId = createResponse.body.contract.id
+
+    const forbiddenResponse = await request(app)
+      .get(`/api/contracts/${contractId}`)
+      .set('Authorization', `Bearer ${outsiderToken}`)
+
+    expect(forbiddenResponse.status).toBe(403)
+  })
+
+  it('admin creates and resolves a trust signal', async () => {
+    const adminWallet = new Wallet('0x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a')
+    const targetWallet = new Wallet('0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b')
+    const originalAdminWallets = config.auth.adminWallets
+
+    try {
+      config.auth.adminWallets = [adminWallet.address.toLowerCase()]
+      const adminToken = await loginWallet(adminWallet)
+
+      const flagResponse = await request(app)
+        .post('/api/trust/signals')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          wallet: targetWallet.address,
+          type: 'fraud_flag',
+          severity: 'high',
+          reason: 'Suspected wallet address spoofing in payment requests'
+        })
+
+      expect(flagResponse.status).toBe(200)
+      expect(flagResponse.body.success).toBe(true)
+      expect(flagResponse.body.signal.status).toBe('open')
+      expect(flagResponse.body.signal.severity).toBe('high')
+
+      const signalId = flagResponse.body.signal.id
+
+      const resolveResponse = await request(app)
+        .post(`/api/trust/signals/${signalId}/resolve`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ resolution: 'Reviewed and confirmed false positive after wallet verification' })
+
+      expect(resolveResponse.status).toBe(200)
+      expect(resolveResponse.body.signal.status).toBe('resolved')
+      expect(resolveResponse.body.signal.resolvedAt).toBeTruthy()
+    } finally {
+      config.auth.adminWallets = originalAdminWallets
+    }
+  })
+
+  it('rejects trust signal creation from non-admin wallet', async () => {
+    const regularWallet = new Wallet('0x0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c')
+    const targetWallet = new Wallet('0x0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d')
+    const regularToken = await loginWallet(regularWallet)
+
+    const response = await request(app)
+      .post('/api/trust/signals')
+      .set('Authorization', `Bearer ${regularToken}`)
+      .send({
+        wallet: targetWallet.address,
+        type: 'manual_review',
+        severity: 'low',
+        reason: 'Suspicious activity'
+      })
+
+    expect(response.status).toBe(403)
+  })
+
+  it('synthesizes a conversation thread into a structured summary', async () => {
+    const walletA = new Wallet('0x0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e')
+    const walletB = new Wallet('0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f')
+    const tokenA = await loginWallet(walletA)
+    const tokenB = await loginWallet(walletB)
+
+    await request(app)
+      .post('/api/profiles')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .send({ name: 'Synthesis Expert', bio: 'DeFi', hourlyRate: 100, expertise: ['defi'], timezone: 'UTC', languages: ['en'] })
+
+    const matchResponse = await request(app)
+      .post('/api/discovery/search')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ query: 'DeFi help', filters: { domain: 'defi' } })
+
+    expect(matchResponse.status).toBe(200)
+    const sessionId = matchResponse.body.matchSession.id
+
+    await request(app)
+      .post(`/api/matches/${sessionId}/select`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ expertWallet: walletB.address })
+
+    const handoffResponse = await request(app)
+      .post(`/api/matches/${sessionId}/handoff`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ expertWallet: walletB.address })
+
+    expect(handoffResponse.status).toBe(200)
+    const threadId = handoffResponse.body.thread.id
+
+    await request(app)
+      .post(`/api/threads/${threadId}/messages`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ text: 'I need help with liquidity strategy and DeFi protocol review. Action: send proposal by Friday.' })
+
+    await request(app)
+      .post(`/api/threads/${threadId}/messages`)
+      .set('Authorization', `Bearer ${tokenB}`)
+      .send({ text: 'I will review the protocol and follow up with recommendations. Todo: complete audit next week.' })
+
+    const synthResponse = await request(app)
+      .post(`/api/intelligence/conversations/${threadId}/synthesize`)
+      .set('Authorization', `Bearer ${tokenA}`)
+
+    expect(synthResponse.status).toBe(200)
+    expect(synthResponse.body.success).toBe(true)
+    expect(synthResponse.body.synthesis.threadId).toBe(threadId)
+    expect(synthResponse.body.synthesis.messageCount).toBe(2)
+    expect(Array.isArray(synthResponse.body.synthesis.keyTopics)).toBe(true)
+    expect(Array.isArray(synthResponse.body.synthesis.actionItems)).toBe(true)
+    expect(synthResponse.body.synthesis.actionItems.length).toBeGreaterThan(0)
+    expect(synthResponse.body.synthesis.suggestedFollowUp).toBeTruthy()
+  })
+
+  it('reputation events incrementally update ranking evaluation metrics', async () => {
+    const actor = new Wallet('0x1010101010101010101010101010101010101010101010101010101010101010')
+    const subject = new Wallet('0x1111111111111111111111111111111111111111111111111111111111111111')
+    const actorToken = await loginWallet(actor)
+
+    const beforeResponse = await request(app)
+      .get('/api/intelligence/ranking/model')
+      .set('Authorization', `Bearer ${actorToken}`)
+
+    expect(beforeResponse.status).toBe(200)
+    const beforeSize = beforeResponse.body.evaluation.sampleSize
+
+    await request(app)
+      .post('/api/reputation/events')
+      .set('Authorization', `Bearer ${actorToken}`)
+      .send({
+        wallet: subject.address,
+        outcome: 'completed',
+        paidMinutes: 90,
+        repeatBooking: true,
+        expertise: ['solidity', 'audit']
+      })
+
+    const afterResponse = await request(app)
+      .get('/api/intelligence/ranking/model')
+      .set('Authorization', `Bearer ${actorToken}`)
+
+    expect(afterResponse.status).toBe(200)
+    expect(afterResponse.body.evaluation.sampleSize).toBe(beforeSize + 1)
+    expect(afterResponse.body.evaluation.metrics.avgPaidMinutes).toBeGreaterThan(0)
+  })
 })

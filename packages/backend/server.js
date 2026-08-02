@@ -72,6 +72,7 @@ const extensionHooks = new Map()
 const webhookDeliveries = new Map()
 const authChallenges = new Map()
 const walletVerifyChallenges = new Map()
+const trustSignals = new Map()
 const requestMetrics = {
   total: 0,
   errors: 0,
@@ -159,6 +160,7 @@ function serializeState() {
     matchSessions: Array.from(matchSessions.entries()),
     conversationThreads: Array.from(conversationThreads.entries()),
     engagementContracts: Array.from(engagementContracts.entries()),
+    trustSignals: Array.from(trustSignals.entries()),
     reputationEvents,
     rankingModel,
     chainRegistry: Array.from(chainRegistry.entries()),
@@ -180,6 +182,7 @@ function restoreState(snapshot) {
   for (const [key, value] of safeArray(snapshot.matchSessions)) matchSessions.set(key, value)
   for (const [key, value] of safeArray(snapshot.conversationThreads)) conversationThreads.set(key, value)
   for (const [key, value] of safeArray(snapshot.engagementContracts)) engagementContracts.set(key, value)
+  for (const [key, value] of safeArray(snapshot.trustSignals)) trustSignals.set(key, value)
   for (const value of safeArray(snapshot.reputationEvents)) reputationEvents.push(value)
 
   if (snapshot.rankingModel && typeof snapshot.rankingModel === 'object') {
@@ -632,6 +635,10 @@ function buildReputationSummary(wallet) {
     disputed,
     repeatBookings: events.filter((event) => event.repeatBooking === true).length
   }
+}
+
+function recomputeRankingEvaluation() {
+  rankingModel.evaluation = evaluateRankingModel()
 }
 
 function trainRankingModelFromOutcomes() {
@@ -1491,6 +1498,7 @@ app.post('/api/reputation/events', authenticateToken, async (req, res, next) => 
     }
 
     reputationEvents.push(event)
+    recomputeRankingEvaluation()
     markStateDirty()
 
     await enqueueWebhookDeliveries('reputation.event.created', {
@@ -1958,6 +1966,248 @@ app.post('/api/calls', authenticateToken, (req, res, next) => {
   }
 })
 
+app.post('/api/contracts', authenticateToken, (req, res, next) => {
+  try {
+    const expertWallet = schemas.wallet.address(req.body.expertWallet)
+    const pricingMode = String(req.body.pricingMode || '').toLowerCase()
+    if (!['hourly', 'fixed'].includes(pricingMode)) {
+      throw new ValidationError('pricingMode must be hourly or fixed')
+    }
+
+    const rate = Number(req.body.rate)
+    if (!Number.isFinite(rate) || rate <= 0) {
+      throw new ValidationError('rate must be a positive number')
+    }
+
+    const currency = String(req.body.currency || 'USDC').toUpperCase()
+    const scope = String(req.body.scope || '').trim()
+    if (!scope) {
+      throw new ValidationError('scope is required')
+    }
+
+    const expectedDuration = Number(req.body.expectedDuration || 0)
+    const cancellationPolicy = String(req.body.cancellationPolicy || 'none').toLowerCase()
+
+    const contract = {
+      id: String(engagementContracts.size + 1),
+      clientWallet: req.walletAddress,
+      expertWallet,
+      scope,
+      pricingMode,
+      rate,
+      currency,
+      expectedDuration,
+      cancellationPolicy,
+      status: 'active',
+      createdAt: nowIso(),
+      closedAt: null,
+      outcome: null,
+      disputeReason: null
+    }
+
+    engagementContracts.set(contract.id, contract)
+    markStateDirty()
+    res.json({ success: true, contract })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/contracts/:id', authenticateToken, (req, res, next) => {
+  try {
+    const contract = engagementContracts.get(req.params.id)
+    if (!contract) {
+      throw new NotFoundError('Contract')
+    }
+
+    if (contract.clientWallet !== req.walletAddress && contract.expertWallet !== req.walletAddress) {
+      throw new AuthorizationError('Cannot view this contract')
+    }
+
+    res.json({ success: true, contract })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/contracts/:id/close', authenticateToken, async (req, res, next) => {
+  try {
+    const contract = engagementContracts.get(req.params.id)
+    if (!contract) {
+      throw new NotFoundError('Contract')
+    }
+
+    if (contract.clientWallet !== req.walletAddress && contract.expertWallet !== req.walletAddress) {
+      throw new AuthorizationError('Cannot close this contract')
+    }
+
+    if (contract.status !== 'active') {
+      throw new ConflictError(`Cannot close a contract in status: ${contract.status}`)
+    }
+
+    const outcome = String(req.body.outcome || '').toLowerCase()
+    if (!['completed', 'cancelled', 'no_show'].includes(outcome)) {
+      throw new ValidationError('outcome must be completed, cancelled, or no_show')
+    }
+
+    const paidMinutes = Number(req.body.paidMinutes || 0)
+
+    contract.status = 'closed'
+    contract.outcome = outcome
+    contract.closedAt = nowIso()
+
+    const reputationEvent = {
+      id: String(reputationEvents.length + 1),
+      wallet: contract.expertWallet,
+      sessionId: null,
+      streamId: req.body.streamId ? String(req.body.streamId) : null,
+      outcome,
+      paidMinutes,
+      repeatBooking: Boolean(req.body.repeatBooking),
+      disputed: outcome === 'no_show',
+      expertise: safeArray(req.body.expertise).map((item) => String(item).toLowerCase()),
+      contractId: contract.id,
+      createdAt: nowIso()
+    }
+
+    reputationEvents.push(reputationEvent)
+    recomputeRankingEvaluation()
+
+    markStateDirty()
+
+    await enqueueWebhookDeliveries('contract.closed', {
+      contractId: contract.id,
+      outcome,
+      expertWallet: contract.expertWallet,
+      clientWallet: contract.clientWallet,
+      closedAt: contract.closedAt
+    })
+
+    res.json({ success: true, contract, reputationEvent })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/contracts/:id/dispute', authenticateToken, async (req, res, next) => {
+  try {
+    const contract = engagementContracts.get(req.params.id)
+    if (!contract) {
+      throw new NotFoundError('Contract')
+    }
+
+    if (contract.clientWallet !== req.walletAddress && contract.expertWallet !== req.walletAddress) {
+      throw new AuthorizationError('Cannot dispute this contract')
+    }
+
+    if (contract.status !== 'active') {
+      throw new ConflictError(`Cannot dispute a contract in status: ${contract.status}`)
+    }
+
+    const reason = String(req.body.reason || '').trim()
+    if (!reason) {
+      throw new ValidationError('reason is required')
+    }
+
+    contract.status = 'disputed'
+    contract.disputeReason = reason
+    markStateDirty()
+
+    await enqueueWebhookDeliveries('contract.disputed', {
+      contractId: contract.id,
+      reason,
+      expertWallet: contract.expertWallet,
+      clientWallet: contract.clientWallet,
+      disputedAt: nowIso()
+    })
+
+    res.json({ success: true, contract })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/trust/signals', authenticateToken, requireScopes('admin:*'), (req, res, next) => {
+  try {
+    const wallet = schemas.wallet.address(req.body.wallet)
+    const type = String(req.body.type || '').toLowerCase()
+    if (!['fraud_flag', 'dispute_record', 'verification_failure', 'manual_review'].includes(type)) {
+      throw new ValidationError('type must be fraud_flag, dispute_record, verification_failure, or manual_review')
+    }
+
+    const severity = String(req.body.severity || 'medium').toLowerCase()
+    if (!['low', 'medium', 'high'].includes(severity)) {
+      throw new ValidationError('severity must be low, medium, or high')
+    }
+
+    const reason = String(req.body.reason || '').trim()
+    if (!reason) {
+      throw new ValidationError('reason is required')
+    }
+
+    const signal = {
+      id: String(trustSignals.size + 1),
+      wallet,
+      type,
+      severity,
+      reason,
+      status: 'open',
+      createdBy: req.walletAddress,
+      createdAt: nowIso(),
+      resolvedAt: null,
+      resolution: null
+    }
+
+    trustSignals.set(signal.id, signal)
+    markStateDirty()
+    res.json({ success: true, signal })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/trust/signals/:wallet', authenticateToken, (req, res, next) => {
+  try {
+    const wallet = schemas.wallet.address(req.params.wallet)
+    const isAdmin = safeArray(req.scopes).some((scope) => hasScope([scope], 'admin:*'))
+
+    if (!isAdmin && wallet !== req.walletAddress) {
+      throw new AuthorizationError('Cannot view trust signals for another wallet')
+    }
+
+    const signals = Array.from(trustSignals.values()).filter((signal) => signal.wallet === wallet)
+    res.json({ success: true, wallet, signals, count: signals.length })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/trust/signals/:id/resolve', authenticateToken, requireScopes('admin:*'), (req, res, next) => {
+  try {
+    const signal = trustSignals.get(req.params.id)
+    if (!signal) {
+      throw new NotFoundError('Trust signal')
+    }
+
+    if (signal.status !== 'open') {
+      throw new ConflictError(`Signal is already ${signal.status}`)
+    }
+
+    const resolution = String(req.body.resolution || '').trim()
+    if (!resolution) {
+      throw new ValidationError('resolution is required')
+    }
+
+    signal.status = 'resolved'
+    signal.resolution = resolution
+    signal.resolvedAt = nowIso()
+    markStateDirty()
+    res.json({ success: true, signal })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.post('/api/intelligence/ranking/train', authenticateToken, requireScopes('intelligence:*'), (req, res, next) => {
   try {
     const model = trainRankingModelFromOutcomes()
@@ -1993,6 +2243,53 @@ app.post('/api/intelligence/conversations/:threadId/assist', authenticateToken, 
 
     const assistance = buildConversationAssist(thread)
     res.json({ success: true, threadId: thread.id, assistance })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/intelligence/conversations/:threadId/synthesize', authenticateToken, requireScopes('intelligence:*'), (req, res, next) => {
+  try {
+    const thread = conversationThreads.get(req.params.threadId)
+    if (!thread) {
+      throw new NotFoundError('Conversation thread')
+    }
+
+    if (!thread.participants.includes(req.walletAddress)) {
+      throw new AuthorizationError('Cannot synthesize this thread')
+    }
+
+    const messages = safeArray(thread.messages)
+    const text = messages.map((item) => String(item.text || '')).join(' ').toLowerCase()
+    const wordCounts = {}
+    for (const word of text.split(/\W+/).filter((word) => word.length > 4)) {
+      wordCounts[word] = (wordCounts[word] || 0) + 1
+    }
+
+    const topWords = Object.entries(wordCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([word]) => word)
+
+    const keyTopics = topWords.length > 0 ? topWords : ['general']
+    const actionItems = messages
+      .filter((item) => /\b(todo|action|follow.?up|need|must|should|will|next step|review|send|share|complete)\b/i.test(item.text || ''))
+      .map((item) => String(item.text).slice(0, 120))
+      .slice(0, 5)
+
+    const synthesis = {
+      threadId: thread.id,
+      participants: thread.participants,
+      messageCount: messages.length,
+      keyTopics,
+      actionItems,
+      suggestedFollowUp: messages.length > 0
+        ? `Schedule follow-up with ${thread.participants.filter((w) => w !== req.walletAddress)[0] || 'participant'}`
+        : 'No messages to synthesize',
+      synthesizedAt: nowIso()
+    }
+
+    res.json({ success: true, synthesis })
   } catch (error) {
     next(error)
   }

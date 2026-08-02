@@ -1383,4 +1383,262 @@ describe('PayTray backend skeleton', () => {
     expect(afterResponse.body.evaluation.sampleSize).toBe(beforeSize + 1)
     expect(afterResponse.body.evaluation.metrics.avgPaidMinutes).toBeGreaterThan(0)
   })
+
+  it('reconciles reflected payment streams to the off-chain ledger', async () => {
+    const sender = new Wallet('0x1212121212121212121212121212121212121212121212121212121212121212')
+    const recipient = new Wallet('0x1313131313131313131313131313131313131313131313131313131313131313')
+    const senderToken = await loginWallet(sender)
+    const recipientToken = await loginWallet(recipient)
+
+    const streamResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${senderToken}`)
+      .send({ recipientWallet: recipient.address, token: 'USDC', amount: 50, duration: 3600, chainId: 8453 })
+
+    expect(streamResponse.status).toBe(200)
+    const streamId = streamResponse.body.stream.id
+
+    await request(app)
+      .post(`/api/payments/streams/${streamId}/confirm`)
+      .set('Authorization', `Bearer ${senderToken}`)
+      .send({ state: 'included', txHash: '0xabc', blockNumber: 100 })
+
+    await request(app)
+      .post(`/api/payments/streams/${streamId}/confirm`)
+      .set('Authorization', `Bearer ${senderToken}`)
+      .send({ state: 'reflected', txHash: '0xabc', blockNumber: 100 })
+
+    const reconcileResponse = await request(app)
+      .post('/api/ops/ledger/reconcile')
+      .set('Authorization', `Bearer ${senderToken}`)
+
+    expect(reconcileResponse.status).toBe(200)
+    expect(reconcileResponse.body.reconciled).toBeGreaterThanOrEqual(1)
+
+    const ledgerResponse = await request(app)
+      .get(`/api/ledger/${recipient.address}`)
+      .set('Authorization', `Bearer ${recipientToken}`)
+
+    expect(ledgerResponse.status).toBe(200)
+    expect(ledgerResponse.body.entries.length).toBeGreaterThan(0)
+    expect(ledgerResponse.body.entries[0].settledBalance).toBeGreaterThan(0)
+  })
+
+  it('rejects viewing another wallet ledger without admin scope', async () => {
+    const walletA = new Wallet('0x1414141414141414141414141414141414141414141414141414141414141414')
+    const walletB = new Wallet('0x1515151515151515151515151515151515151515151515151515151515151515')
+    const tokenA = await loginWallet(walletA)
+
+    const response = await request(app)
+      .get(`/api/ledger/${walletB.address}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+
+    expect(response.status).toBe(403)
+  })
+
+  it('opens a payment dispute and resolves it as admin', async () => {
+    const disputeSender = new Wallet('0x1616161616161616161616161616161616161616161616161616161616161616')
+    const disputeRecipient = new Wallet('0x1717171717171717171717171717171717171717171717171717171717171717')
+    const adminWallet = new Wallet('0x1818181818181818181818181818181818181818181818181818181818181818')
+    const senderToken = await loginWallet(disputeSender)
+    const originalAdminWallets = config.auth.adminWallets
+
+    try {
+      config.auth.adminWallets = [adminWallet.address.toLowerCase()]
+      const adminToken = await loginWallet(adminWallet)
+
+      const streamResponse = await request(app)
+        .post('/api/payments/streams')
+        .set('Authorization', `Bearer ${senderToken}`)
+        .send({ recipientWallet: disputeRecipient.address, token: 'USDC', amount: 25, duration: 1800, chainId: 8453 })
+
+      expect(streamResponse.status).toBe(200)
+      const streamId = streamResponse.body.stream.id
+
+      const disputeResponse = await request(app)
+        .post(`/api/payments/streams/${streamId}/dispute`)
+        .set('Authorization', `Bearer ${senderToken}`)
+        .send({ reason: 'Recipient wallet address does not match agreed counterparty' })
+
+      expect(disputeResponse.status).toBe(200)
+      expect(disputeResponse.body.disputeState.status).toBe('open')
+      expect(disputeResponse.body.disputeState.raisedBy).toBe(disputeSender.address.toLowerCase())
+
+      const duplicateResponse = await request(app)
+        .post(`/api/payments/streams/${streamId}/dispute`)
+        .set('Authorization', `Bearer ${senderToken}`)
+        .send({ reason: 'Again' })
+
+      expect(duplicateResponse.status).toBe(409)
+
+      const resolveResponse = await request(app)
+        .post(`/api/payments/streams/${streamId}/dispute/resolve`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ resolution: 'Reviewed transaction evidence; dispute dismissed', outcome: 'dismissed' })
+
+      expect(resolveResponse.status).toBe(200)
+      expect(resolveResponse.body.disputeState.status).toBe('dismissed')
+      expect(resolveResponse.body.disputeState.resolvedAt).toBeTruthy()
+    } finally {
+      config.auth.adminWallets = originalAdminWallets
+    }
+  })
+
+  it('sets expert availability and filters discovery by available day', async () => {
+    const expert = new Wallet('0x1919191919191919191919191919191919191919191919191919191919191919')
+    const searcher = new Wallet('0x2020202020202020202020202020202020202020202020202020202020202020')
+    const expertToken = await loginWallet(expert)
+    const searcherToken = await loginWallet(searcher)
+
+    await request(app)
+      .post('/api/profiles')
+      .set('Authorization', `Bearer ${expertToken}`)
+      .send({ name: 'Available Expert', bio: 'NFT strategy', hourlyRate: 80, expertise: ['nft'], timezone: 'UTC', languages: ['en'] })
+
+    const availResponse = await request(app)
+      .put(`/api/profiles/${expert.address}/availability`)
+      .set('Authorization', `Bearer ${expertToken}`)
+      .send({ days: ['mon', 'wed', 'fri'], hoursStart: 9, hoursEnd: 17 })
+
+    expect(availResponse.status).toBe(200)
+    expect(availResponse.body.availability.days).toContain('mon')
+
+    const matchResponse = await request(app)
+      .post('/api/discovery/search')
+      .set('Authorization', `Bearer ${searcherToken}`)
+      .send({ query: 'NFT help', filters: { domain: 'nft' }, availableDay: 'mon' })
+
+    expect(matchResponse.status).toBe(200)
+    const found = matchResponse.body.candidates.some((c) => c.profile.wallet === expert.address.toLowerCase())
+    expect(found).toBe(true)
+
+    const noMatchResponse = await request(app)
+      .post('/api/discovery/search')
+      .set('Authorization', `Bearer ${searcherToken}`)
+      .send({ query: 'NFT help', filters: { domain: 'nft' }, availableDay: 'sat' })
+
+    expect(noMatchResponse.status).toBe(200)
+    const notFound = noMatchResponse.body.candidates.every((c) => c.profile.wallet !== expert.address.toLowerCase())
+    expect(notFound).toBe(true)
+  })
+
+  it('links and retrieves social identity for a wallet', async () => {
+    const wallet = new Wallet('0x2121212121212121212121212121212121212121212121212121212121212121')
+    const token = await loginWallet(wallet)
+
+    const linkResponse = await request(app)
+      .post('/api/identity/link')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ platform: 'github', handle: 'peerstream-dev' })
+
+    expect(linkResponse.status).toBe(200)
+    expect(linkResponse.body.link.platform).toBe('github')
+    expect(linkResponse.body.link.handle).toBe('peerstream-dev')
+
+    const duplicateResponse = await request(app)
+      .post('/api/identity/link')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ platform: 'github', handle: 'other-handle' })
+
+    expect(duplicateResponse.status).toBe(409)
+
+    const getResponse = await request(app)
+      .get(`/api/identity/${wallet.address}`)
+
+    expect(getResponse.status).toBe(200)
+    expect(getResponse.body.links.length).toBeGreaterThanOrEqual(1)
+    expect(getResponse.body.links[0].platform).toBe('github')
+  })
+
+  it('removes an identity link', async () => {
+    const wallet = new Wallet('0x2222222222222222222222222222222222222222222222222222222222222222')
+    const token = await loginWallet(wallet)
+
+    const linkResponse = await request(app)
+      .post('/api/identity/link')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ platform: 'twitter', handle: '@peerstream' })
+
+    expect(linkResponse.status).toBe(200)
+    const linkId = linkResponse.body.link.id
+
+    const deleteResponse = await request(app)
+      .delete(`/api/identity/${linkId}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(deleteResponse.status).toBe(200)
+    expect(deleteResponse.body.removed).toBe(linkId)
+
+    const getResponse = await request(app)
+      .get(`/api/identity/${wallet.address}`)
+
+    expect(getResponse.status).toBe(200)
+    const stillPresent = getResponse.body.links.some((l) => l.id === linkId)
+    expect(stillPresent).toBe(false)
+  })
+
+  it('saves and retrieves session artifacts for a thread', async () => {
+    const participantA = new Wallet('0x2323232323232323232323232323232323232323232323232323232323232323')
+    const participantB = new Wallet('0x2424242424242424242424242424242424242424242424242424242424242424')
+    const outsider = new Wallet('0x2525252525252525252525252525252525252525252525252525252525252525')
+    const tokenA = await loginWallet(participantA)
+    const tokenB = await loginWallet(participantB)
+    const outsiderToken = await loginWallet(outsider)
+
+    await request(app)
+      .post('/api/profiles')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .send({ name: 'Artifact Expert', bio: 'Web3 consulting', hourlyRate: 120, expertise: ['web3'], timezone: 'UTC', languages: ['en'] })
+
+    const searchResponse = await request(app)
+      .post('/api/discovery/search')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ query: 'Web3 consulting', filters: { domain: 'web3' } })
+
+    expect(searchResponse.status).toBe(200)
+    const sessionId = searchResponse.body.matchSession.id
+
+    await request(app)
+      .post(`/api/matches/${sessionId}/select`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ expertWallet: participantB.address })
+
+    const handoffResponse = await request(app)
+      .post(`/api/matches/${sessionId}/handoff`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ expertWallet: participantB.address })
+
+    expect(handoffResponse.status).toBe(200)
+    const threadId = handoffResponse.body.thread.id
+
+    const artifactResponse = await request(app)
+      .post('/api/sessions/artifacts')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ threadId, type: 'action_item', content: 'Review token allocation proposal by end of week' })
+
+    expect(artifactResponse.status).toBe(200)
+    expect(artifactResponse.body.artifact.type).toBe('action_item')
+    expect(artifactResponse.body.artifact.threadId).toBe(threadId)
+
+    const noteResponse = await request(app)
+      .post('/api/sessions/artifacts')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .send({ threadId, type: 'note', content: 'Client prefers Base chain for lower gas fees' })
+
+    expect(noteResponse.status).toBe(200)
+
+    const listResponse = await request(app)
+      .get(`/api/sessions/${threadId}/artifacts`)
+      .set('Authorization', `Bearer ${tokenA}`)
+
+    expect(listResponse.status).toBe(200)
+    expect(listResponse.body.count).toBe(2)
+    expect(listResponse.body.artifacts[0].type).toBe('action_item')
+
+    const forbiddenResponse = await request(app)
+      .get(`/api/sessions/${threadId}/artifacts`)
+      .set('Authorization', `Bearer ${outsiderToken}`)
+
+    expect(forbiddenResponse.status).toBe(403)
+  })
 })

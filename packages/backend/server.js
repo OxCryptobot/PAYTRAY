@@ -73,6 +73,9 @@ const webhookDeliveries = new Map()
 const authChallenges = new Map()
 const walletVerifyChallenges = new Map()
 const trustSignals = new Map()
+const offchainLedger = new Map()
+const identityLinks = new Map()
+const sessionArtifacts = new Map()
 const requestMetrics = {
   total: 0,
   errors: 0,
@@ -161,6 +164,9 @@ function serializeState() {
     conversationThreads: Array.from(conversationThreads.entries()),
     engagementContracts: Array.from(engagementContracts.entries()),
     trustSignals: Array.from(trustSignals.entries()),
+    offchainLedger: Array.from(offchainLedger.entries()),
+    identityLinks: Array.from(identityLinks.entries()),
+    sessionArtifacts: Array.from(sessionArtifacts.entries()),
     reputationEvents,
     rankingModel,
     chainRegistry: Array.from(chainRegistry.entries()),
@@ -183,6 +189,9 @@ function restoreState(snapshot) {
   for (const [key, value] of safeArray(snapshot.conversationThreads)) conversationThreads.set(key, value)
   for (const [key, value] of safeArray(snapshot.engagementContracts)) engagementContracts.set(key, value)
   for (const [key, value] of safeArray(snapshot.trustSignals)) trustSignals.set(key, value)
+  for (const [key, value] of safeArray(snapshot.offchainLedger)) offchainLedger.set(key, value)
+  for (const [key, value] of safeArray(snapshot.identityLinks)) identityLinks.set(key, value)
+  for (const [key, value] of safeArray(snapshot.sessionArtifacts)) sessionArtifacts.set(key, value)
   for (const value of safeArray(snapshot.reputationEvents)) reputationEvents.push(value)
 
   if (snapshot.rankingModel && typeof snapshot.rankingModel === 'object') {
@@ -639,6 +648,28 @@ function buildReputationSummary(wallet) {
 
 function recomputeRankingEvaluation() {
   rankingModel.evaluation = evaluateRankingModel()
+}
+
+function getLedgerEntry(wallet, chainId) {
+  const key = `${wallet.toLowerCase()}:${chainId}`
+  if (!offchainLedger.has(key)) {
+    offchainLedger.set(key, {
+      wallet: wallet.toLowerCase(),
+      chainId: Number(chainId),
+      currency: 'USDC',
+      pendingBalance: 0,
+      settledBalance: 0,
+      updatedAt: nowIso()
+    })
+  }
+  return offchainLedger.get(key)
+}
+
+function applyLedgerDelta(wallet, chainId, { pending = 0, settled = 0 }) {
+  const entry = getLedgerEntry(wallet, chainId)
+  entry.pendingBalance = Math.max(0, entry.pendingBalance + pending)
+  entry.settledBalance = Math.max(0, entry.settledBalance + settled)
+  entry.updatedAt = nowIso()
 }
 
 function trainRankingModelFromOutcomes() {
@@ -1283,12 +1314,18 @@ app.post('/api/discovery/search', authenticateToken, (req, res, next) => {
       maxBudget: req.body.maxBudget || null,
       timezone: req.body.timezone || null,
       language: req.body.language || null,
-      chainPreference: req.body.chainPreference || config.payments.settlementChainId
+      chainPreference: req.body.chainPreference || config.payments.settlementChainId,
+      availableDay: req.body.availableDay ? String(req.body.availableDay).toLowerCase() : null
     }
 
     const candidates = Array.from(profiles.values())
       .map((record) => record.profile)
       .filter((profile) => Boolean(profile) && profile.wallet !== req.walletAddress)
+      .filter((profile) => {
+        if (!filters.availableDay) return true
+        if (!profile.availability?.days?.length) return true
+        return profile.availability.days.includes(filters.availableDay)
+      })
       .map((profile) => {
         const ranked = scoreDiscoveryCandidate(profile, filters, { includeBreakdown: true })
         return {
@@ -2641,6 +2678,307 @@ app.post('/api/ops/state/persist', authenticateToken, requireScopes('ops:*'), as
 app.get('/api/extensions/hooks', authenticateToken, requireScopes('extensions:*'), (req, res) => {
   const hooks = Array.from(extensionHooks.values()).filter((hook) => hook.ownerWallet === req.walletAddress)
   res.json({ success: true, count: hooks.length, hooks })
+})
+
+// ── Ledger ──────────────────────────────────────────────────────────────────
+
+app.get('/api/ledger/:wallet', authenticateToken, (req, res, next) => {
+  try {
+    const wallet = schemas.wallet.address(req.params.wallet)
+    const isAdmin = hasScope(safeArray(req.scopes), 'admin:*')
+    if (!isAdmin && wallet !== req.walletAddress) {
+      throw new AuthorizationError('Cannot view ledger for another wallet')
+    }
+    const entries = Array.from(offchainLedger.values()).filter((e) => e.wallet === wallet.toLowerCase())
+    res.json({ success: true, wallet, entries, count: entries.length })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/ops/ledger/reconcile', authenticateToken, requireScopes('ops:*'), (req, res) => {
+  const credited = []
+  for (const stream of paymentStreams.values()) {
+    if (stream.confirmationState === 'reflected') {
+      applyLedgerDelta(stream.recipientWallet, stream.chainId, { settled: stream.amount })
+      const senderEntry = getLedgerEntry(stream.senderWallet, stream.chainId)
+      senderEntry.settledBalance = Math.max(0, senderEntry.settledBalance - stream.amount)
+      senderEntry.updatedAt = nowIso()
+      credited.push({ streamId: stream.id, amount: stream.amount, currency: stream.token, chainId: stream.chainId })
+    }
+  }
+  markStateDirty()
+  res.json({ success: true, reconciled: credited.length, entries: credited })
+})
+
+// ── Payment Disputes ─────────────────────────────────────────────────────────
+
+app.post('/api/payments/streams/:streamId/dispute', authenticateToken, (req, res, next) => {
+  try {
+    const stream = paymentStreams.get(req.params.streamId)
+    if (!stream) {
+      throw new NotFoundError('Stream')
+    }
+
+    assertStreamAccess(stream, req.walletAddress, 'dispute')
+
+    if (stream.disputeState) {
+      throw new ConflictError('Stream already has an open dispute')
+    }
+
+    const reason = String(req.body.reason || '').trim()
+    if (!reason) {
+      throw new ValidationError('reason is required')
+    }
+
+    stream.disputeState = {
+      status: 'open',
+      reason,
+      raisedBy: req.walletAddress,
+      raisedAt: nowIso(),
+      resolvedAt: null,
+      resolution: null
+    }
+
+    const signalId = String(trustSignals.size + 1)
+    const counterparty = req.walletAddress === stream.senderWallet ? stream.recipientWallet : stream.senderWallet
+    trustSignals.set(signalId, {
+      id: signalId,
+      wallet: counterparty,
+      type: 'dispute_record',
+      severity: 'medium',
+      reason: `Payment stream ${stream.id} disputed: ${reason}`,
+      status: 'open',
+      createdBy: req.walletAddress,
+      createdAt: nowIso(),
+      resolvedAt: null,
+      resolution: null
+    })
+
+    markStateDirty()
+    res.json({ success: true, stream, disputeState: stream.disputeState })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/payments/streams/:streamId/dispute/resolve', authenticateToken, requireScopes('admin:*'), (req, res, next) => {
+  try {
+    const stream = paymentStreams.get(req.params.streamId)
+    if (!stream) {
+      throw new NotFoundError('Stream')
+    }
+
+    if (!stream.disputeState || stream.disputeState.status !== 'open') {
+      throw new ConflictError('No open dispute on this stream')
+    }
+
+    const resolution = String(req.body.resolution || '').trim()
+    if (!resolution) {
+      throw new ValidationError('resolution is required')
+    }
+
+    const outcome = String(req.body.outcome || 'resolved').toLowerCase()
+    if (!['resolved', 'upheld', 'dismissed'].includes(outcome)) {
+      throw new ValidationError('outcome must be resolved, upheld, or dismissed')
+    }
+
+    stream.disputeState.status = outcome
+    stream.disputeState.resolution = resolution
+    stream.disputeState.resolvedAt = nowIso()
+    markStateDirty()
+    res.json({ success: true, stream, disputeState: stream.disputeState })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ── Expert Availability ───────────────────────────────────────────────────────
+
+app.put('/api/profiles/:wallet/availability', authenticateToken, (req, res, next) => {
+  try {
+    const wallet = schemas.wallet.address(req.params.wallet)
+    if (wallet !== req.walletAddress) {
+      throw new AuthorizationError('Can only update your own availability')
+    }
+
+    const record = profiles.get(wallet)
+    if (!record) {
+      throw new NotFoundError('Profile')
+    }
+
+    const VALID_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+    const days = safeArray(req.body.days).map((d) => String(d).toLowerCase())
+    for (const day of days) {
+      if (!VALID_DAYS.includes(day)) {
+        throw new ValidationError(`Invalid day: ${day}. Must be one of: ${VALID_DAYS.join(', ')}`)
+      }
+    }
+
+    const hoursStart = Math.trunc(Number(req.body.hoursStart ?? 9))
+    const hoursEnd = Math.trunc(Number(req.body.hoursEnd ?? 17))
+    if (hoursStart < 0 || hoursStart > 23) {
+      throw new ValidationError('hoursStart must be 0-23')
+    }
+    if (hoursEnd < 1 || hoursEnd > 24) {
+      throw new ValidationError('hoursEnd must be 1-24')
+    }
+    if (hoursEnd <= hoursStart) {
+      throw new ValidationError('hoursEnd must be after hoursStart')
+    }
+
+    record.profile.availability = {
+      days,
+      hoursStart,
+      hoursEnd,
+      timezone: record.profile.timezone || 'UTC',
+      updatedAt: nowIso()
+    }
+
+    profiles.set(wallet, record)
+    markStateDirty()
+    res.json({ success: true, availability: record.profile.availability })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ── Identity Linking ──────────────────────────────────────────────────────────
+
+const VALID_IDENTITY_PLATFORMS = ['ens', 'github', 'twitter', 'linkedin', 'farcaster']
+
+app.post('/api/identity/link', authenticateToken, (req, res, next) => {
+  try {
+    const platform = String(req.body.platform || '').toLowerCase()
+    if (!VALID_IDENTITY_PLATFORMS.includes(platform)) {
+      throw new ValidationError(`platform must be one of: ${VALID_IDENTITY_PLATFORMS.join(', ')}`)
+    }
+
+    const handle = String(req.body.handle || '').trim()
+    if (!handle) {
+      throw new ValidationError('handle is required')
+    }
+    if (handle.length > 100) {
+      throw new ValidationError('handle must be 100 characters or fewer')
+    }
+
+    const duplicate = Array.from(identityLinks.values()).find(
+      (l) => l.wallet === req.walletAddress && l.platform === platform
+    )
+    if (duplicate) {
+      throw new ConflictError(`${platform} identity already linked`)
+    }
+
+    const link = {
+      id: String(identityLinks.size + 1),
+      wallet: req.walletAddress,
+      platform,
+      handle,
+      createdAt: nowIso()
+    }
+
+    identityLinks.set(link.id, link)
+    markStateDirty()
+    res.json({ success: true, link })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/identity/:wallet', (req, res, next) => {
+  try {
+    const wallet = schemas.wallet.address(req.params.wallet)
+    const links = Array.from(identityLinks.values()).filter((l) => l.wallet === wallet)
+    res.json({ success: true, wallet, links, count: links.length })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.delete('/api/identity/:id', authenticateToken, (req, res, next) => {
+  try {
+    const link = identityLinks.get(req.params.id)
+    if (!link) {
+      throw new NotFoundError('Identity link')
+    }
+    if (link.wallet !== req.walletAddress) {
+      throw new AuthorizationError('Cannot remove another wallet\'s identity link')
+    }
+    identityLinks.delete(req.params.id)
+    markStateDirty()
+    res.json({ success: true, removed: req.params.id })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// ── Session Artifacts ─────────────────────────────────────────────────────────
+
+const VALID_ARTIFACT_TYPES = ['note', 'summary', 'action_item', 'file_link', 'code_snippet']
+
+app.post('/api/sessions/artifacts', authenticateToken, (req, res, next) => {
+  try {
+    const threadId = String(req.body.threadId || '').trim()
+    if (!threadId) {
+      throw new ValidationError('threadId is required')
+    }
+
+    const thread = conversationThreads.get(threadId)
+    if (!thread) {
+      throw new NotFoundError('Conversation thread')
+    }
+    if (!thread.participants.includes(req.walletAddress)) {
+      throw new AuthorizationError('Cannot create artifact for this thread')
+    }
+
+    const type = String(req.body.type || '').toLowerCase()
+    if (!VALID_ARTIFACT_TYPES.includes(type)) {
+      throw new ValidationError(`type must be one of: ${VALID_ARTIFACT_TYPES.join(', ')}`)
+    }
+
+    const content = String(req.body.content || '').trim()
+    if (!content) {
+      throw new ValidationError('content is required')
+    }
+    if (content.length > 4000) {
+      throw new ValidationError('content must be 4000 characters or fewer')
+    }
+
+    const artifact = {
+      id: String(sessionArtifacts.size + 1),
+      threadId,
+      authorWallet: req.walletAddress,
+      type,
+      content,
+      createdAt: nowIso()
+    }
+
+    sessionArtifacts.set(artifact.id, artifact)
+    markStateDirty()
+    res.json({ success: true, artifact })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/sessions/:threadId/artifacts', authenticateToken, (req, res, next) => {
+  try {
+    const thread = conversationThreads.get(req.params.threadId)
+    if (!thread) {
+      throw new NotFoundError('Conversation thread')
+    }
+    if (!thread.participants.includes(req.walletAddress)) {
+      throw new AuthorizationError('Cannot view artifacts for this thread')
+    }
+
+    const artifacts = Array.from(sessionArtifacts.values())
+      .filter((a) => a.threadId === req.params.threadId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+    res.json({ success: true, threadId: req.params.threadId, artifacts, count: artifacts.length })
+  } catch (error) {
+    next(error)
+  }
 })
 
 app.get('/api/public/experts', authenticatePublicApi, (req, res) => {

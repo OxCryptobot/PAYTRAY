@@ -3,7 +3,7 @@
 **Date:** 2026-08-14  
 **Branch:** `paytray/batch-delivery`  
 **Remote baseline:** `8498c8643e32691abb12aaa320862dd829e2e3a8`  
-**Current state:** New batch changes are validated locally and remain uncommitted.
+**Current state:** Batch AC is validated locally and remains uncommitted.
 
 ## Delivered in this update
 
@@ -20,37 +20,18 @@
 | **Z — financial and verifier observability** | Added operator-scoped read-only `GET /api/v2/ops/financial/summary` for payment-intent status, durable-stream lifecycle, chain-event finality, ledger count, and unreconciled streams; added `GET /api/v2/ops/verifier/status` for cursor position, cursor age, RPC configuration, and confirmation threshold. | Both reports are explicitly `verifier_owned` and `read_only`; they cannot mutate payment or ledger state. |
 | **AA — lifecycle authority hardening** | Removed `mock_adapter` from the canonical payment lifecycle event-source registry and every financial transition. Added regression coverage that rejects mock settlement authority while preserving verifier and ledger-worker transitions. | Test or simulation code cannot authorize economic state transitions through the production lifecycle contract; only explicit wallet, API, verifier, ledger-worker, and operations authorities remain. |
 | **AB — legacy mutation quarantine** | Added a reusable production guard to all legacy in-memory payment mutation routes: stream creation, confirmation, withdrawal, cancellation, and dispute mutation/resolution. Durable v2 APIs remain the production path. | Production cannot mutate financial state through the legacy in-memory route family; non-production tests retain compatibility and the denial is explicit and auditable. |
+| **AC — durable summary correctness** | Corrected financial observability to group streams by durable `lifecycle_state` and scope payment-intent counts to the configured settlement chain. Updated regression coverage for the operator summary. | Operator metrics no longer report legacy stream status as durable lifecycle truth or mix payment-intent counts across unsupported chains. |
 
 ## Validation
 
-The latest run passed **29 test files and 145 tests**, client JavaScript syntax validation, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The configuration, webhook, state-recovery, verifier-observability, payment-authority, and legacy-policy tests confirm safe chain defaults, SSRF-safe delivery, quarantine recovery, read-only finality visibility, rejection of mock settlement authority, and production denial of legacy in-memory mutations.
+The latest run passed **29 test files and 145 tests**, client JavaScript syntax validation, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The configuration, webhook, state-recovery, verifier-observability, payment-authority, legacy-policy, and durable-summary tests confirm safe chain defaults, SSRF-safe delivery, quarantine recovery, read-only finality visibility, rejection of mock settlement authority, production denial of legacy in-memory mutations, and correct durable lifecycle/chain scoping.
 
 ## Commit and push boundary
 
-These new files are modified locally but have **not** been committed or pushed:
+Only the following Batch AC files are modified locally and have not been committed or pushed:
 
-- `packages/backend/lib/payments/legacyPaymentPolicy.js`
-- `packages/backend/tests/legacyPaymentPolicy.test.js`
-- `packages/backend/lib/payments/paymentLifecycle.js`
-- `packages/backend/tests/paymentAuthority.test.js`
-- `packages/backend/lib/payments/sablierFlowV3.js`
-- `packages/backend/lib/payments/verifierWorkerService.js`
-- `packages/backend/lib/shadowReviewService.js`
-- `packages/backend/server.js`
-- `packages/backend/tests/sablierFlowV3.test.js`
-- `packages/backend/tests/shadowReviewService.test.js`
-- `packages/client/app.js`
-- `packages/client/index.html`
-- `packages/backend/lib/config.js`
-- `packages/backend/tests/config.test.js`
-- `packages/backend/tests/api.test.js`
-- `packages/backend/lib/webhookSecurity.js`
-- `packages/backend/tests/webhookSecurity.test.js`
-- `packages/backend/lib/stateStore.js`
-- `packages/backend/tests/stateStore.test.js`
 - `packages/backend/lib/verifierObservability.js`
 - `packages/backend/tests/verifierObservability.test.js`
-- `docs/engineering-audit-time-to-money-2026-08-14.md`
-- this document
+- `docs/accelerated-batch-update-2026-08-14.md`
 
-No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, and Batch AB is the current local uncommitted tranche.
+No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, and Batch AC is the current local uncommitted tranche.

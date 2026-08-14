@@ -1,7 +1,7 @@
 export async function getFinancialSummary({ client, config }) {
   const [intentsResult, streamsResult, eventsResult, ledgerResult, unreconciledResult] = await Promise.all([
-    client.query(`SELECT status, COUNT(*)::int AS count FROM payment_intents GROUP BY status ORDER BY status`),
-    client.query(`SELECT status, COUNT(*)::int AS count FROM payment_streams GROUP BY status ORDER BY status`),
+    client.query(`SELECT status, COUNT(*)::int AS count FROM payment_intents WHERE chain_id = $1 GROUP BY status ORDER BY status`, [config.payments.settlementChainId]),
+    client.query(`SELECT lifecycle_state, COUNT(*)::int AS count FROM payment_streams GROUP BY lifecycle_state ORDER BY lifecycle_state`),
     client.query(`SELECT finality_status, COUNT(*)::int AS count FROM payment_chain_events WHERE chain_id = $1 GROUP BY finality_status ORDER BY finality_status`, [config.payments.settlementChainId]),
     client.query(`SELECT COUNT(*)::int AS count FROM ledger_entries WHERE chain_id = $1`, [config.payments.settlementChainId]),
     client.query(
@@ -19,7 +19,7 @@ export async function getFinancialSummary({ client, config }) {
   return {
     chainId: config.payments.settlementChainId,
     paymentIntentsByStatus: Object.fromEntries(intentsResult.rows.map((row) => [row.status, row.count])),
-    durableStreamsByLifecycle: Object.fromEntries(streamsResult.rows.map((row) => [row.status, row.count])),
+    durableStreamsByLifecycle: Object.fromEntries(streamsResult.rows.map((row) => [row.lifecycle_state, row.count])),
     chainEventsByFinality: Object.fromEntries(eventsResult.rows.map((row) => [row.finality_status, row.count])),
     ledgerEntryCount: ledgerResult.rows[0]?.count || 0,
     unreconciledStreamCount: unreconciledResult.rows[0]?.count || 0,

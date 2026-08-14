@@ -28,7 +28,7 @@ describe('financial summary', () => {
     const client = {
       async query(sql) {
         if (sql.includes('FROM payment_intents')) return { rows: [{ status: 'chain_pending', count: 2 }] }
-        if (sql.includes('FROM payment_streams GROUP')) return { rows: [{ status: 'active', count: 1 }] }
+        if (sql.includes('FROM payment_streams GROUP')) return { rows: [{ lifecycle_state: 'chain_finalized', count: 1 }] }
         if (sql.includes('GROUP BY finality_status')) return { rows: [{ finality_status: 'finalized', count: 3 }] }
         if (sql.includes('FROM ledger_entries')) return { rows: [{ count: 4 }] }
         if (sql.includes('NOT EXISTS')) return { rows: [{ count: 1 }] }
@@ -40,7 +40,7 @@ describe('financial summary', () => {
     expect(summary).toEqual({
       chainId: 84532,
       paymentIntentsByStatus: { chain_pending: 2 },
-      durableStreamsByLifecycle: { active: 1 },
+      durableStreamsByLifecycle: { chain_finalized: 1 },
       chainEventsByFinality: { finalized: 3 },
       ledgerEntryCount: 4,
       unreconciledStreamCount: 1,

@@ -20,25 +20,24 @@ export const PAYMENT_EVENT_SOURCES = Object.freeze([
   'wallet',
   'verifier',
   'ledger_worker',
-  'operations',
-  'mock_adapter'
+  'operations'
 ])
 
 const TRANSITIONS = Object.freeze({
   draft: Object.freeze({ intent_created: ['api'], failed: ['api'] }),
   intent_created: Object.freeze({ wallet_submitted: ['wallet', 'api'], failed: ['api', 'wallet'] }),
-  wallet_submitted: Object.freeze({ chain_pending: ['verifier', 'mock_adapter'], failed: ['verifier', 'mock_adapter'] }),
-  chain_pending: Object.freeze({ chain_included: ['verifier', 'mock_adapter'], failed: ['verifier', 'mock_adapter'] }),
-  chain_included: Object.freeze({ chain_finalized: ['verifier', 'mock_adapter'], failed: ['verifier', 'mock_adapter'] }),
+  wallet_submitted: Object.freeze({ chain_pending: ['verifier'], failed: ['verifier'] }),
+  chain_pending: Object.freeze({ chain_included: ['verifier'], failed: ['verifier'] }),
+  chain_included: Object.freeze({ chain_finalized: ['verifier'], failed: ['verifier'] }),
   chain_finalized: Object.freeze({
-    ledger_reflected: ['ledger_worker', 'mock_adapter'],
-    paused: ['verifier', 'mock_adapter'],
-    cancel_finalized: ['verifier', 'mock_adapter'],
-    withdrawal_finalized: ['verifier', 'mock_adapter'],
+    ledger_reflected: ['ledger_worker'],
+    paused: ['verifier'],
+    cancel_finalized: ['verifier'],
+    withdrawal_finalized: ['verifier'],
     disputed: ['operations']
   }),
   ledger_reflected: Object.freeze({
-    paused: ['verifier', 'mock_adapter'],
+    paused: ['verifier'],
     cancel_requested: ['api', 'wallet'],
     withdrawal_pending: ['api', 'wallet'],
     disputed: ['operations']
@@ -48,10 +47,10 @@ const TRANSITIONS = Object.freeze({
     cancel_requested: ['api', 'wallet'],
     disputed: ['operations']
   }),
-  cancel_requested: Object.freeze({ wallet_submitted: ['wallet', 'api'], failed: ['verifier', 'mock_adapter'] }),
-  cancel_finalized: Object.freeze({ withdrawal_pending: ['api', 'wallet'], withdrawal_finalized: ['verifier', 'mock_adapter'], disputed: ['operations'] }),
-  withdrawal_pending: Object.freeze({ wallet_submitted: ['wallet', 'api'], failed: ['verifier', 'mock_adapter'] }),
-  withdrawal_finalized: Object.freeze({ ledger_reflected: ['ledger_worker', 'mock_adapter'], cancel_finalized: ['verifier', 'mock_adapter'], disputed: ['operations'] }),
+  cancel_requested: Object.freeze({ wallet_submitted: ['wallet', 'api'], failed: ['verifier'] }),
+  cancel_finalized: Object.freeze({ withdrawal_pending: ['api', 'wallet'], withdrawal_finalized: ['verifier'], disputed: ['operations'] }),
+  withdrawal_pending: Object.freeze({ wallet_submitted: ['wallet', 'api'], failed: ['verifier'] }),
+  withdrawal_finalized: Object.freeze({ ledger_reflected: ['ledger_worker'], cancel_finalized: ['verifier'], disputed: ['operations'] }),
   disputed: Object.freeze({ ledger_reflected: ['operations'], cancel_finalized: ['operations'], failed: ['operations'] }),
   failed: Object.freeze({ intent_created: ['api'], wallet_submitted: ['wallet', 'api'], draft: ['api'] })
 })

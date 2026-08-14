@@ -57,6 +57,15 @@ export async function getVerifierObservability({ client, config, now = new Date(
     latestObservedAt: row.latest_observed_at,
     latestFinalizedAt: row.latest_finalized_at
   }]))
+  const maxCursorAgeMs = config.payments.verifierCursorMaxAgeMs
+  const verifierStatus = !config.payments.rpcUrl
+    ? 'not_configured'
+    : cursor == null
+      ? 'missing'
+      : cursorAgeMs <= maxCursorAgeMs
+        ? 'fresh'
+        : 'stale'
+  const verifierReady = verifierStatus === 'fresh' || (verifierStatus === 'not_configured' && !config.isProd)
   return {
     chainId: config.payments.settlementChainId,
     protocol: config.payments.protocol,
@@ -65,6 +74,18 @@ export async function getVerifierObservability({ client, config, now = new Date(
     finalityConfirmations: config.payments.finalityConfirmations,
     cursor,
     cursorAgeMs,
+    verifierStatus: {
+      status: verifierStatus,
+      ready: verifierReady,
+      maxCursorAgeMs,
+      reason: verifierStatus === 'fresh'
+        ? 'durable verifier cursor is fresh'
+        : verifierStatus === 'stale'
+          ? 'durable verifier cursor is stale'
+          : verifierStatus === 'missing'
+            ? 'durable verifier cursor is missing'
+            : 'RPC-backed verifier worker is not configured'
+    },
     finality,
     unlinkedEvidenceCount: unlinkedResult.rows[0]?.count || 0,
     authority: 'verifier_owned',

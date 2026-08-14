@@ -49,3 +49,24 @@ describe('financial summary', () => {
     })
   })
 })
+
+
+describe('verifier status classification', () => {
+  it('classifies a configured fresh cursor as ready', async () => {
+    const client = {
+      async query(sql) {
+        if (sql.includes('payment_verifier_cursors')) return { rows: [{ chain_id: 84532, last_scanned_block: '500', updated_at: '2026-08-14T21:00:00.000Z' }] }
+        if (sql.includes('GROUP BY finality_status')) return { rows: [] }
+        if (sql.includes('stream_id IS NULL')) return { rows: [{ count: 0 }] }
+        throw new Error(`Unexpected query: ${sql}`)
+      }
+    }
+    const { getVerifierObservability } = await import('../lib/verifierObservability.js')
+    const report = await getVerifierObservability({
+      client,
+      config: { env: 'production', isProd: true, payments: { settlementChainId: 84532, protocol: 'sablier-flow-v3', protocolContractAddress: '0xabc', rpcUrl: 'https://rpc.example', finalityConfirmations: 10, verifierCursorMaxAgeMs: 300000 } },
+      now: new Date('2026-08-14T21:04:00.000Z')
+    })
+    expect(report.verifierStatus).toMatchObject({ status: 'fresh', ready: true, maxCursorAgeMs: 300000 })
+  })
+})

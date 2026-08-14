@@ -14,10 +14,14 @@
 | **S — lifecycle status UX** | Added client “Refresh verified status” behavior for engagement, payment-intent, and chain-finality state. | The client reports state but never claims settlement or mutates payment state. |
 | **T — shadow evidence** | Added detailed operator shadow-run evidence at `GET /api/v2/ops/shadow-runs/:runId`, including decisions, counts, reviewer status, and rollback context. | The response explicitly remains `shadow_only` and `human_review_required`; applied decision count is surfaced for audit. |
 | **V — chain safety defaults** | Made Base Sepolia (`84532`) the default settlement chain and added explicit production-only `PAYMENT_MAINNET_ENABLED=true` gating paired strictly with Base mainnet chain ID `8453`. Updated API fixtures and configuration tests. | Local development and testnet operation cannot silently default to Base mainnet or accept an inconsistent mainnet flag. |
+| **W — webhook SSRF safety** | Added reusable callback URL validation and DNS-resolution checks that reject loopback, private, link-local, metadata, credential-bearing, unsupported-protocol, and non-standard-port destinations. Hook registration now validates before queuing deliveries. | Extension hooks cannot target internal network addresses through the registration path; delivery remains operator-scoped and signed. |
+| **X — retry safety** | Added delivery-time DNS revalidation, exponential retry scheduling, `nextAttemptAt` metadata, and configurable `WEBHOOK_RETRY_BASE_DELAY_MS`. | DNS rebinding is rechecked at delivery; failed deliveries cannot be retried continuously without backoff. |
+| **Y — state recovery** | Added versioned snapshot validation, malformed-snapshot quarantine, restrictive `0600` persistence, atomic temporary-file writes, and recovery tests. | Corrupt or unsupported operational snapshots are quarantined rather than silently restored; payment truth remains in PostgreSQL/verifier evidence. |
+| **Z — financial and verifier observability** | Added operator-scoped read-only `GET /api/v2/ops/financial/summary` for payment-intent status, durable-stream lifecycle, chain-event finality, ledger count, and unreconciled streams; added `GET /api/v2/ops/verifier/status` for cursor position, cursor age, RPC configuration, and confirmation threshold. | Both reports are explicitly `verifier_owned` and `read_only`; they cannot mutate payment or ledger state. |
 
 ## Validation
 
-The latest run passed **24 test files and 134 tests**, client JavaScript syntax validation, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The tightened configuration test also confirms Base Sepolia defaults and rejects unsafe mainnet flag/chain combinations.
+The latest run passed **27 test files and 141 tests**, client JavaScript syntax validation, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The configuration, webhook, state-recovery, and verifier-observability tests confirm safe chain defaults, SSRF-safe delivery, quarantine recovery, and read-only finality visibility.
 
 ## Commit and push boundary
 
@@ -34,6 +38,12 @@ These new files are modified locally but have **not** been committed or pushed:
 - `packages/backend/lib/config.js`
 - `packages/backend/tests/config.test.js`
 - `packages/backend/tests/api.test.js`
+- `packages/backend/lib/webhookSecurity.js`
+- `packages/backend/tests/webhookSecurity.test.js`
+- `packages/backend/lib/stateStore.js`
+- `packages/backend/tests/stateStore.test.js`
+- `packages/backend/lib/verifierObservability.js`
+- `packages/backend/tests/verifierObservability.test.js`
 - `docs/engineering-audit-time-to-money-2026-08-14.md`
 - this document
 

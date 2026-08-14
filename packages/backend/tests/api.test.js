@@ -1383,7 +1383,7 @@ describe('PayTray backend skeleton', () => {
       const hookResponse = await request(app)
         .post('/api/extensions/hooks')
         .set('Authorization', `Bearer ${ownerToken}`)
-        .send({ event: 'reputation.event.created', callbackUrl: 'http://127.0.0.1:9/hook' })
+        .send({ event: 'reputation.event.created', callbackUrl: 'https://example.com/hook' })
 
       expect(hookResponse.status).toBe(200)
 

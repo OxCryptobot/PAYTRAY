@@ -5,6 +5,7 @@ describe('PayTray payment configuration safety', () => {
   it('defaults settlement to Base Sepolia and disables mainnet', () => {
     expect(config.payments.settlementChainId).toBe(84532)
     expect(config.payments.mainnetEnabled).toBe(false)
+    expect(config.webhooks.retryBaseDelayMs).toBe(1000)
     expect(validateConfig()).toBe(true)
   })
 })

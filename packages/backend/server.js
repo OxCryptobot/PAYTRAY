@@ -43,6 +43,8 @@ import { getReleaseReadiness } from './lib/releaseReadiness.js'
 import { getShadowRunDetails, listShadowRuns, reviewShadowRun } from './lib/shadowReviewService.js'
 import { buildDurableReconciliationReport } from './lib/payments/reconciliationService.js'
 import { createConfiguredBaseSepoliaVerifierWorker } from './lib/payments/verifierWorkerService.js'
+import { assertSafeWebhookUrl, validateWebhookUrl } from './lib/webhookSecurity.js'
+import { getFinancialSummary, getVerifierObservability } from './lib/verifierObservability.js'
 import {
   generateServiceToken,
   generateTokenPair,
@@ -304,7 +306,8 @@ async function enqueueWebhookDeliveries(eventName, payload) {
       maxAttempts: config.webhooks.maxAttempts,
       createdAt: nowIso(),
       updatedAt: nowIso(),
-      lastError: null
+      lastError: null,
+      nextAttemptAt: nowIso()
     })
   }
 
@@ -318,6 +321,7 @@ async function processWebhookDeliveries({ dryRun = false, canProcessDelivery = n
 
   for (const delivery of webhookDeliveries.values()) {
     if (!['pending', 'failed'].includes(delivery.status)) continue
+    if (delivery.nextAttemptAt && Date.parse(delivery.nextAttemptAt) > Date.now()) continue
     if (typeof canProcessDelivery === 'function' && !canProcessDelivery(delivery)) continue
 
     delivery.attempts += 1
@@ -330,6 +334,7 @@ async function processWebhookDeliveries({ dryRun = false, canProcessDelivery = n
       delivery.lastSignatureTimestamp = envelope.timestamp
 
       if (!dryRun) {
+        await assertSafeWebhookUrl(delivery.callbackUrl)
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), config.webhooks.timeoutMs)
 
@@ -360,11 +365,15 @@ async function processWebhookDeliveries({ dryRun = false, canProcessDelivery = n
 
       delivery.status = 'delivered'
       delivery.lastError = null
+      delivery.nextAttemptAt = null
       results.push({ id: delivery.id, status: delivery.status })
     } catch (error) {
       delivery.lastError = error.message
       delivery.status = delivery.attempts >= delivery.maxAttempts ? 'dead' : 'failed'
-      results.push({ id: delivery.id, status: delivery.status, error: delivery.lastError })
+      delivery.nextAttemptAt = delivery.status === 'failed'
+        ? new Date(Date.now() + (config.webhooks.retryBaseDelayMs * (2 ** Math.max(0, delivery.attempts - 1)))).toISOString()
+        : null
+      results.push({ id: delivery.id, status: delivery.status, error: delivery.lastError, nextAttemptAt: delivery.nextAttemptAt })
     }
   }
 
@@ -391,26 +400,6 @@ function percentile(values, percentileRank) {
   const sorted = [...values].sort((a, b) => a - b)
   const index = Math.ceil((percentileRank / 100) * sorted.length) - 1
   return sorted[Math.max(0, Math.min(index, sorted.length - 1))]
-}
-
-function validateOptionalUrl(value, fieldName) {
-  if (value == null || value === '') {
-    return null
-  }
-
-  if (typeof value !== 'string') {
-    throw new ValidationError(`${fieldName} must be a valid URL`)
-  }
-
-  try {
-    const parsed = new URL(value)
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      throw new ValidationError(`${fieldName} must use http or https`)
-    }
-    return parsed.toString()
-  } catch {
-    throw new ValidationError(`${fieldName} must be a valid URL`)
-  }
 }
 
 function safeArray(value) {
@@ -1937,6 +1926,42 @@ app.post('/api/v2/ops/shadow-runs/:runId/review', authenticateToken, requireScop
   }
 })
 
+app.get('/api/v2/ops/financial/summary', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'financial summary requires a ready PostgreSQL database')
+    }
+    const summary = await transaction((client) => getFinancialSummary({ client, config }))
+    res.json({ success: true, summary })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/verifier/status', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'verifier status requires a ready PostgreSQL database')
+    }
+    const status = await transaction((client) => getVerifierObservability({ client, config }))
+    res.json({ success: true, status })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/verifier-observability', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'verifier observability requires a ready PostgreSQL database')
+    }
+    const report = await transaction((client) => getVerifierObservability({ client, config }))
+    res.json({ success: true, report })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.get('/api/v2/ops/release-readiness', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
   try {
     if (getDatabaseStatus() !== 'ready') {
@@ -3126,17 +3151,15 @@ app.post('/api/ops/reconciliation/run', authenticateToken, requireScopes('ops:*'
   res.json({ success: true, total: report.length, inconsistent, report })
 })
 
-app.post('/api/extensions/hooks', authenticateToken, requireScopes('extensions:*'), (req, res, next) => {
+app.post('/api/extensions/hooks', authenticateToken, requireScopes('extensions:*'), async (req, res, next) => {
   try {
     const event = String(req.body.event || '').trim()
     if (!event) {
       throw new ValidationError('Event is required')
     }
 
-    const callbackUrl = validateOptionalUrl(req.body.callbackUrl, 'callbackUrl')
-    if (!callbackUrl) {
-      throw new ValidationError('callbackUrl is required')
-    }
+    const callbackUrl = validateWebhookUrl(req.body.callbackUrl)
+    await assertSafeWebhookUrl(callbackUrl)
 
     const id = String(extensionHooks.size + 1)
     const hook = {
@@ -3188,6 +3211,7 @@ app.post('/api/ops/webhooks/deliveries/:deliveryId/retry', authenticateToken, re
     delivery.status = 'pending'
     delivery.attempts = 0
     delivery.lastError = null
+    delivery.nextAttemptAt = nowIso()
     delivery.updatedAt = nowIso()
     webhookDeliveries.set(delivery.id, delivery)
     markStateDirty()

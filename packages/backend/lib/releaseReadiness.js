@@ -1,7 +1,9 @@
 import { getTelemetryHealth } from './telemetryObservability.js'
+import { getVerifierReadiness } from './payments/verifierReadiness.js'
 
 export async function getReleaseReadiness({ client, config, databaseStatus, enabledTokenCount, verifierWorkerStatus = 'not_configured', env = config.env }) {
   const telemetry = await getTelemetryHealth({ client })
+  const verifier = await getVerifierReadiness({ client, config, verifierWorkerStatus, env })
   const outcomes = await client.query(`
     SELECT
       COUNT(*) FILTER (WHERE verification_status = 'verified')::integer AS verified_outcomes,
@@ -16,7 +18,7 @@ export async function getReleaseReadiness({ client, config, databaseStatus, enab
     database: { ready: databaseStatus === 'ready', value: databaseStatus },
     protocol: { ready: Boolean(config.payments.protocolContractAddress), value: config.payments.protocolContractAddress ? 'configured' : 'unconfigured' },
     tokenRegistry: { ready: enabledTokenCount > 0, enabledTokenCount },
-    verifierWorker: { ready: verifierWorkerStatus === 'ready' || (env !== 'production' && verifierWorkerStatus === 'not_configured'), value: verifierWorkerStatus },
+    verifierWorker: { ready: verifier.ready, value: verifier.status, cursor: verifier.cursor, cursorAgeMs: verifier.cursorAgeMs, maxCursorAgeMs: verifier.maxCursorAgeMs, reason: verifier.reason },
     telemetry: { ready: telemetry.status === 'ok', status: telemetry.status, eventsLast24h: telemetry.ingestion.eventsLast24h },
     verifiedOutcomeCoverage: { ready: verifiedOutcomes > 0, verifiedOutcomes, totalOutcomes: Number(outcomeRow.total_outcomes) },
     shadowReview: { ready: shadowRunsPending === 0, pendingReviews: shadowRunsPending },

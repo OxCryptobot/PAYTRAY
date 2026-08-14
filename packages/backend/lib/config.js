@@ -57,6 +57,7 @@ export const config = {
     mainnetEnabled: process.env.PAYMENT_MAINNET_ENABLED === 'true',
     tokenRegistry: process.env.PAYMENT_TOKEN_REGISTRY || '[]',
     finalityConfirmations: Number.parseInt(process.env.PAYMENT_FINALITY_CONFIRMATIONS || '10', 10),
+    verifierCursorMaxAgeMs: Number.parseInt(process.env.VERIFIER_CURSOR_MAX_AGE_MS || '300000', 10),
     allowLegacyConfirmations: process.env.NODE_ENV !== 'production' && process.env.ALLOW_LEGACY_PAYMENT_CONFIRMATIONS !== 'false',
     reliabilityTargetPct: Number.parseInt(process.env.RELIABILITY_TARGET_PCT || '99', 10),
     reliabilityMinSamples: Number.parseInt(process.env.RELIABILITY_MIN_SAMPLES || '3', 10)
@@ -101,6 +102,10 @@ export function validateConfig() {
 
   if (!Number.isInteger(config.payments.finalityConfirmations) || config.payments.finalityConfirmations < 1) {
     errors.push('PAYMENT_FINALITY_CONFIRMATIONS must be a positive integer')
+  }
+
+  if (!Number.isInteger(config.payments.verifierCursorMaxAgeMs) || config.payments.verifierCursorMaxAgeMs < 1000) {
+    errors.push('VERIFIER_CURSOR_MAX_AGE_MS must be an integer of at least 1000 milliseconds')
   }
 
   if (config.isProd && config.payments.allowLegacyConfirmations) {

@@ -40,6 +40,8 @@ import { ingestTelemetryEvent } from './lib/telemetryService.js'
 import { processVerifiedChainEvent } from './lib/payments/verifiedEventService.js'
 import { getTelemetryHealth } from './lib/telemetryObservability.js'
 import { getReleaseReadiness } from './lib/releaseReadiness.js'
+import { buildReleaseApprovalArtifact } from './lib/releaseApprovalGate.js'
+import { buildDeploymentPreflight } from './lib/deploymentPreflight.js'
 import { getShadowRunDetails, listShadowRuns, reviewShadowRun } from './lib/shadowReviewService.js'
 import { buildDurableReconciliationReport } from './lib/payments/reconciliationService.js'
 import { createConfiguredBaseSepoliaVerifierWorker } from './lib/payments/verifierWorkerService.js'
@@ -1958,6 +1960,39 @@ app.get('/api/v2/ops/verifier-observability', authenticateToken, requireScopes('
     }
     const report = await transaction((client) => getVerifierObservability({ client, config }))
     res.json({ success: true, report })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/release-approval', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'release approval artifact requires a ready PostgreSQL database')
+    }
+    const artifact = await transaction(async (client) => {
+      const readiness = await getReleaseReadiness({
+        client,
+        config,
+        databaseStatus: getDatabaseStatus(),
+        enabledTokenCount: paymentTokenRegistry.list({ enabledOnly: true }).length,
+        verifierWorkerStatus: config.payments.rpcUrl ? 'configured' : 'not_configured'
+      })
+      const verifierStatus = await getVerifierObservability({ client, config })
+      const reconciliation = await buildDurableReconciliationReport({ client, maxProjectionLagMs: config.payments.reconciliationLagThresholdMs })
+      const shadowQueue = await listShadowRuns({ client, reviewerDecision: 'pending', limit: 100 })
+      const rollbackResult = await client.query("SELECT COUNT(*)::int AS count FROM ai_evaluation_runs WHERE rollback_target IS NOT NULL")
+      return buildReleaseApprovalArtifact({
+        deploymentPreflight: buildDeploymentPreflight({ config, deploymentTarget: process.env.DEPLOYMENT_TARGET || 'unspecified' }),
+        readiness,
+        reconciliation,
+        verifierStatus: verifierStatus.verifierStatus,
+        pendingShadowReviews: shadowQueue.count,
+        rollbackTargets: rollbackResult.rows[0]?.count || 0,
+        humanApproval: null
+      })
+    })
+    res.status(artifact.status === 'approved' ? 200 : 503).json({ success: artifact.status === 'approved', artifact })
   } catch (error) {
     next(error)
   }

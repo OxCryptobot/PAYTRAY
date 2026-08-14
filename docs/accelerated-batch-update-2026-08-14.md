@@ -3,7 +3,7 @@
 **Date:** 2026-08-14  
 **Branch:** `paytray/batch-delivery`  
 **Remote baseline:** `8498c8643e32691abb12aaa320862dd829e2e3a8`  
-**Current state:** Batch AG is validated locally and remains uncommitted.
+**Current state:** Batch AH is validated locally and remains uncommitted.
 
 ## Delivered in this update
 
@@ -25,10 +25,11 @@
 | **AE — operator verifier status classification** | Extended `GET /api/v2/ops/verifier/status` with explicit `fresh`, `stale`, `missing`, and `not_configured` classifications, readiness boolean, freshness threshold, and an operator-readable reason. | The status remains read-only and verifier-owned; operator dashboards cannot mistake an unconfigured or stale cursor for healthy chain verification. |
 | **AF — deployment preflight** | Added `backend:deployment:check`, a read-only configuration preflight that validates production database/JWT/RPC/protocol/webhook/token/mainnet-gate requirements and identifies the deployment target. | The preflight performs no deployment, network call, transaction, or state mutation; it is suitable for Railway trial validation before any explicit deployment approval. |
 | **AG — Railway trial gate** | Added `backend:railway:trial:check`, HTTPS trial-URL validation, redacted settings comparison for environment/chain/mainnet mode, and explicit unavailable-settings reporting. | The gate never deploys or calls Railway; missing project settings fail closed as `settings_unavailable` rather than being inferred or fabricated. |
+| **AH — reconciliation SLO and alert evidence** | Added bounded `RECONCILIATION_LAG_THRESHOLD_MS` configuration, durable chain-to-ledger projection lag metrics, `fresh`/`lagging`/`missing` projection status, lagging-stream counts, missing-ledger counts, and explicit `ledger_projection_lag` issues to the read-only reconciliation report. | Reconciliation remains read-only and verifier-owned; delayed or missing projections are surfaced for operator action and never silently repaired. |
 
 ## Validation
 
-The latest run passed **32 test files and 154 tests**, client JavaScript syntax validation, backend/client artifact existence checks, the read-only deployment preflight, the Railway trial gate tests, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The Railway trial gate returned exit code 1 with `settings_unavailable` because no non-secret Railway environment settings were available locally.
+The latest run passed **32 test files and 155 tests**, client JavaScript syntax validation, backend/client artifact existence checks, the read-only deployment preflight, the Railway trial gate tests, focused reconciliation SLO tests, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The Railway trial gate remains intentionally fail-closed with `settings_unavailable` when no non-secret Railway settings are available.
 
 ## Railway development-server trial context
 
@@ -41,7 +42,7 @@ Before any Railway deployment, the project still requires explicit deployment ap
 | Planned batch | Priority scope | Exit condition |
 |---|---|---|
 | **AG — completed locally** | Added the non-deploying Railway trial gate and honest unavailable-settings result. | No Railway settings were inferred; deployment remains blocked until authenticated settings evidence and explicit approval are available. |
-| **AH — reconciliation SLOs and alert evidence** | Add bounded discrepancy age, verifier lag, ledger projection lag, and operator alert evidence to the read-only reconciliation surface. | Operators can distinguish fresh, delayed, and attention-required financial projections. |
+| **AH — completed locally** | Added bounded discrepancy age and ledger-projection lag evidence to the read-only reconciliation surface. | Operators can distinguish fresh, delayed, and missing financial projections without any automatic repair. |
 | **AI — AI ranking quality gate** | Extend shadow evaluation with rollback-target checks, segment coverage, confidence intervals, and explicit human promotion evidence while keeping promotion `shadow_only`. | No candidate ranking is promoted without review, rollback, and measurable baseline improvement. |
 | **AJ — collaboration intelligence guardrails** | Add provenance, retention, cost, latency, and human override contracts for meeting guidance and summaries. | AI assistance remains advisory, attributable, bounded, and independent from settlement authority. |
 | **AK — protocol reversal and withdrawal coverage** | Expand Base Sepolia Flow v3 evidence coverage for reorgs, reversals, pause/restart, withdrawals, and dispute-linked accounting checks. | Protocol lifecycle and reconciliation behavior are verified under adverse chain events. |
@@ -49,12 +50,12 @@ Before any Railway deployment, the project still requires explicit deployment ap
 
 ## Commit and push boundary
 
-Only the following Batch AG files are modified locally and have not been committed or pushed:
+Only the following Batch AH files are modified locally and have not been committed or pushed:
 
-- `package.json`
-- `packages/backend/lib/railwayTrialGate.js`
-- `packages/backend/scripts/verify-railway-trial.mjs`
-- `packages/backend/tests/railwayTrialGate.test.js`
+- `packages/backend/lib/config.js`
+- `packages/backend/lib/payments/reconciliationService.js`
+- `packages/backend/server.js`
+- `packages/backend/tests/reconciliationService.test.js`
 - `docs/accelerated-batch-update-2026-08-14.md`
 
-No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, and Batch AG is the current local uncommitted tranche.
+No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, Batch AG is pushed at `f9b5f842837c593d72d971f12781b9488c623ab6`, and Batch AH is the current local uncommitted tranche.

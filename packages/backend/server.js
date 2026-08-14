@@ -1874,7 +1874,7 @@ app.get('/api/v2/ops/reconciliation/durable', authenticateToken, requireScopes('
     if (getDatabaseStatus() !== 'ready') {
       throw new ExternalServiceError('Database', 'durable reconciliation requires a ready PostgreSQL database')
     }
-    const report = await transaction((client) => buildDurableReconciliationReport({ client }))
+    const report = await transaction((client) => buildDurableReconciliationReport({ client, maxProjectionLagMs: config.payments.reconciliationLagThresholdMs }))
     res.status(report.status === 'ok' ? 200 : 503).json({ success: report.status === 'ok', report })
   } catch (error) {
     next(error)

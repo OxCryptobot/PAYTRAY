@@ -58,6 +58,7 @@ export const config = {
     tokenRegistry: process.env.PAYMENT_TOKEN_REGISTRY || '[]',
     finalityConfirmations: Number.parseInt(process.env.PAYMENT_FINALITY_CONFIRMATIONS || '10', 10),
     verifierCursorMaxAgeMs: Number.parseInt(process.env.VERIFIER_CURSOR_MAX_AGE_MS || '300000', 10),
+    reconciliationLagThresholdMs: Number.parseInt(process.env.RECONCILIATION_LAG_THRESHOLD_MS || '300000', 10),
     allowLegacyConfirmations: process.env.NODE_ENV !== 'production' && process.env.ALLOW_LEGACY_PAYMENT_CONFIRMATIONS !== 'false',
     reliabilityTargetPct: Number.parseInt(process.env.RELIABILITY_TARGET_PCT || '99', 10),
     reliabilityMinSamples: Number.parseInt(process.env.RELIABILITY_MIN_SAMPLES || '3', 10)
@@ -106,6 +107,10 @@ export function validateConfig() {
 
   if (!Number.isInteger(config.payments.verifierCursorMaxAgeMs) || config.payments.verifierCursorMaxAgeMs < 1000) {
     errors.push('VERIFIER_CURSOR_MAX_AGE_MS must be an integer of at least 1000 milliseconds')
+  }
+
+  if (!Number.isInteger(config.payments.reconciliationLagThresholdMs) || config.payments.reconciliationLagThresholdMs < 1000) {
+    errors.push('RECONCILIATION_LAG_THRESHOLD_MS must be an integer of at least 1000 milliseconds')
   }
 
   if (config.isProd && config.payments.allowLegacyConfirmations) {

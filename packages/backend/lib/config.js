@@ -50,10 +50,11 @@ export const config = {
     tokenGenLimit: Number.parseInt(process.env.TOKEN_GEN_LIMIT || '10', 10)
   },
   payments: {
-    settlementChainId: Number.parseInt(process.env.SETTLEMENT_CHAIN_ID || '8453', 10),
+    settlementChainId: Number.parseInt(process.env.SETTLEMENT_CHAIN_ID || '84532', 10),
     protocol: process.env.PAYMENT_STREAM_PROTOCOL || 'sablier-flow-v3',
     protocolContractAddress: process.env.PAYMENT_STREAM_PROTOCOL_CONTRACT || null,
     rpcUrl: process.env.PAYMENT_RPC_URL || null,
+    mainnetEnabled: process.env.PAYMENT_MAINNET_ENABLED === 'true',
     tokenRegistry: process.env.PAYMENT_TOKEN_REGISTRY || '[]',
     finalityConfirmations: Number.parseInt(process.env.PAYMENT_FINALITY_CONFIRMATIONS || '10', 10),
     allowLegacyConfirmations: process.env.NODE_ENV !== 'production' && process.env.ALLOW_LEGACY_PAYMENT_CONFIRMATIONS !== 'false',
@@ -103,6 +104,22 @@ export function validateConfig() {
 
   if (config.isProd && config.payments.allowLegacyConfirmations) {
     errors.push('ALLOW_LEGACY_PAYMENT_CONFIRMATIONS cannot be enabled in production')
+  }
+
+  if (config.payments.mainnetEnabled && !config.isProd) {
+    errors.push('PAYMENT_MAINNET_ENABLED can only be enabled in production')
+  }
+
+  if (config.payments.mainnetEnabled && config.payments.settlementChainId !== 8453) {
+    errors.push('PAYMENT_MAINNET_ENABLED requires Base mainnet chain ID 8453')
+  }
+
+  if (config.payments.settlementChainId === 8453 && !config.payments.mainnetEnabled) {
+    errors.push('Base mainnet settlement requires PAYMENT_MAINNET_ENABLED=true in production')
+  }
+
+  if (!config.payments.mainnetEnabled && config.payments.settlementChainId !== 84532) {
+    errors.push('Non-mainnet PayTray settlement must use Base Sepolia chain ID 84532')
   }
 
   if (errors.length > 0) {

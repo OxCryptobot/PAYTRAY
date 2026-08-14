@@ -108,7 +108,7 @@ These are only guardrails around the current skeleton. They do not replace a sma
 
 ## Next build decision
 
-The next correct product implementation is a **payment-stream protocol adapter**, not another simulated endpoint. Before implementing it, choose the exact streaming protocol/contract and initial deployment chain. The current repository defaults to Base (`8453`) in configuration but does not include a protocol SDK, contract address, token allowlist, or chain-event verifier. [3] [4]
+The next correct product implementation is a **durable, verifier-owned payment-stream production path**, not another simulated endpoint. PayTray now uses Sablier Flow v3 on Base Sepolia (`84532`) as the initial testnet candidate, with an allowlisted token model, official ABI-backed decoder, durable chain-event evidence, ledger idempotency, finality promotion, reconciliation, and operator review gates. Base mainnet remains explicitly disabled unless production authorization is configured. [3] [4]
 
 ## References
 

@@ -42,7 +42,7 @@ async function loginWallet(wallet, options = {}) {
   return response.body.tokens.accessToken
 }
 
-async function createWalletVerifyChallenge(walletAddress, chainId = 8453) {
+async function createWalletVerifyChallenge(walletAddress, chainId = 84532) {
   const response = await request(app).post('/api/wallet/verify/challenge').send({
     wallet: walletAddress,
     chainId
@@ -401,7 +401,7 @@ describe('PayTray backend skeleton', () => {
 
   it('verifies wallet ownership with signed message on supported chain', async () => {
     const wallet = new Wallet('0x8ef6fdcff63f330083f31fc3a6fc76437c5fbf58cb8f2ecf332db7378158f42f')
-    const challenge = await createWalletVerifyChallenge(wallet.address, 8453)
+    const challenge = await createWalletVerifyChallenge(wallet.address, 84532)
     const signature = await wallet.signMessage(challenge.message)
 
     const response = await request(app).post('/api/wallet/verify').send({
@@ -409,13 +409,13 @@ describe('PayTray backend skeleton', () => {
       signature,
       challengeId: challenge.id,
       message: challenge.message,
-      chainId: 8453
+      chainId: 84532
     })
 
     expect(response.status).toBe(200)
     expect(response.body.verified).toBe(true)
     expect(response.body.wallet).toBe(wallet.address.toLowerCase())
-    expect(response.body.chainId).toBe(8453)
+    expect(response.body.chainId).toBe(84532)
   })
 
   it('rejects wallet verification without challenge', async () => {
@@ -427,7 +427,7 @@ describe('PayTray backend skeleton', () => {
       wallet: wallet.address,
       signature,
       message,
-      chainId: 8453
+      chainId: 84532
     })
 
     expect(response.status).toBe(401)
@@ -436,7 +436,7 @@ describe('PayTray backend skeleton', () => {
 
   it('rejects replayed wallet verification challenges', async () => {
     const wallet = new Wallet('0xd4de6f8f429ef8f8aeff31d3f56bece57d7eec1b6f38f80cddd5d5ce18f5d472')
-    const challenge = await createWalletVerifyChallenge(wallet.address, 8453)
+    const challenge = await createWalletVerifyChallenge(wallet.address, 84532)
     const signature = await wallet.signMessage(challenge.message)
 
     const firstResponse = await request(app).post('/api/wallet/verify').send({
@@ -444,7 +444,7 @@ describe('PayTray backend skeleton', () => {
       signature,
       challengeId: challenge.id,
       message: challenge.message,
-      chainId: 8453
+      chainId: 84532
     })
 
     expect(firstResponse.status).toBe(200)
@@ -454,7 +454,7 @@ describe('PayTray backend skeleton', () => {
       signature,
       challengeId: challenge.id,
       message: challenge.message,
-      chainId: 8453
+      chainId: 84532
     })
 
     expect(replayResponse.status).toBe(401)
@@ -632,7 +632,7 @@ describe('PayTray backend skeleton', () => {
         token: 'USDC',
         amount: 7,
         duration: 2400,
-        chainId: 8453
+        chainId: 84532
       })
 
     expect(firstResponse.status).toBe(200)
@@ -647,7 +647,7 @@ describe('PayTray backend skeleton', () => {
         token: 'USDC',
         amount: 7,
         duration: 2400,
-        chainId: 8453
+        chainId: 84532
       })
 
     expect(replayResponse.status).toBe(200)
@@ -670,7 +670,7 @@ describe('PayTray backend skeleton', () => {
         token: 'USDC',
         amount: 9,
         duration: 1800,
-        chainId: 8453
+        chainId: 84532
       })
 
     expect(firstResponse.status).toBe(200)
@@ -684,7 +684,7 @@ describe('PayTray backend skeleton', () => {
         token: 'USDC',
         amount: 10,
         duration: 1800,
-        chainId: 8453
+        chainId: 84532
       })
 
     expect(conflictingResponse.status).toBe(409)
@@ -707,7 +707,7 @@ describe('PayTray backend skeleton', () => {
         expertise: ['defi', 'strategy'],
         timezone: 'UTC',
         languages: ['en'],
-        chainPreference: 8453
+        chainPreference: 84532
       })
 
     expect(profileResponse.status).toBe(200)
@@ -720,7 +720,7 @@ describe('PayTray backend skeleton', () => {
         maxBudget: 200,
         timezone: 'UTC',
         language: 'en',
-        chainPreference: 8453
+        chainPreference: 84532
       })
 
     expect(discoveryResponse.status).toBe(200)
@@ -790,7 +790,7 @@ describe('PayTray backend skeleton', () => {
         token: 'USDC',
         amount: 8,
         duration: 1200,
-        chainId: 8453
+        chainId: 84532
       })
 
     expect(createResponse.status).toBe(200)
@@ -826,7 +826,7 @@ describe('PayTray backend skeleton', () => {
         token: 'USDC',
         amount: 10,
         duration: 1800,
-        chainId: 8453
+        chainId: 84532
       })
 
     expect(createResponse.status).toBe(200)
@@ -948,7 +948,7 @@ describe('PayTray backend skeleton', () => {
         recipientWallet: expert.address,
         amount: 500,
         duration: 240,
-        chainId: 8453
+        chainId: 84532
       })
 
     expect(riskResponse.status).toBe(200)
@@ -970,7 +970,7 @@ describe('PayTray backend skeleton', () => {
         token: 'USDC',
         amount: 6,
         duration: 900,
-        chainId: 8453
+        chainId: 84532
       })
 
     expect(streamResponse.status).toBe(200)
@@ -1072,7 +1072,7 @@ describe('PayTray backend skeleton', () => {
           expertise: ['open', 'public'],
           timezone: 'UTC',
           languages: ['en'],
-          chainPreference: 8453
+          chainPreference: 84532
         })
 
       config.publicApi.key = 'test-public-api-key'
@@ -1105,7 +1105,7 @@ describe('PayTray backend skeleton', () => {
           token: 'USDC',
           amount: 12,
           duration: 1200,
-          chainId: 8453
+          chainId: 84532
         })
 
       expect(streamResponse.status).toBe(200)
@@ -1448,7 +1448,7 @@ describe('PayTray backend skeleton', () => {
           expertise: ['state', 'persistence'],
           timezone: 'UTC',
           languages: ['en'],
-          chainPreference: 8453
+          chainPreference: 84532
         })
 
       const persistResponse = await request(app)
@@ -1759,7 +1759,7 @@ describe('PayTray backend skeleton', () => {
     const streamResponse = await request(app)
       .post('/api/payments/streams')
       .set('Authorization', `Bearer ${senderToken}`)
-      .send({ recipientWallet: recipient.address, token: 'USDC', amount: 50, duration: 3600, chainId: 8453 })
+      .send({ recipientWallet: recipient.address, token: 'USDC', amount: 50, duration: 3600, chainId: 84532 })
 
     expect(streamResponse.status).toBe(200)
     const streamId = streamResponse.body.stream.id
@@ -1828,7 +1828,7 @@ describe('PayTray backend skeleton', () => {
       const streamResponse = await request(app)
         .post('/api/payments/streams')
         .set('Authorization', `Bearer ${senderToken}`)
-        .send({ recipientWallet: disputeRecipient.address, token: 'USDC', amount: 25, duration: 1800, chainId: 8453 })
+        .send({ recipientWallet: disputeRecipient.address, token: 'USDC', amount: 25, duration: 1800, chainId: 84532 })
 
       expect(streamResponse.status).toBe(200)
       const streamId = streamResponse.body.stream.id

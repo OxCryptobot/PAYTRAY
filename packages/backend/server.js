@@ -5,12 +5,13 @@ import helmet from 'helmet'
 import crypto from 'crypto'
 
 import config, { validateConfig } from './lib/config.js'
-import { closeDatabase, getDatabaseStatus, initializeDatabase } from './lib/database.js'
+import { closeDatabase, getDatabaseStatus, initializeDatabase, transaction } from './lib/database.js'
 import {
   AppError,
   AuthenticationError,
   AuthorizationError,
   ConflictError,
+  ExternalServiceError,
   NotFoundError,
   RateLimitError,
   ValidationError,
@@ -19,6 +20,28 @@ import {
 } from './lib/errors.js'
 import { getLogger, requestLogger, errorLogger } from './lib/logger.js'
 import { loadStateSnapshot, saveStateSnapshot } from './lib/stateStore.js'
+import { parseTokenRegistry } from './lib/payments/tokenRegistry.js'
+import {
+  createPaymentIntentV2,
+  getPaymentIntentV2,
+  listPaymentStreamsV2
+} from './lib/payments/paymentApiService.js'
+import { buildReadinessReport } from './lib/health.js'
+import { searchExperts } from './lib/discoveryService.js'
+import { recordDiscoveryImpressions } from './lib/discoveryImpressionService.js'
+import {
+  attachPaymentIntentToEngagement,
+  createEngagementContext,
+  getEngagementContext,
+  updateCollaborationState
+} from './lib/engagementService.js'
+import { getPilotMetrics, recordOutcome, verifyOutcome } from './lib/outcomeService.js'
+import { ingestTelemetryEvent } from './lib/telemetryService.js'
+import { processVerifiedChainEvent } from './lib/payments/verifiedEventService.js'
+import { getTelemetryHealth } from './lib/telemetryObservability.js'
+import { getReleaseReadiness } from './lib/releaseReadiness.js'
+import { listShadowRuns, reviewShadowRun } from './lib/shadowReviewService.js'
+import { buildDurableReconciliationReport } from './lib/payments/reconciliationService.js'
 import {
   generateServiceToken,
   generateTokenPair,
@@ -66,6 +89,7 @@ const rankingModel = {
   }
 }
 const chainRegistry = new Map([[String(config.payments.settlementChainId), { enabled: true, reason: 'default settlement chain' }]])
+const paymentTokenRegistry = parseTokenRegistry(config.payments.tokenRegistry)
 const paymentCreateIdempotency = new Map()
 const queueJobs = new Map()
 const extensionHooks = new Map()
@@ -124,13 +148,15 @@ function getDefaultScopes(walletAddress) {
     'discovery:*',
     'reputation:*',
     'intelligence:*',
-    'ops:*',
     'extensions:*'
   ]
 
-  const isAdmin = config.auth.adminWallets.includes(walletAddress.toLowerCase())
-  if (isAdmin) {
-    return [...baseScopes, 'admin:*']
+  const normalizedWallet = walletAddress.toLowerCase()
+  const isAdmin = config.auth.adminWallets.includes(normalizedWallet)
+  const isOperator = isAdmin || config.auth.operatorWallets.includes(normalizedWallet)
+
+  if (isOperator) {
+    return [...baseScopes, 'ops:*', ...(isAdmin ? ['admin:*'] : [])]
   }
 
   return baseScopes
@@ -981,6 +1007,12 @@ function assertStreamAccess(stream, walletAddress, action = 'access') {
   }
 }
 
+function assertStreamRecipient(stream, walletAddress, action = 'withdraw from') {
+  if (stream.recipientWallet !== walletAddress.toLowerCase()) {
+    throw new AuthorizationError(`Only the stream recipient can ${action} this stream`)
+  }
+}
+
 try {
   validateConfig()
 } catch (error) {
@@ -1075,6 +1107,33 @@ app.get('/api/health', (req, res) => {
     metrics: {
       reliability
     }
+  })
+})
+
+function getReadinessReport() {
+  return buildReadinessReport({
+    env: config.env,
+    databaseStatus: getDatabaseStatus(),
+    protocol: config.payments.protocol,
+    protocolContractAddress: config.payments.protocolContractAddress,
+    enabledTokenCount: paymentTokenRegistry.list({ enabledOnly: true }).length
+  })
+}
+
+app.get('/readyz', (req, res) => {
+  const report = getReadinessReport()
+  res.status(report.ready ? 200 : 503).json({
+    service: 'paytray-backend',
+    timestamp: nowIso(),
+    ...report
+  })
+})
+
+app.get('/api/health/readiness', (req, res) => {
+  const report = getReadinessReport()
+  res.status(report.ready ? 200 : 503).json({
+    success: report.ready,
+    ...report
   })
 })
 
@@ -1745,6 +1804,402 @@ app.post('/api/wallet/verify/challenge', (req, res, next) => {
   }
 })
 
+app.post('/api/v2/verifier/chain-events', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'verified chain-event ingestion requires a ready PostgreSQL database')
+    }
+    const result = await transaction((client) => processVerifiedChainEvent({
+      client,
+      config,
+      tokenRegistry: paymentTokenRegistry,
+      streamId: req.body.streamId,
+      intentId: req.body.intentId || null,
+      event: req.body.event,
+      verifierId: req.walletAddress
+    }))
+    res.status(200).json({
+      success: true,
+      ...result,
+      authority: 'verifier_owned_chain_evidence'
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/v2/telemetry/events', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'telemetry ingestion requires a ready PostgreSQL database')
+    }
+    const result = await transaction((client) => ingestTelemetryEvent({
+      client,
+      event: req.body,
+      receivedAt: new Date()
+    }))
+    res.status(result.idempotentReplay ? 200 : 201).json({
+      success: true,
+      event: result.event,
+      idempotentReplay: result.idempotentReplay,
+      ingestionLagMs: result.ingestionLagMs,
+      authority: 'observability_only'
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/reconciliation/durable', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable reconciliation requires a ready PostgreSQL database')
+    }
+    const report = await transaction((client) => buildDurableReconciliationReport({ client }))
+    res.status(report.status === 'ok' ? 200 : 503).json({ success: report.status === 'ok', report })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/shadow-runs', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'shadow-run queue requires a ready PostgreSQL database')
+    }
+    const queue = await transaction((client) => listShadowRuns({
+      client,
+      reviewerDecision: req.query.status || 'pending',
+      limit: req.query.limit
+    }))
+    res.json({ success: true, ...queue, authority: 'human_review_required', promotionStatus: 'shadow_only' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/v2/ops/shadow-runs/:runId/review', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'shadow-run review requires a ready PostgreSQL database')
+    }
+    const result = await transaction((client) => reviewShadowRun({
+      client,
+      runId: req.params.runId,
+      reviewerId: req.walletAddress,
+      decision: req.body.decision,
+      notes: req.body.notes || null
+    }))
+    res.json({ success: true, ...result, applied: false, authority: 'human_review_required' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/release-readiness', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'release readiness requires a ready PostgreSQL database')
+    }
+    const readiness = await transaction((client) => getReleaseReadiness({
+      client,
+      config,
+      databaseStatus: getDatabaseStatus(),
+      enabledTokenCount: paymentTokenRegistry.list({ enabledOnly: true }).length,
+      verifierWorkerStatus: 'not_configured'
+    }))
+    res.status(readiness.status === 'shadow_pilot_ready' ? 200 : 503).json({ success: readiness.status === 'shadow_pilot_ready', readiness })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/telemetry/health', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'telemetry health requires a ready PostgreSQL database')
+    }
+    const health = await transaction((client) => getTelemetryHealth({ client }))
+    res.json({ success: true, health, authority: 'observability_only' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/discovery/experts', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable discovery requires a ready PostgreSQL database')
+    }
+    const queryId = req.get('x-query-id') || undefined
+    const queryFeatures = {
+      query: req.query.q || '',
+      availability: req.query.availability || null,
+      language: req.query.language || null,
+      timezone: req.query.timezone || null,
+      maxHourlyRate: req.query.maxHourlyRate || null
+    }
+    const experts = await transaction(async (client) => {
+      const ranked = await searchExperts({
+        client,
+        query: queryFeatures.query,
+        filters: {
+          availability: queryFeatures.availability,
+          language: queryFeatures.language,
+          timezone: queryFeatures.timezone,
+          maxHourlyRate: queryFeatures.maxHourlyRate
+        },
+        limit: req.query.limit
+      })
+      const impression = await recordDiscoveryImpressions({
+        client,
+        walletAddress: req.walletAddress,
+        queryId,
+        queryFeatures,
+        experts: ranked
+      })
+      for (const expert of ranked) {
+        await ingestTelemetryEvent({
+          client,
+          event: {
+            eventId: `discovery-impression:${impression.queryId}:${expert.id}`,
+            eventType: 'discovery_impression',
+            occurredAt: new Date().toISOString(),
+            actorScope: 'authenticated_client',
+            entityType: 'expert_profile',
+            entityId: expert.id,
+            schemaVersion: '1',
+            source: 'discovery-v2',
+            privacyClass: 'derived_non_content',
+            payload: {
+              queryId: impression.queryId,
+              rankPosition: ranked.indexOf(expert) + 1,
+              baselineScore: expert.matchScore
+            },
+            provenance: { rankingVersion: 'weighted-explainable-v1' }
+          }
+        })
+      }
+      return { ranked, impression }
+    })
+    res.json({
+      success: true,
+      queryId: experts.impression.queryId,
+      count: experts.ranked.length,
+      experts: experts.ranked,
+      ranking: { version: 1, method: 'weighted_explainable_baseline' },
+      source: 'durable_profile_index',
+      impressionCapture: experts.impression
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/v2/engagements', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable engagements require a ready PostgreSQL database')
+    }
+
+    const engagement = await transaction((client) => createEngagementContext({
+      client,
+      input: {
+        clientWallet: req.walletAddress,
+        providerWallet: req.body.providerWallet,
+        searchBrief: req.body.searchBrief,
+        discoveryContext: req.body.discoveryContext,
+        rankingExplanation: req.body.rankingExplanation,
+        proposedTerms: req.body.proposedTerms,
+        matchSessionId: req.body.matchSessionId
+      }
+    }))
+    res.status(201).json({ success: true, engagement, source: 'durable_engagement_context' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/engagements/:engagementId', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable engagements require a ready PostgreSQL database')
+    }
+    const engagement = await transaction((client) => getEngagementContext({
+      client,
+      engagementId: req.params.engagementId,
+      walletAddress: req.walletAddress
+    }))
+    res.json({ success: true, engagement, source: 'durable_engagement_context' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/v2/engagements/:engagementId/collaboration-state', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable engagements require a ready PostgreSQL database')
+    }
+    const engagement = await transaction((client) => updateCollaborationState({
+      client,
+      engagementId: req.params.engagementId,
+      walletAddress: req.walletAddress,
+      status: req.body.status
+    }))
+    res.json({ success: true, engagement, source: 'durable_engagement_context' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/v2/engagements/:engagementId/payment-intent', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable engagements require a ready PostgreSQL database')
+    }
+    const engagement = await transaction((client) => attachPaymentIntentToEngagement({
+      client,
+      engagementId: req.params.engagementId,
+      walletAddress: req.walletAddress,
+      paymentIntentId: req.body.paymentIntentId
+    }))
+    res.json({ success: true, engagement, source: 'durable_engagement_context', paymentState: 'intent_created' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/v2/engagements/:engagementId/outcomes', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable outcomes require a ready PostgreSQL database')
+    }
+    const result = await transaction((client) => recordOutcome({
+      client,
+      input: {
+        engagementId: req.params.engagementId,
+        walletAddress: req.walletAddress,
+        eventType: req.body.eventType,
+        evidenceType: req.body.evidenceType,
+        evidenceId: req.body.evidenceId,
+        payload: req.body.payload,
+        occurredAt: req.body.occurredAt
+      }
+    }))
+    res.status(result.idempotentReplay ? 200 : 201).json({
+      success: true,
+      ...result,
+      verificationStatus: 'unverified',
+      source: 'participant_report'
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/v2/outcomes/:outcomeId/verify', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'outcome verification requires a ready PostgreSQL database')
+    }
+    const result = await transaction((client) => verifyOutcome({
+      client,
+      outcomeId: req.params.outcomeId,
+      verifierId: req.walletAddress,
+      verificationStatus: req.body.verificationStatus || 'verified',
+      verificationEvidence: req.body.verificationEvidence || {}
+    }))
+    res.status(result.idempotentReplay ? 200 : 200).json({
+      success: true,
+      ...result,
+      source: 'verifier_owned_outcome_evidence',
+      authority: 'verified_evidence_only'
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/pilot/metrics', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'pilot metrics require a ready PostgreSQL database')
+    }
+    const metrics = await transaction((client) => getPilotMetrics({
+      client,
+      from: req.query.from || null,
+      to: req.query.to || null
+    }))
+    res.json({ success: true, metrics })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/v2/payment-intents', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable payment intents require a ready PostgreSQL database')
+    }
+
+    const result = await transaction((client) => createPaymentIntentV2({
+      client,
+      tokenRegistry: paymentTokenRegistry,
+      input: {
+        senderWallet: req.walletAddress,
+        recipientWallet: req.body.recipientWallet,
+        chainId: req.body.chainId || config.payments.settlementChainId,
+        tokenAddress: req.body.tokenAddress,
+        amountBaseUnits: req.body.amountBaseUnits,
+        ratePerSecondBaseUnits: req.body.ratePerSecondBaseUnits,
+        idempotencyKey: req.headers['x-idempotency-key'] || req.body.idempotencyKey,
+        engagementId: req.body.engagementId
+      }
+    }))
+
+    res.status(result.idempotentReplay ? 200 : 201).json({
+      success: true,
+      ...result
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/payment-intents/:intentId', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable payment intents require a ready PostgreSQL database')
+    }
+
+    const intent = await transaction((client) => getPaymentIntentV2({
+      client,
+      intentId: req.params.intentId,
+      walletAddress: req.walletAddress
+    }))
+    res.json({ success: true, intent, source: 'durable_payment_intent', finalityStatus: 'unverified' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/streams', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'durable payment streams require a ready PostgreSQL database')
+    }
+
+    const streams = await transaction((client) => listPaymentStreamsV2({
+      client,
+      walletAddress: req.walletAddress
+    }))
+    res.json({ success: true, count: streams.length, streams, source: 'durable_payment_projection' })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.post('/api/payments/streams', authenticateToken, (req, res, next) => {
   try {
     const chainId = Number.parseInt(req.body.chainId || String(config.payments.settlementChainId), 10)
@@ -1913,6 +2368,10 @@ app.get('/api/payments/streams/:streamId/stats', authenticateToken, (req, res, n
 
 app.post('/api/payments/streams/:streamId/confirm', authenticateToken, async (req, res, next) => {
   try {
+    if (!config.payments.allowLegacyConfirmations) {
+      throw new AuthorizationError('Legacy payment confirmation simulation is disabled; verified chain events must update stream finality')
+    }
+
     const stream = paymentStreams.get(req.params.streamId)
 
     if (!stream) {
@@ -1963,7 +2422,13 @@ app.post('/api/payments/streams/:streamId/confirm', authenticateToken, async (re
 
     paymentStreams.set(stream.id, stream)
     markStateDirty()
-    res.json({ success: true, streamId: stream.id, uxState: stream.confirmationState })
+    res.json({
+      success: true,
+      streamId: stream.id,
+      uxState: stream.confirmationState,
+      source: 'legacy_development_simulation',
+      finalityStatus: 'unverified'
+    })
   } catch (error) {
     next(error)
   }
@@ -1977,7 +2442,7 @@ app.post('/api/payments/streams/:streamId/withdraw', authenticateToken, (req, re
       throw new NotFoundError('Stream')
     }
 
-    assertStreamAccess(stream, req.walletAddress, 'withdraw from')
+    assertStreamRecipient(stream, req.walletAddress, 'withdraw from')
 
     const amount = schemas.payment.amount(req.body.amount)
     const streamed = calculateStreamedAmount(stream)
@@ -2735,15 +3200,29 @@ app.get('/api/ledger/:wallet', authenticateToken, (req, res, next) => {
 app.post('/api/ops/ledger/reconcile', authenticateToken, requireScopes('ops:*'), (req, res) => {
   const credited = []
   for (const stream of paymentStreams.values()) {
-    if (stream.confirmationState === 'reflected') {
-      applyLedgerDelta(stream.recipientWallet, stream.chainId, { settled: stream.amount })
-      const senderEntry = getLedgerEntry(stream.senderWallet, stream.chainId)
-      senderEntry.settledBalance = Math.max(0, senderEntry.settledBalance - stream.amount)
-      senderEntry.updatedAt = nowIso()
-      credited.push({ streamId: stream.id, amount: stream.amount, currency: stream.token, chainId: stream.chainId })
+    if (stream.confirmationState !== 'reflected' || stream.ledgerReconciledAt) {
+      continue
     }
+
+    applyLedgerDelta(stream.recipientWallet, stream.chainId, { settled: stream.amount })
+    const senderEntry = getLedgerEntry(stream.senderWallet, stream.chainId)
+    senderEntry.settledBalance = Math.max(0, senderEntry.settledBalance - stream.amount)
+    senderEntry.updatedAt = nowIso()
+    stream.ledgerReconciledAt = nowIso()
+    paymentStreams.set(stream.id, stream)
+    credited.push({
+      streamId: stream.id,
+      amount: stream.amount,
+      currency: stream.token,
+      chainId: stream.chainId,
+      reconciledAt: stream.ledgerReconciledAt
+    })
   }
-  markStateDirty()
+
+  if (credited.length > 0) {
+    markStateDirty()
+  }
+
   res.json({ success: true, reconciled: credited.length, entries: credited })
 })
 

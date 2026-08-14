@@ -68,7 +68,3 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO schema_migrations (migration_name)
-VALUES ('001_init')
-ON CONFLICT DO NOTHING;
-

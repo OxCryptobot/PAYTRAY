@@ -1,12 +1,16 @@
 # PayTray
 
-PayTray is a Phase 1 skeleton for an AI platform that combines expert discovery, real-time communication, and blockchain payments.
+PayTray is an AI-enabled **time-to-money platform** for freelancers, clients, and experts. It combines expert discovery, real-time collaboration, and ERC-20 payment streams so parties can fund time continuously rather than rely only on lump-sum service payments.
 
-This repository has been reduced to a minimal starting point for development:
+The intended engagement loop is simple: a client discovers an expert, moves the match into a context-rich conversation or call, starts or stops a payment stream for time delivered, and gives both parties clear visibility into payment status and outcomes. Service providers should be able to withdraw funds made available by the underlying payment-stream protocol without waiting for a traditional invoice cycle.
+
+This repository is intentionally a Phase 1 backend-first foundation:
 
 - `MasterBlueprint.md` defines the target architecture and roadmap.
 - `packages/backend` contains the backend skeleton.
 - Root scripts are scoped to the backend workspace only.
+
+> **Current implementation boundary:** the repository models payment-stream lifecycle concepts and API contracts, but it does not yet integrate a production streaming protocol, verify on-chain payment events, or act as an on-chain settlement authority.
 
 ## Start Here
 

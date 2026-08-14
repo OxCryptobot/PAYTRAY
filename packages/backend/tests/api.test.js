@@ -19,6 +19,10 @@ async function createChallenge(walletAddress) {
 }
 
 async function loginWallet(wallet, options = {}) {
+  if (options.operator !== false && !config.auth.operatorWallets.includes(wallet.address.toLowerCase())) {
+    config.auth.operatorWallets.push(wallet.address.toLowerCase())
+  }
+
   const challenge = await createChallenge(wallet.address)
   const signature = await wallet.signMessage(challenge.message)
   const payload = {
@@ -80,6 +84,31 @@ describe('PayTray backend skeleton', () => {
     expect(response.status).toBe(401)
   })
 
+  it('rejects refresh tokens on protected API routes', async () => {
+    const wallet = new Wallet('0x78dd4d71b37f90a8b98b3177fbeacaf2c3b9ad5f8d79c2a38d7c5c781af4e8b7')
+    const challenge = await createChallenge(wallet.address)
+    const signature = await wallet.signMessage(challenge.message)
+    const loginResponse = await request(app).post('/api/auth/login').send({
+      wallet: wallet.address,
+      signature,
+      challengeId: challenge.id,
+      message: challenge.message
+    })
+
+    expect(loginResponse.status).toBe(200)
+
+    const refreshResponse = await request(app)
+      .get('/api/users/me')
+      .set('Authorization', `Bearer ${loginResponse.body.tokens.refreshToken}`)
+
+    const accessResponse = await request(app)
+      .get('/api/users/me')
+      .set('Authorization', `Bearer ${loginResponse.body.tokens.accessToken}`)
+
+    expect(refreshResponse.status).toBe(401)
+    expect(accessResponse.status).toBe(200)
+  })
+
   it('rejects replayed auth challenges', async () => {
     const wallet = new Wallet('0xe30fcaee69dd76f6ca7b2852f31f24a3912666bcf9b178ddfd4896f4187fbe4c')
     const challenge = await createChallenge(wallet.address)
@@ -126,6 +155,18 @@ describe('PayTray backend skeleton', () => {
 
     expect(opsResponse.status).toBe(403)
     expect(opsResponse.body.error).toContain('Missing required scopes')
+  })
+
+  it('does not grant ops scope to an ordinary wallet login', async () => {
+    const wallet = new Wallet('0x1198e77b2a0b62a4cc9d4a8355fc5f1a0d6f9ad1a7d2b3f2dc5f0276c4a1b602')
+    const token = await loginWallet(wallet, { operator: false })
+
+    const response = await request(app)
+      .get('/api/ops/slo')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(response.status).toBe(403)
+    expect(response.body.error).toContain('Missing required scopes')
   })
 
   it('allows intelligence-scoped tokens for intelligence routes and blocks ops routes', async () => {
@@ -458,6 +499,27 @@ describe('PayTray backend skeleton', () => {
       .set('Authorization', `Bearer ${outsiderToken}`)
 
     expect(forbiddenResponse.status).toBe(403)
+  })
+
+  it('allows only the service-provider recipient to withdraw from a payment stream', async () => {
+    const sender = new Wallet('0xc5f3d69764ae2d16f6a2d3b3c2f0e1d4c3b2a1908f7e6d5c4b3a291807f6e5d4')
+    const recipient = new Wallet('0x7626a4b9c2c6dd5b06ed26e4b2d6655e2b84d6bc7d6d6c2e58f3e42b3a45b197')
+    const senderToken = await loginWallet(sender)
+
+    const createResponse = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${senderToken}`)
+      .send({ recipientWallet: recipient.address, token: 'USDC', amount: 10, duration: 3600 })
+
+    expect(createResponse.status).toBe(200)
+
+    const senderWithdrawResponse = await request(app)
+      .post(`/api/payments/streams/${createResponse.body.stream.id}/withdraw`)
+      .set('Authorization', `Bearer ${senderToken}`)
+      .send({ amount: 1 })
+
+    expect(senderWithdrawResponse.status).toBe(403)
+    expect(senderWithdrawResponse.body.error).toContain('Only the stream recipient')
   })
 
   it('returns explicit validation error when profile search query is missing', async () => {
@@ -1081,8 +1143,9 @@ describe('PayTray backend skeleton', () => {
     }
   })
 
-  it('includes scopes in login response and token-driven operations remain authorized', async () => {
+  it('issues operational scopes only to a configured operator wallet', async () => {
     const wallet = new Wallet('0x92f4eb27a4324de90fa6a5cb6cbfa95f5f4d67e8f413f6077a2d5ef1b5d8a813')
+    config.auth.operatorWallets.push(wallet.address.toLowerCase())
     const challenge = await createChallenge(wallet.address)
     const signature = await wallet.signMessage(challenge.message)
 
@@ -1718,13 +1781,25 @@ describe('PayTray backend skeleton', () => {
     expect(reconcileResponse.status).toBe(200)
     expect(reconcileResponse.body.reconciled).toBeGreaterThanOrEqual(1)
 
+    const initialSettledBalance = reconcileResponse.body.entries
+      .find((entry) => entry.streamId === streamId)?.amount
+    expect(initialSettledBalance).toBe(50)
+
+    const repeatReconcileResponse = await request(app)
+      .post('/api/ops/ledger/reconcile')
+      .set('Authorization', `Bearer ${senderToken}`)
+      .send({})
+
+    expect(repeatReconcileResponse.status).toBe(200)
+    expect(repeatReconcileResponse.body.reconciled).toBe(0)
+
     const ledgerResponse = await request(app)
       .get(`/api/ledger/${recipient.address}`)
       .set('Authorization', `Bearer ${recipientToken}`)
 
     expect(ledgerResponse.status).toBe(200)
     expect(ledgerResponse.body.entries.length).toBeGreaterThan(0)
-    expect(ledgerResponse.body.entries[0].settledBalance).toBeGreaterThan(0)
+    expect(ledgerResponse.body.entries[0].settledBalance).toBe(50)
   })
 
   it('rejects viewing another wallet ledger without admin scope', async () => {

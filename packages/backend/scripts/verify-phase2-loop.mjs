@@ -1,0 +1,187 @@
+import assert from 'node:assert/strict'
+import request from 'supertest'
+import { Wallet } from 'ethers'
+import app from '../server.js'
+import config from '../lib/config.js'
+import { closeDatabase, initializeDatabase, transaction } from '../lib/database.js'
+
+const client = new Wallet('0x59c6995e998f97a5a0044966f094538e4c7c9c5a1c1e8f2a4d4e0f3f1f3a7c5d')
+const provider = new Wallet('0x8b3a350cf5c34c9194ca3a545d79f8d8b8d3d1e8e8d0b6d2e6a0d3d4c2d1e9f3')
+const operator = new Wallet('0xc5c45e7048ea387ee2eb7a9cef381fd27a7da3f3ebf4f11fbc87ba66dcf6b31f')
+const tokenAddress = '0x1111111111111111111111111111111111111111'
+
+async function login(wallet) {
+  const challenge = await request(app).post('/api/auth/challenge').send({ wallet: wallet.address, chainId: 84532 })
+  assert.equal(challenge.status, 200)
+  const signature = await wallet.signMessage(challenge.body.challenge.message)
+  const response = await request(app).post('/api/auth/login').send({
+    wallet: wallet.address,
+    signature,
+    challengeId: challenge.body.challenge.id,
+    message: challenge.body.challenge.message,
+    chainId: 84532
+  })
+  assert.equal(response.status, 200)
+  return response.body.tokens.accessToken
+}
+
+async function ensureProfile() {
+  await transaction(async (db) => {
+    const users = {}
+    for (const [key, wallet] of [['client', client], ['provider', provider]]) {
+      const existing = await db.query('SELECT id FROM users WHERE wallet_address = $1', [wallet.address.toLowerCase()])
+      if (existing.rows[0]) users[key] = existing.rows[0].id
+      else {
+        const created = await db.query(
+          `INSERT INTO users (wallet_address, wallet_type, last_login)
+           VALUES ($1, 'injected', CURRENT_TIMESTAMP) RETURNING id`,
+          [wallet.address.toLowerCase()]
+        )
+        users[key] = created.rows[0].id
+      }
+    }
+    const profile = await db.query('SELECT id FROM profiles WHERE user_id = $1 LIMIT 1', [users.provider])
+    if (!profile.rows[0]) {
+      await db.query(
+        `INSERT INTO profiles (
+          user_id, name, bio, hourly_rate, expertise, is_expert, completeness,
+          availability_status, timezone, languages, verification_status,
+          response_latency_seconds, completion_rate, repeat_booking_rate, paid_minutes
+        ) VALUES ($1, 'Phase Two Protocol Expert', 'Builds ERC-20 streaming and verifier-backed payment systems.', 180, $2, true, 96, 'today', 'UTC-5', $3, 'verified', 3600, 0.96, 0.4, 1200)`,
+        [users.provider, ['Solidity', 'Streaming', 'DeFi'], ['en']]
+      )
+    }
+  })
+}
+
+try {
+  await initializeDatabase()
+  await ensureProfile()
+  const clientToken = await login(client)
+  const providerToken = await login(provider)
+  let operatorToken = null
+  if (process.env.RUN_VERIFIER_PILOT === 'true') {
+    config.auth.operatorWallets.push(operator.address.toLowerCase())
+    operatorToken = await login(operator)
+  }
+
+  const discovery = await request(app)
+    .get('/api/v2/discovery/experts?q=streaming&availability=today')
+    .set('Authorization', `Bearer ${clientToken}`)
+  assert.equal(discovery.status, 200)
+  assert.equal(discovery.body.ranking.version, 1)
+  assert.ok(discovery.body.count >= 1)
+  const expert = discovery.body.experts[0]
+
+  const engagement = await request(app)
+    .post('/api/v2/engagements')
+    .set('Authorization', `Bearer ${clientToken}`)
+    .send({
+      providerWallet: expert.wallet,
+      searchBrief: 'Need a resilient ERC-20 streaming adapter for a testnet pilot.',
+      discoveryContext: { queryId: discovery.body.queryId, expertId: expert.id, matchedFilters: expert.matchExplanation.matchedFilters },
+      rankingExplanation: expert.matchExplanation,
+      proposedTerms: { chainId: 84532, tokenAddress, ratePerSecondBaseUnits: '3472' },
+      matchSessionId: `phase2-${Date.now()}`
+    })
+  assert.equal(engagement.status, 201)
+  assert.equal(engagement.body.engagement.collaboration_status, 'ready')
+  assert.equal(engagement.body.engagement.payment_status, 'not_requested')
+
+  const handoff = await request(app)
+    .get(`/api/v2/engagements/${engagement.body.engagement.id}`)
+    .set('Authorization', `Bearer ${providerToken}`)
+  assert.equal(handoff.status, 200)
+  assert.equal(handoff.body.engagement.thread_id, engagement.body.engagement.thread_id)
+
+  const collaboration = await request(app)
+    .post(`/api/v2/engagements/${engagement.body.engagement.id}/collaboration-state`)
+    .set('Authorization', `Bearer ${providerToken}`)
+    .send({ status: 'active' })
+  assert.equal(collaboration.status, 200)
+
+  const intent = await request(app)
+    .post('/api/v2/payment-intents')
+    .set('Authorization', `Bearer ${clientToken}`)
+    .send({
+      recipientWallet: expert.wallet,
+      chainId: 84532,
+      tokenAddress,
+      amountBaseUnits: '12500000',
+      ratePerSecondBaseUnits: '3472',
+      idempotencyKey: `phase2-loop-${Date.now()}`,
+      engagementId: engagement.body.engagement.id
+    })
+  assert.equal(intent.status, 201)
+
+  const attached = await request(app)
+    .post(`/api/v2/engagements/${engagement.body.engagement.id}/payment-intent`)
+    .set('Authorization', `Bearer ${clientToken}`)
+    .send({ paymentIntentId: intent.body.intent.id })
+  assert.equal(attached.status, 200)
+    assert.equal(attached.body.engagement.payment_status, 'intent_created')
+
+  let verifierResult = null
+  if (operatorToken) {
+    const verifierTransactionHash = `0x${intent.body.intent.id.replaceAll('-', '')}${'0'.repeat(32)}`
+    const verifierBlockHash = `0x${intent.body.intent.id.replaceAll('-', '')}${'1'.repeat(32)}`
+    const verifiedEvent = await request(app)
+      .post('/api/v2/verifier/chain-events')
+      .set('Authorization', `Bearer ${operatorToken}`)
+      .send({
+        intentId: intent.body.intent.id,
+        event: {
+          type: 'stream_created',
+          finalityStatus: 'included',
+          streamProtocolId: `ci-${intent.body.intent.id}`,
+          chainId: 84532,
+          protocolContractAddress: '0xc1ba5a41936aaab0ff920446db556efe17fc1c5d',
+          tokenAddress,
+          senderWallet: client.address,
+          recipientWallet: provider.address,
+          transactionHash: verifierTransactionHash,
+          blockNumber: 123,
+          blockHash: verifierBlockHash,
+          logIndex: 0,
+          amountBaseUnits: '12500000',
+          rawPayload: { source: 'ci-verifier-pilot' }
+        }
+      })
+    assert.equal(verifiedEvent.status, 200)
+    assert.equal(verifiedEvent.body.authority, 'verifier_owned_chain_evidence')
+    assert.equal(verifiedEvent.body.stream.lifecycleState, 'chain_included')
+    verifierResult = { streamId: verifiedEvent.body.stream.id, lifecycleState: verifiedEvent.body.stream.lifecycleState }
+  }
+
+  const outcomeBody = {
+    eventType: 'meeting_completed',
+    evidenceType: 'session',
+    evidenceId: `session-${Date.now()}`,
+    payload: { durationSeconds: 1800 }
+  }
+  const outcome = await request(app)
+    .post(`/api/v2/engagements/${engagement.body.engagement.id}/outcomes`)
+    .set('Authorization', `Bearer ${clientToken}`)
+    .send(outcomeBody)
+  assert.equal(outcome.status, 201)
+  assert.equal(outcome.body.verificationStatus, 'unverified')
+
+  const outcomeReplay = await request(app)
+    .post(`/api/v2/engagements/${engagement.body.engagement.id}/outcomes`)
+    .set('Authorization', `Bearer ${clientToken}`)
+    .send(outcomeBody)
+  assert.equal(outcomeReplay.status, 200)
+  assert.equal(outcomeReplay.body.idempotentReplay, true)
+
+  console.log(JSON.stringify({
+    status: 'ok',
+    experts: discovery.body.count,
+    engagementId: engagement.body.engagement.id,
+    threadId: engagement.body.engagement.thread_id,
+    paymentIntentId: intent.body.intent.id,
+    verifierResult,
+    outcomeReplay: outcomeReplay.body.idempotentReplay
+  }, null, 2))
+} finally {
+  await closeDatabase()
+}

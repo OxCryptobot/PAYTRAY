@@ -26,7 +26,11 @@ export function generateServiceToken(payload, secret, expiresIn, issuer = 'paytr
 
 export function verifyToken(token) {
   try {
-    return jwt.verify(token, config.jwt.secret, { algorithms: ['HS256'] })
+    const payload = jwt.verify(token, config.jwt.secret, { algorithms: ['HS256'], issuer: 'paytray' })
+    if (payload.type !== 'access') {
+      throw new AuthenticationError('Access token required')
+    }
+    return payload
   } catch (error) {
     throw new AuthenticationError(error.message)
   }

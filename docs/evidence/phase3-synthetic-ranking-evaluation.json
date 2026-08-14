@@ -1,0 +1,80 @@
+{
+  "source": "synthetic_mock_fixture",
+  "warning": "These metrics validate pipeline behavior only. They are not evidence of production ranking quality.",
+  "datasetVersion": "phase3-ranking-synthetic-v1",
+  "fixtureRows": 7,
+  "exportedExamples": 7,
+  "verifiedExamples": 5,
+  "shadowExamples": 2,
+  "eligibleExamples": 5,
+  "unverifiedFixtureEventsIgnored": 1,
+  "comparison": {
+    "baseline": {
+      "queryCount": 3,
+      "k": 3,
+      "precisionAtK": 0.833333,
+      "recallAtK": 1,
+      "ndcgAtK": 0.876977,
+      "byQuery": [
+        {
+          "queryId": "synthetic-query-a",
+          "precisionAtK": 1,
+          "recallAtK": 1,
+          "ndcgAtK": 1
+        },
+        {
+          "queryId": "synthetic-query-b",
+          "precisionAtK": 0.5,
+          "recallAtK": 1,
+          "ndcgAtK": 0.6309297535714574
+        },
+        {
+          "queryId": "synthetic-query-c",
+          "precisionAtK": 1,
+          "recallAtK": 1,
+          "ndcgAtK": 1
+        }
+      ]
+    },
+    "candidate": {
+      "queryCount": 3,
+      "k": 3,
+      "precisionAtK": 0.833333,
+      "recallAtK": 1,
+      "ndcgAtK": 1,
+      "byQuery": [
+        {
+          "queryId": "synthetic-query-a",
+          "precisionAtK": 1,
+          "recallAtK": 1,
+          "ndcgAtK": 1
+        },
+        {
+          "queryId": "synthetic-query-b",
+          "precisionAtK": 0.5,
+          "recallAtK": 1,
+          "ndcgAtK": 1
+        },
+        {
+          "queryId": "synthetic-query-c",
+          "precisionAtK": 1,
+          "recallAtK": 1,
+          "ndcgAtK": 1
+        }
+      ]
+    },
+    "delta": {
+      "precisionAtK": 0,
+      "recallAtK": 0,
+      "ndcgAtK": 0.123023
+    },
+    "promotionStatus": "shadow_only",
+    "applied": false
+  },
+  "persistence": {
+    "evaluationRunId": "synthetic-run-1",
+    "shadowDecisionCount": 5,
+    "applied": false,
+    "sqlCallCount": 14
+  }
+}

@@ -31,6 +31,10 @@ export const config = {
       .split(',')
       .map((item) => item.trim().toLowerCase())
       .filter(Boolean),
+    operatorWallets: (process.env.OPERATOR_WALLETS || '')
+      .split(',')
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean),
     challengeTTLSeconds: Number.parseInt(process.env.AUTH_CHALLENGE_TTL_SECONDS || '300', 10),
     loginAttemptLimit: Number.parseInt(process.env.AUTH_LOGIN_ATTEMPT_LIMIT || '20', 10),
     walletVerifyChallengeTTLSeconds: Number.parseInt(process.env.WALLET_VERIFY_CHALLENGE_TTL_SECONDS || '300', 10),
@@ -47,6 +51,12 @@ export const config = {
   },
   payments: {
     settlementChainId: Number.parseInt(process.env.SETTLEMENT_CHAIN_ID || '8453', 10),
+    protocol: process.env.PAYMENT_STREAM_PROTOCOL || 'sablier-flow-v3',
+    protocolContractAddress: process.env.PAYMENT_STREAM_PROTOCOL_CONTRACT || null,
+    rpcUrl: process.env.PAYMENT_RPC_URL || null,
+    tokenRegistry: process.env.PAYMENT_TOKEN_REGISTRY || '[]',
+    finalityConfirmations: Number.parseInt(process.env.PAYMENT_FINALITY_CONFIRMATIONS || '10', 10),
+    allowLegacyConfirmations: process.env.NODE_ENV !== 'production' && process.env.ALLOW_LEGACY_PAYMENT_CONFIRMATIONS !== 'false',
     reliabilityTargetPct: Number.parseInt(process.env.RELIABILITY_TARGET_PCT || '99', 10),
     reliabilityMinSamples: Number.parseInt(process.env.RELIABILITY_MIN_SAMPLES || '3', 10)
   },
@@ -85,6 +95,14 @@ export function validateConfig() {
 
   if (config.isProd && !config.database.url) {
     errors.push('DATABASE_URL is required in production')
+  }
+
+  if (!Number.isInteger(config.payments.finalityConfirmations) || config.payments.finalityConfirmations < 1) {
+    errors.push('PAYMENT_FINALITY_CONFIRMATIONS must be a positive integer')
+  }
+
+  if (config.isProd && config.payments.allowLegacyConfirmations) {
+    errors.push('ALLOW_LEGACY_PAYMENT_CONFIRMATIONS cannot be enabled in production')
   }
 
   if (errors.length > 0) {

@@ -1,6 +1,7 @@
 import pg from 'pg'
 import config from './config.js'
 import { ExternalServiceError } from './errors.js'
+import { runMigrations } from './migrations.js'
 
 const { Pool } = pg
 
@@ -32,6 +33,7 @@ export async function initializeDatabase() {
     })
 
     await pool.query('SELECT 1')
+    await transaction(async (client) => runMigrations(client))
     databaseStatus = 'ready'
     return pool
   } catch (error) {

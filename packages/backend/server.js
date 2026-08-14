@@ -45,6 +45,7 @@ import { buildDurableReconciliationReport } from './lib/payments/reconciliationS
 import { createConfiguredBaseSepoliaVerifierWorker } from './lib/payments/verifierWorkerService.js'
 import { assertSafeWebhookUrl, validateWebhookUrl } from './lib/webhookSecurity.js'
 import { getFinancialSummary, getVerifierObservability } from './lib/verifierObservability.js'
+import { assertLegacyPaymentMutationAllowed } from './lib/payments/legacyPaymentPolicy.js'
 import {
   generateServiceToken,
   generateTokenPair,
@@ -2268,6 +2269,7 @@ app.get('/api/v2/streams', authenticateToken, async (req, res, next) => {
 
 app.post('/api/payments/streams', authenticateToken, (req, res, next) => {
   try {
+    assertLegacyPaymentMutationAllowed({ isProd: config.isProd })
     const chainId = Number.parseInt(req.body.chainId || String(config.payments.settlementChainId), 10)
     if (!Number.isFinite(chainId)) {
       throw new ValidationError('Chain id must be an integer')
@@ -2434,6 +2436,7 @@ app.get('/api/payments/streams/:streamId/stats', authenticateToken, (req, res, n
 
 app.post('/api/payments/streams/:streamId/confirm', authenticateToken, async (req, res, next) => {
   try {
+    assertLegacyPaymentMutationAllowed({ isProd: config.isProd })
     if (!config.payments.allowLegacyConfirmations) {
       throw new AuthorizationError('Legacy payment confirmation simulation is disabled; verified chain events must update stream finality')
     }
@@ -2502,6 +2505,7 @@ app.post('/api/payments/streams/:streamId/confirm', authenticateToken, async (re
 
 app.post('/api/payments/streams/:streamId/withdraw', authenticateToken, (req, res, next) => {
   try {
+    assertLegacyPaymentMutationAllowed({ isProd: config.isProd })
     const stream = paymentStreams.get(req.params.streamId)
 
     if (!stream) {
@@ -2530,6 +2534,7 @@ app.post('/api/payments/streams/:streamId/withdraw', authenticateToken, (req, re
 
 app.post('/api/payments/streams/:streamId/cancel', authenticateToken, (req, res, next) => {
   try {
+    assertLegacyPaymentMutationAllowed({ isProd: config.isProd })
     const stream = paymentStreams.get(req.params.streamId)
 
     if (!stream) {
@@ -3295,6 +3300,7 @@ app.post('/api/ops/ledger/reconcile', authenticateToken, requireScopes('ops:*'),
 
 app.post('/api/payments/streams/:streamId/dispute', authenticateToken, (req, res, next) => {
   try {
+    assertLegacyPaymentMutationAllowed({ isProd: config.isProd })
     const stream = paymentStreams.get(req.params.streamId)
     if (!stream) {
       throw new NotFoundError('Stream')
@@ -3344,6 +3350,7 @@ app.post('/api/payments/streams/:streamId/dispute', authenticateToken, (req, res
 
 app.post('/api/payments/streams/:streamId/dispute/resolve', authenticateToken, requireScopes('admin:*'), (req, res, next) => {
   try {
+    assertLegacyPaymentMutationAllowed({ isProd: config.isProd })
     const stream = paymentStreams.get(req.params.streamId)
     if (!stream) {
       throw new NotFoundError('Stream')

@@ -40,8 +40,9 @@ import { ingestTelemetryEvent } from './lib/telemetryService.js'
 import { processVerifiedChainEvent } from './lib/payments/verifiedEventService.js'
 import { getTelemetryHealth } from './lib/telemetryObservability.js'
 import { getReleaseReadiness } from './lib/releaseReadiness.js'
-import { listShadowRuns, reviewShadowRun } from './lib/shadowReviewService.js'
+import { getShadowRunDetails, listShadowRuns, reviewShadowRun } from './lib/shadowReviewService.js'
 import { buildDurableReconciliationReport } from './lib/payments/reconciliationService.js'
+import { createConfiguredBaseSepoliaVerifierWorker } from './lib/payments/verifierWorkerService.js'
 import {
   generateServiceToken,
   generateTokenPair,
@@ -1804,6 +1805,34 @@ app.post('/api/wallet/verify/challenge', (req, res, next) => {
   }
 })
 
+app.post('/api/v2/verifier/poll', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'verifier polling requires a ready PostgreSQL database')
+    }
+    if (!config.payments.rpcUrl) {
+      throw new ExternalServiceError('Base Sepolia RPC', 'PAYMENT_RPC_URL is required before verifier polling can run')
+    }
+    const result = await transaction(async (client) => {
+      const worker = createConfiguredBaseSepoliaVerifierWorker({
+        client,
+        rpcUrl: config.payments.rpcUrl,
+        tokenRegistry: paymentTokenRegistry,
+        contractAddress: config.payments.protocolContractAddress,
+        finalityConfirmations: config.payments.finalityConfirmations,
+        verifierId: req.walletAddress
+      })
+      return worker.pollOnce({
+        fromBlock: req.body?.fromBlock == null ? null : Number(req.body.fromBlock),
+        toBlock: req.body?.toBlock == null ? null : Number(req.body.toBlock)
+      })
+    })
+    res.json({ success: true, result, authority: 'verifier_worker', promotionStatus: 'shadow_only' })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.post('/api/v2/verifier/chain-events', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
   try {
     if (getDatabaseStatus() !== 'ready') {
@@ -1862,6 +1891,18 @@ app.get('/api/v2/ops/reconciliation/durable', authenticateToken, requireScopes('
   }
 })
 
+app.get('/api/v2/ops/shadow-runs/:runId', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'shadow-run details require a ready PostgreSQL database')
+    }
+    const details = await transaction((client) => getShadowRunDetails({ client, runId: req.params.runId }))
+    res.json({ success: true, ...details })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.get('/api/v2/ops/shadow-runs', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
   try {
     if (getDatabaseStatus() !== 'ready') {
@@ -1906,7 +1947,7 @@ app.get('/api/v2/ops/release-readiness', authenticateToken, requireScopes('ops:*
       config,
       databaseStatus: getDatabaseStatus(),
       enabledTokenCount: paymentTokenRegistry.list({ enabledOnly: true }).length,
-      verifierWorkerStatus: 'not_configured'
+      verifierWorkerStatus: config.payments.rpcUrl ? 'configured' : 'not_configured'
     }))
     res.status(readiness.status === 'shadow_pilot_ready' ? 200 : 503).json({ success: readiness.status === 'shadow_pilot_ready', readiness })
   } catch (error) {

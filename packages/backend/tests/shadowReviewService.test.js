@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { listShadowRuns, reviewShadowRun } from '../lib/shadowReviewService.js'
+import { getShadowRunDetails, listShadowRuns, reviewShadowRun } from '../lib/shadowReviewService.js'
 
 describe('shadow review service', () => {
   it('records an explicit reviewer decision without applying the candidate', async () => {
@@ -16,6 +16,18 @@ describe('shadow review service', () => {
     expect(result.idempotentReplay).toBe(false)
     expect(result.applied).toBe(false)
     expect(calls.at(-1).params).toContain('approved_pilot')
+  })
+
+  it('returns detailed shadow evidence with no applied decisions', async () => {
+    const client = {
+      async query(sql) {
+        if (sql.includes('SELECT * FROM ai_evaluation_runs')) return { rows: [{ id: 'run-1', reviewer_decision: 'pending', status: 'shadow' }] }
+        if (sql.includes('FROM ai_shadow_decisions')) return { rows: [{ id: 'decision-1', applied: false, human_review_status: 'not_reviewed' }] }
+        throw new Error(`Unexpected query: ${sql}`)
+      }
+    }
+    const result = await getShadowRunDetails({ client, runId: 'run-1' })
+    expect(result).toMatchObject({ decisionCount: 1, appliedDecisionCount: 0, promotionStatus: 'shadow_only', authority: 'human_review_required' })
   })
 
   it('lists bounded shadow runs for operator review', async () => {

@@ -14,16 +14,23 @@ function logFor(address = BASE_SEPOLIA_SABLIER_FLOW_V3) {
 }
 
 describe('Sablier Flow v3 Base Sepolia adapter', () => {
-  it('decodes the verified CreateFlowStream event into PayTray evidence', () => {
-    const event = createSablierFlowV3Decoder()(logFor())
+  it('decodes the verified CreateFlowStream event into PayTray evidence', async () => {
+    const event = await createSablierFlowV3Decoder()(logFor())
     expect(event).toMatchObject({ type: 'stream_created', finalityStatus: 'included', streamProtocolId: '42', chainId: 84532, tokenAddress: token, senderWallet: sender, recipientWallet: recipient, amountBaseUnits: '1000000000000000' })
   })
 
-  it('ignores logs from a different contract and unsupported subsequent events', () => {
-    expect(createSablierFlowV3Decoder()(logFor('0x5555555555555555555555555555555555555555'))).toBeNull()
+  it('ignores logs from a different contract and unsupported subsequent events', async () => {
+    expect(await createSablierFlowV3Decoder()(logFor('0x5555555555555555555555555555555555555555'))).toBeNull()
     const pauseInterface = new Interface(['event PauseFlowStream(uint256 indexed streamId,address indexed sender,address indexed recipient,uint256 totalDebt)'])
     const encoded = pauseInterface.encodeEventLog(pauseInterface.getEvent('PauseFlowStream'), [42n, sender, recipient, 1n])
-    expect(createSablierFlowV3Decoder()({ ...logFor(), topics: encoded.topics, data: encoded.data })).toBeNull()
+    expect(await createSablierFlowV3Decoder()({ ...logFor(), topics: encoded.topics, data: encoded.data })).toBeNull()
+  })
+
+  it('hydrates a non-creation event from the durable stream context', async () => {
+    const depositInterface = new Interface(['event DepositFlowStream(uint256 indexed streamId,address indexed funder,uint128 amount)'])
+    const encoded = depositInterface.encodeEventLog(depositInterface.getEvent('DepositFlowStream'), [42n, sender, 100n])
+    const event = await createSablierFlowV3Decoder({ getStreamContext: async () => ({ tokenAddress: token, senderWallet: sender, recipientWallet: recipient }) })({ ...logFor(), topics: encoded.topics, data: encoded.data })
+    expect(event).toMatchObject({ type: 'stream_topped_up', streamProtocolId: '42', tokenAddress: token, senderWallet: sender, recipientWallet: recipient, amountBaseUnits: '100' })
   })
 
   it('requires an explicit HTTPS RPC URL for the provider factory', () => {

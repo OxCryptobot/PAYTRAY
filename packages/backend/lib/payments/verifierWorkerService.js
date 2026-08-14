@@ -86,7 +86,19 @@ export function createDatabaseVerifierWorker({ client, provider, adapter, tokenR
 }
 
 export function createConfiguredBaseSepoliaVerifierWorker({ client, rpcUrl, tokenRegistry, contractAddress, maxBlockRange = 2_000, finalityConfirmations = 10, verifierId = 'verifier-worker' } = {}) {
-  const configured = createBaseSepoliaFlowVerifier({ rpcUrl, contractAddress })
+  const getStreamContext = async (protocolStreamId) => {
+    const result = await client.query(`
+      SELECT ps.token_address, sender.wallet_address AS sender_wallet, recipient.wallet_address AS recipient_wallet
+      FROM payment_streams ps
+      JOIN users sender ON sender.id = ps.sender_id
+      JOIN users recipient ON recipient.id = ps.recipient_id
+      WHERE ps.protocol_stream_id = $1
+      ORDER BY ps.created_at DESC
+      LIMIT 1
+    `, [protocolStreamId])
+    return result.rows[0] || null
+  }
+  const configured = createBaseSepoliaFlowVerifier({ rpcUrl, contractAddress, getStreamContext })
   const adapter = createProtocolAdapter({
     protocol: 'sablier-flow-v3',
     chainId: configured.chainId,

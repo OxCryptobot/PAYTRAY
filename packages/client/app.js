@@ -266,6 +266,36 @@ async function startEngagement() {
   }
 }
 
+async function refreshPaymentStatus() {
+  if (!state.engagementId) {
+    showStatus('Create the engagement context before refreshing verified status.', 'error')
+    return
+  }
+  try {
+    showStatus('Reading durable engagement and verifier status…')
+    const session = await ensureWalletSession()
+    const engagementResponse = await fetch(`${session.apiBase}/api/v2/engagements/${state.engagementId}`, { headers: { authorization: `Bearer ${session.accessToken}` } })
+    const engagementPayload = await engagementResponse.json()
+    if (!engagementResponse.ok) throw new Error(engagementPayload.error || `Engagement status failed (${engagementResponse.status})`)
+    const engagement = engagementPayload.engagement || {}
+    const paymentIntentId = state.paymentIntentId || engagement.payment_intent_id || engagement.paymentIntentId
+    let intent = null
+    if (paymentIntentId) {
+      const intentResponse = await fetch(`${session.apiBase}/api/v2/payment-intents/${paymentIntentId}`, { headers: { authorization: `Bearer ${session.accessToken}` } })
+      const intentPayload = await intentResponse.json()
+      if (!intentResponse.ok) throw new Error(intentPayload.error || `Payment status failed (${intentResponse.status})`)
+      intent = intentPayload.intent || intentPayload.paymentIntent || null
+      state.paymentIntentId = paymentIntentId
+    }
+    const collaboration = engagement.collaboration_status || engagement.collaborationStatus || 'unknown'
+    const payment = intent?.status || engagement.payment_status || engagement.paymentStatus || 'not_created'
+    const finality = intent?.finalityStatus || intent?.finality_status || 'not_observed'
+    showStatus(`Verified status: collaboration ${collaboration}; payment ${payment}; chain finality ${finality}. Only verifier evidence establishes settlement.`, 'success')
+  } catch (error) {
+    showStatus(`Status refresh unavailable: ${error.message}`, 'error')
+  }
+}
+
 async function requestPaymentIntent() {
   const expert = experts.find((candidate) => candidate.id === state.selectedId)
   if (!expert) return
@@ -315,6 +345,7 @@ document.addEventListener('click', (event) => {
   if (selectButton) selectExpert(selectButton.dataset.selectId)
   if (event.target.closest('#start-engagement')) startEngagement()
   if (event.target.closest('#request-stream')) requestPaymentIntent()
+  if (event.target.closest('#refresh-payment-status')) refreshPaymentStatus()
 })
 searchInput.addEventListener('input', (event) => { state.query = event.target.value; renderExperts() })
 domainFilter.addEventListener('change', (event) => { state.domain = event.target.value; renderExperts() })

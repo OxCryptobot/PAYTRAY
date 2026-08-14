@@ -29,6 +29,29 @@ export async function reviewShadowRun({ client, runId, reviewerId, decision, not
   return { run: reviewed.rows[0], idempotentReplay: false, applied: false }
 }
 
+export async function getShadowRunDetails({ client, runId }) {
+  if (!runId) throw new ValidationError('runId is required')
+  const runResult = await client.query('SELECT * FROM ai_evaluation_runs WHERE id = $1', [runId])
+  if (!runResult.rows[0]) throw new NotFoundError('Shadow evaluation run')
+  const decisions = await client.query(
+    `SELECT id, task_type, entity_type, entity_id, model_version,
+            input_hash, output, confidence, reason_codes, applied,
+            human_review_status, latency_ms, cost_microunits, created_at
+     FROM ai_shadow_decisions
+     WHERE evaluation_run_id = $1
+     ORDER BY created_at ASC, id ASC`,
+    [runId]
+  )
+  return {
+    run: runResult.rows[0],
+    decisions: decisions.rows,
+    decisionCount: decisions.rows.length,
+    appliedDecisionCount: decisions.rows.filter((decision) => decision.applied).length,
+    promotionStatus: 'shadow_only',
+    authority: 'human_review_required'
+  }
+}
+
 export async function listShadowRuns({ client, reviewerDecision = 'pending', limit = 25 }) {
   if (!['pending', 'approved_pilot', 'rejected'].includes(reviewerDecision)) throw new ValidationError('reviewerDecision is unsupported')
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 25))

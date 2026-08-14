@@ -1,4 +1,5 @@
 import { ConflictError, NotFoundError, ValidationError } from './errors.js'
+import { evaluateShadowQuality } from './shadowQualityGate.js'
 
 export async function reviewShadowRun({ client, runId, reviewerId, decision, notes = null }) {
   if (!runId) throw new ValidationError('runId is required')
@@ -47,6 +48,12 @@ export async function getShadowRunDetails({ client, runId }) {
     decisions: decisions.rows,
     decisionCount: decisions.rows.length,
     appliedDecisionCount: decisions.rows.filter((decision) => decision.applied).length,
+    qualityGate: evaluateShadowQuality({
+      metrics: runResult.rows[0].metrics || {},
+      baselineVersion: runResult.rows[0].baseline_version,
+      rollbackTarget: runResult.rows[0].rollback_target,
+      reviewerDecision: runResult.rows[0].reviewer_decision
+    }),
     promotionStatus: 'shadow_only',
     authority: 'human_review_required'
   }

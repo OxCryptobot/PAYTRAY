@@ -15,6 +15,7 @@
     "backend:migrations:check": "node packages/backend/scripts/verify-migrations.mjs",
     "backend:deployment:check": "node packages/backend/scripts/verify-deployment-preflight.mjs",
     "backend:railway:trial:check": "node packages/backend/scripts/verify-railway-trial.mjs",
+    "backend:release:approval:check": "node packages/backend/scripts/inspect-release-approval.mjs",
     "start": "npm run backend:start",
     "test": "npm run backend:test",
     "lint": "npm run backend:lint"

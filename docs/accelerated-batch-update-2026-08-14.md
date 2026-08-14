@@ -3,7 +3,7 @@
 **Date:** 2026-08-14  
 **Branch:** `paytray/batch-delivery`  
 **Remote baseline:** `8498c8643e32691abb12aaa320862dd829e2e3a8`  
-**Current state:** Batch AL is validated locally and remains uncommitted.
+**Current state:** Batch AM is validated locally with the final release checklist and remains uncommitted.
 
 ## Delivered in this update
 
@@ -30,10 +30,11 @@
 | **AJ — collaboration-AI guardrails** | Added provenance-backed advisory evidence with future retention, bounded latency and cost, raw-content exclusion, required human override, and explicit non-settlement authority. | Collaboration intelligence remains advisory, non-applied, attributable, bounded, and independent from payment, ledger, outcome, and reputation transitions. |
 | **AK — Flow v3 adverse-event evidence** | Added distinct `stream_refunded` protocol evidence and regression coverage for refund, pause, restart, void, and withdrawal decoding from durable stream context. | Refunds cannot be misclassified as top-ups; adverse events remain verifier evidence and do not invent financial lifecycle states or mutate ledger authority. |
 | **AL — final release approval gate** | Added read-only operator `GET /api/v2/ops/release-approval` combining deployment preflight, database/readiness, fresh verifier cursor, clean reconciliation, shadow-review, rollback-target, mainnet-policy, and explicit human-approval evidence. | The artifact fails closed until human approval is supplied; it cannot deploy, promote AI, or mutate settlement, ledger, outcomes, or reputation. |
+| **AM — release approval inspection CLI** | Added `backend:release:approval:check`, which emits the same composed approval artifact for CI/Railway preflight review and exits nonzero when approval is blocked. Added `docs/final-production-release-checklist.md` with the final human sign-off gates. | The CLI and checklist are read-only; the observed local result was honestly blocked only because explicit human approval and authenticated Railway settings were absent, while deployment and settlement mutation remained false. |
 
 ## Validation
 
-The latest run passed **35 test files and 163 tests**, client JavaScript syntax validation, backend/client artifact existence checks, the read-only deployment preflight, the Railway trial gate tests, focused reconciliation SLO tests, focused AI quality-gate tests, focused collaboration-AI guardrail tests, focused Flow v3 adverse-event tests, focused release-approval tests, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The Railway trial gate remains intentionally fail-closed with `settings_unavailable` when no non-secret Railway settings are available.
+The latest run passed **35 test files and 163 tests**, client JavaScript syntax validation, backend/client artifact existence checks, the read-only deployment preflight, the Railway trial gate tests, focused reconciliation SLO tests, focused AI quality-gate tests, focused collaboration-AI guardrail tests, focused Flow v3 adverse-event tests, focused release-approval tests, the Batch AM release-approval CLI dry-run, final checklist consistency review, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The Batch AM CLI exited 1 as designed because explicit human approval was absent; its artifact reported `status: blocked`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`.
 
 ## Railway development-server trial context
 
@@ -51,14 +52,15 @@ Before any Railway deployment, the project still requires explicit deployment ap
 | **AJ — completed locally** | Added provenance, retention, cost, latency, raw-content, and human-override controls for collaboration AI advisory evidence. | AI assistance remains advisory, attributable, bounded, and independent from settlement authority. |
 | **AK — completed locally** | Added distinct Flow v3 refund evidence and coverage for refund, pause, restart, void, and withdrawal decoding. | Adverse protocol evidence is explicit and verifier-owned; no automatic ledger repair or lifecycle invention occurs. |
 | **AL — completed locally** | Added the final read-only release approval artifact and operator endpoint, which fails closed until explicit human approval. | No deployment, AI promotion, or mainnet settlement change can occur through the artifact. |
+| **AM — completed locally** | Added the read-only release-approval inspection CLI for CI/Railway preflight workflows. | A blocked CLI exit is an intentional safety signal, not a deployment failure or state mutation. |
 
 ## Commit and push boundary
 
-Only the following Batch AL files are modified locally and have not been committed or pushed:
+Only the following Batch AM files are modified locally and have not been committed or pushed:
 
-- `packages/backend/lib/releaseApprovalGate.js`
-- `packages/backend/server.js`
-- `packages/backend/tests/releaseApprovalGate.test.js`
+- `package.json`
+- `packages/backend/scripts/inspect-release-approval.mjs`
 - `docs/accelerated-batch-update-2026-08-14.md`
+- `docs/final-production-release-checklist.md`
 
-No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, Batch AG is pushed at `f9b5f842837c593d72d971f12781b9488c623ab6`, Batch AH is pushed at `c44703bbfb1e52ff806e2006f08f919da704c23e`, Batch AI is pushed at `405f11eb800e0b7ac5155c9255a34a83e9d1faae`, Batch AJ is pushed at `de91f5b41bc662d69ef515ac1b64e15d787448d5`, Batch AK is pushed at `e1749c3e1b6f673f8580fab962b0aba77ffcdb5a`, and Batch AL is the current local uncommitted tranche.
+No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, Batch AG is pushed at `f9b5f842837c593d72d971f12781b9488c623ab6`, Batch AH is pushed at `c44703bbfb1e52ff806e2006f08f919da704c23e`, Batch AI is pushed at `405f11eb800e0b7ac5155c9255a34a83e9d1faae`, Batch AJ is pushed at `de91f5b41bc662d69ef515ac1b64e15d787448d5`, Batch AK is pushed at `e1749c3e1b6f673f8580fab962b0aba77ffcdb5a`, Batch AL is pushed at `65ee66dc084a01d8c62c64935a2cd7d976295f75`, and Batch AM is the current local uncommitted tranche.

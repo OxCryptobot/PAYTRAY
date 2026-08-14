@@ -3,7 +3,7 @@
 **Date:** 2026-08-14  
 **Branch:** `paytray/batch-delivery`  
 **Remote baseline:** `8498c8643e32691abb12aaa320862dd829e2e3a8`  
-**Current state:** Batch AE is validated locally and remains uncommitted.
+**Current state:** Batch AF is validated locally and remains uncommitted.
 
 ## Delivered in this update
 
@@ -23,17 +23,37 @@
 | **AC — durable summary correctness** | Corrected financial observability to group streams by durable `lifecycle_state` and scope payment-intent counts to the configured settlement chain. Updated regression coverage for the operator summary. | Operator metrics no longer report legacy stream status as durable lifecycle truth or mix payment-intent counts across unsupported chains. |
 | **AD — verifier freshness gate** | Added bounded `VERIFIER_CURSOR_MAX_AGE_MS` configuration and evidence-based release-readiness gating from the durable verifier cursor. Production readiness now distinguishes fresh, stale, and missing cursors; non-production remains usable without a configured worker. | RPC configuration alone cannot make production shadow-pilot readiness pass; the verifier must have recent durable cursor evidence. |
 | **AE — operator verifier status classification** | Extended `GET /api/v2/ops/verifier/status` with explicit `fresh`, `stale`, `missing`, and `not_configured` classifications, readiness boolean, freshness threshold, and an operator-readable reason. | The status remains read-only and verifier-owned; operator dashboards cannot mistake an unconfigured or stale cursor for healthy chain verification. |
+| **AF — deployment preflight** | Added `backend:deployment:check`, a read-only configuration preflight that validates production database/JWT/RPC/protocol/webhook/token/mainnet-gate requirements and identifies the deployment target. | The preflight performs no deployment, network call, transaction, or state mutation; it is suitable for Railway trial validation before any explicit deployment approval. |
 
 ## Validation
 
-The latest run passed **30 test files and 149 tests**, client JavaScript syntax validation, backend/client artifact existence checks, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The focused verifier-status tests cover configured fresh-cursor classification while the existing readiness tests cover fresh, stale, missing, and non-production-unconfigured states.
+The latest run passed **31 test files and 151 tests**, client JavaScript syntax validation, backend/client artifact existence checks, the read-only deployment preflight, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The focused deployment-preflight tests cover complete production configuration and unsafe RPC/token-registry rejection.
+
+## Railway development-server trial context
+
+The user identified the following Railway project as a development-server trial for testing or possible deployment: [Railway project](https://railway.com/project/013770d1-6f03-48ae-a346-cc7dcce1629b?). This is recorded as **deployment context only**. No Railway login, deployment, environment mutation, production rollout, mainnet transaction, live fund movement, or real-user-data operation was performed during this batch.
+
+Before any Railway deployment, the project still requires explicit deployment approval, production environment review, HTTPS RPC configuration, token-registry verification, database migration execution, verifier-cursor freshness validation, smoke tests, and confirmation that settlement remains Base Sepolia unless the separately gated mainnet policy is deliberately approved.
+
+## Remaining batch path
+
+| Planned batch | Priority scope | Exit condition |
+|---|---|---|
+| **AG — Railway trial smoke gate** | Run the preflight and authenticated/read-only smoke checks against the user’s development environment only after explicit deployment approval. | Railway trial is verified without production settlement, live funds, or unreviewed environment mutation. |
+| **AH — reconciliation SLOs and alert evidence** | Add bounded discrepancy age, verifier lag, ledger projection lag, and operator alert evidence to the read-only reconciliation surface. | Operators can distinguish fresh, delayed, and attention-required financial projections. |
+| **AI — AI ranking quality gate** | Extend shadow evaluation with rollback-target checks, segment coverage, confidence intervals, and explicit human promotion evidence while keeping promotion `shadow_only`. | No candidate ranking is promoted without review, rollback, and measurable baseline improvement. |
+| **AJ — collaboration intelligence guardrails** | Add provenance, retention, cost, latency, and human override contracts for meeting guidance and summaries. | AI assistance remains advisory, attributable, bounded, and independent from settlement authority. |
+| **AK — protocol reversal and withdrawal coverage** | Expand Base Sepolia Flow v3 evidence coverage for reorgs, reversals, pause/restart, withdrawals, and dispute-linked accounting checks. | Protocol lifecycle and reconciliation behavior are verified under adverse chain events. |
+| **AL — release approval gate** | Combine deployment, database, verifier, reconciliation, shadow-review, rollback, and mainnet-policy checks into a final operator approval artifact. | Explicit human sign-off exists before any production deployment or mainnet settlement change. |
 
 ## Commit and push boundary
 
-Only the following Batch AE files are modified locally and have not been committed or pushed:
+Only the following Batch AF files are modified locally and have not been committed or pushed:
 
-- `packages/backend/lib/verifierObservability.js`
-- `packages/backend/tests/verifierObservability.test.js`
+- `package.json`
+- `packages/backend/lib/deploymentPreflight.js`
+- `packages/backend/scripts/verify-deployment-preflight.mjs`
+- `packages/backend/tests/deploymentPreflight.test.js`
 - `docs/accelerated-batch-update-2026-08-14.md`
 
-No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, and Batch AE is the current local uncommitted tranche.
+No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, and Batch AF is the current local uncommitted tranche.

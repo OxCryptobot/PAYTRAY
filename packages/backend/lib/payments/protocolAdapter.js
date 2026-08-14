@@ -3,6 +3,7 @@ import { getAddress, isAddress } from 'ethers'
 export const PROTOCOL_EVENT_TYPES = Object.freeze([
   'stream_created',
   'stream_topped_up',
+  'stream_refunded',
   'stream_paused',
   'stream_restarted',
   'stream_voided',

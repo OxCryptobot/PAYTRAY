@@ -40,3 +40,22 @@ describe('Sablier Flow v3 Base Sepolia adapter', () => {
     expect(verifier.contractAddress.toLowerCase()).toBe(BASE_SEPOLIA_SABLIER_FLOW_V3)
   })
 })
+
+
+  it('decodes adverse Flow v3 events with distinct evidence types', async () => {
+    const context = { tokenAddress: token, senderWallet: sender, recipientWallet: recipient }
+    const cases = [
+      ['RefundFromFlowStream(uint256 indexed streamId,address indexed sender,uint128 amount)', [42n, sender, 7n], 'stream_refunded', 7n],
+      ['PauseFlowStream(uint256 indexed streamId,address indexed sender,address indexed recipient,uint256 totalDebt)', [42n, sender, recipient, 8n], 'stream_paused', 8n],
+      ['RestartFlowStream(uint256 indexed streamId,address indexed sender,uint128 ratePerSecond)', [42n, sender, 9n], 'stream_restarted', 9n],
+      ['VoidFlowStream(uint256 indexed streamId,address indexed sender,address indexed recipient,address caller,uint256 newTotalDebt,uint256 writtenOffDebt)', [42n, sender, recipient, sender, 0n, 10n], 'stream_voided', 0n],
+      ['WithdrawFromFlowStream(uint256 indexed streamId,address indexed to,address indexed token,address caller,uint128 withdrawAmount)', [42n, recipient, token, sender, 11n], 'withdrawal', 11n]
+    ]
+    for (const [signature, args, type, expectedAmount] of cases) {
+      const eventInterface = new Interface([`event ${signature}`])
+      const event = eventInterface.getEvent(signature.slice(0, signature.indexOf('(')))
+      const encoded = eventInterface.encodeEventLog(event, args)
+      const decoded = await createSablierFlowV3Decoder({ getStreamContext: async () => context })({ ...logFor(), topics: encoded.topics, data: encoded.data })
+      expect(decoded).toMatchObject({ type, streamProtocolId: '42', tokenAddress: token, amountBaseUnits: String(expectedAmount) })
+    }
+  })

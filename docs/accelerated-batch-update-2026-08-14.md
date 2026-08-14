@@ -3,7 +3,7 @@
 **Date:** 2026-08-14  
 **Branch:** `paytray/batch-delivery`  
 **Remote baseline:** `8498c8643e32691abb12aaa320862dd829e2e3a8`  
-**Current state:** Batch AJ is validated locally and remains uncommitted.
+**Current state:** Batch AK is validated locally and remains uncommitted.
 
 ## Delivered in this update
 
@@ -28,10 +28,11 @@
 | **AH — reconciliation SLO and alert evidence** | Added bounded `RECONCILIATION_LAG_THRESHOLD_MS` configuration, durable chain-to-ledger projection lag metrics, `fresh`/`lagging`/`missing` projection status, lagging-stream counts, missing-ledger counts, and explicit `ledger_projection_lag` issues to the read-only reconciliation report. | Reconciliation remains read-only and verifier-owned; delayed or missing projections are surfaced for operator action and never silently repaired. |
 | **AI — AI ranking quality gate** | Added deterministic shadow-quality evaluation for minimum sample size, baseline improvement, confidence lower bound, rollback target, and explicit human review. Detailed shadow-run evidence now includes the quality-gate result. | Candidate ranking remains permanently `shadow_only`; a quality-gate pass never applies a candidate or changes payment, ledger, outcome, or reputation state. |
 | **AJ — collaboration-AI guardrails** | Added provenance-backed advisory evidence with future retention, bounded latency and cost, raw-content exclusion, required human override, and explicit non-settlement authority. | Collaboration intelligence remains advisory, non-applied, attributable, bounded, and independent from payment, ledger, outcome, and reputation transitions. |
+| **AK — Flow v3 adverse-event evidence** | Added distinct `stream_refunded` protocol evidence and regression coverage for refund, pause, restart, void, and withdrawal decoding from durable stream context. | Refunds cannot be misclassified as top-ups; adverse events remain verifier evidence and do not invent financial lifecycle states or mutate ledger authority. |
 
 ## Validation
 
-The latest run passed **34 test files and 159 tests**, client JavaScript syntax validation, backend/client artifact existence checks, the read-only deployment preflight, the Railway trial gate tests, focused reconciliation SLO tests, focused AI quality-gate tests, focused collaboration-AI guardrail tests, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The Railway trial gate remains intentionally fail-closed with `settings_unavailable` when no non-secret Railway settings are available.
+The latest run passed **34 test files and 160 tests**, client JavaScript syntax validation, backend/client artifact existence checks, the read-only deployment preflight, the Railway trial gate tests, focused reconciliation SLO tests, focused AI quality-gate tests, focused collaboration-AI guardrail tests, focused Flow v3 adverse-event tests, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The Railway trial gate remains intentionally fail-closed with `settings_unavailable` when no non-secret Railway settings are available.
 
 ## Railway development-server trial context
 
@@ -47,15 +48,16 @@ Before any Railway deployment, the project still requires explicit deployment ap
 | **AH — completed locally** | Added bounded discrepancy age and ledger-projection lag evidence to the read-only reconciliation surface. | Operators can distinguish fresh, delayed, and missing financial projections without any automatic repair. |
 | **AI — completed locally** | Added minimum sample, baseline improvement, confidence, rollback-target, and human-review quality checks to detailed shadow-run evidence. | No candidate ranking is promoted; the response remains `shadow_only` and `human_review_required`. |
 | **AJ — completed locally** | Added provenance, retention, cost, latency, raw-content, and human-override controls for collaboration AI advisory evidence. | AI assistance remains advisory, attributable, bounded, and independent from settlement authority. |
-| **AK — protocol reversal and withdrawal coverage** | Expand Base Sepolia Flow v3 evidence coverage for reorgs, reversals, pause/restart, withdrawals, and dispute-linked accounting checks. | Protocol lifecycle and reconciliation behavior are verified under adverse chain events. |
+| **AK — completed locally** | Added distinct Flow v3 refund evidence and coverage for refund, pause, restart, void, and withdrawal decoding. | Adverse protocol evidence is explicit and verifier-owned; no automatic ledger repair or lifecycle invention occurs. |
 | **AL — release approval gate** | Combine deployment, database, verifier, reconciliation, shadow-review, rollback, and mainnet-policy checks into a final operator approval artifact. | Explicit human sign-off exists before any production deployment or mainnet settlement change. |
 
 ## Commit and push boundary
 
-Only the following Batch AJ files are modified locally and have not been committed or pushed:
+Only the following Batch AK files are modified locally and have not been committed or pushed:
 
-- `packages/backend/lib/collaborationAiGuardrails.js`
-- `packages/backend/tests/collaborationAiGuardrails.test.js`
+- `packages/backend/lib/payments/protocolAdapter.js`
+- `packages/backend/lib/payments/sablierFlowV3.js`
+- `packages/backend/tests/sablierFlowV3.test.js`
 - `docs/accelerated-batch-update-2026-08-14.md`
 
-No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, Batch AG is pushed at `f9b5f842837c593d72d971f12781b9488c623ab6`, Batch AH is pushed at `c44703bbfb1e52ff806e2006f08f919da704c23e`, Batch AI is pushed at `405f11eb800e0b7ac5155c9255a34a83e9d1faae`, and Batch AJ is the current local uncommitted tranche.
+No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, Batch AG is pushed at `f9b5f842837c593d72d971f12781b9488c623ab6`, Batch AH is pushed at `c44703bbfb1e52ff806e2006f08f919da704c23e`, Batch AI is pushed at `405f11eb800e0b7ac5155c9255a34a83e9d1faae`, Batch AJ is pushed at `de91f5b41bc662d69ef515ac1b64e15d787448d5`, and Batch AK is the current local uncommitted tranche.

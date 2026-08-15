@@ -77,6 +77,9 @@ jobs:
         env:
           DATABASE_URL: ''
           OPERATIONS_QUALITY_STRICT: 'false'
+      - name: Verify operations-quality artifact contract
+        if: always()
+        run: node packages/backend/scripts/verify-ci-matrix-artifact.mjs artifacts/operations-quality.json operations_quality
       - name: Fingerprint operations-quality evidence
         if: always()
         run: sha256sum artifacts/operations-quality.json | tee artifacts/operations-quality.json.sha256
@@ -117,6 +120,9 @@ jobs:
           RELEASE_GATES_STRICT: 'false'
           PAYMENT_MAINNET_ENABLED: 'false'
           SETTLEMENT_CHAIN_ID: '84532'
+      - name: Verify release-gates artifact contract
+        if: always()
+        run: node packages/backend/scripts/verify-ci-matrix-artifact.mjs artifacts/release-gates.json release_gates
       - name: Fingerprint release-gate evidence
         if: always()
         run: sha256sum artifacts/release-gates.json | tee artifacts/release-gates.json.sha256

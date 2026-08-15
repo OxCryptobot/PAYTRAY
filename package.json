@@ -21,6 +21,7 @@
     "backend:idempotency:cleanup:check": "node packages/backend/scripts/verify-idempotency-cleanup-config.mjs",
     "backend:target:operations:check": "node packages/backend/scripts/verify-target-operations.mjs",
     "backend:operations:quality:check": "node packages/backend/scripts/verify-operations-quality.mjs",
+    "backend:ci:matrix:check": "node packages/backend/scripts/verify-ci-matrix-artifact.mjs",
     "backend:release:gates:check": "node packages/backend/scripts/verify-release-gates.mjs",
     "backend:ops:evidence:bundle:check": "node packages/backend/scripts/inspect-operator-evidence-bundle.mjs",
     "backend:ops:evidence:bundle:verify": "node packages/backend/scripts/verify-operator-evidence-bundle.mjs",

@@ -125,6 +125,42 @@ Returns ranking provenance from discovery impression to engagement and outcome e
 
 `lineageStatus` is one of `unlinked`, `engaged_no_outcome`, `verified_outcome`, `unverified_outcome`, or `rejected_outcome`. A verified outcome is a label candidate for evaluation; it is not an instruction to promote a model or mutate payment state.
 
+## `GET /api/v2/collaboration/health`
+
+Returns collaboration availability independently from payment and verifier health. A degraded payment RPC, stale verifier cursor, or unavailable indexer sets `paymentStateMayBeStale: true` and `mode: collaboration_available_payment_degraded`, but does not block messaging or engagement context. Durable engagement storage or session authorization failures block collaboration and return `503`. Realtime transport degradation is visible but does not grant payment authority.
+
+```json
+{
+  "success": true,
+  "health": {
+    "status": "degraded",
+    "ready": true,
+    "collaborationAvailable": true,
+    "mode": "collaboration_available_payment_degraded",
+    "paymentStateAuthority": "verifier_and_ledger_only",
+    "paymentStateMayBeStale": true,
+    "settlementAuthority": false,
+    "mutation": "read_only"
+  }
+}
+```
+
+## `GET /api/v2/extensions/contracts`
+
+Returns the versioned BD public extension contract for an `extensions:*` token. The v2 contract enumerates supported event names, allowed projections (`identifiers`, `lifecycle`, `provenance`, `timestamps`, and `metrics`), bounded replay windows, signed/retryable delivery, dead-letter observability, forbidden raw-content keys, and `settlementAuthority: false`.
+
+## `POST /api/v2/extensions/hooks`
+
+Registers a v2 extension hook only for an allowlisted event and bounded projection set. Callback URLs retain SSRF-safe validation and delivery-time DNS revalidation. The extension payload is a versioned envelope containing safe identifiers, lifecycle fields, provenance, timestamps, and numeric metrics as selected by the hook; forbidden fields are dropped before delivery. Public extensions never establish payment or settlement state.
+
+## `GET /api/v2/extensions/hooks`
+
+Lists only the authenticated owner’s v2 hooks and their contract metadata. Legacy `/api/extensions/hooks` remains available separately for backward compatibility and is not treated as the v2 public schema.
+
+## `backend:ready:postgres:check`
+
+The AW verifier requires `READY_POSTGRES_DATABASE_ISOLATED=true` before it initializes PostgreSQL. With an explicitly isolated target, it runs migrations and exercises authentication, collaboration health, v2 extension contracts and registration, audit events, discovery lineage, outbox health, and verifier operations. It accepts a `503` verifier response when the cursor is not configured, but requires the response to remain structured, read-only, and non-authoritative. The disposable CI run returned `status: verified`; without the isolation flag it exits `1` before database access.
+
 ## `GET /api/v2/ops/outbox/health`
 
 Returns durable `outbox_events` delivery health and is protected by `ops:*`. The response is `200` with `status: ok` when no dead-letter events exist, or `503` with `status: attention` when the dead count is nonzero. It is read-only and never changes payment, ledger, or settlement state.
@@ -239,3 +275,5 @@ The controlled smoke harness is `backend:smoke:phase2:check`. It refuses to run 
 [4]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/payments/paymentApiService.js Durable payment-intent contract
 [5]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/outboxDeliveryService.js Durable outbox delivery service
 [6]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/advisoryAiBoundary.js Advisory-AI boundary
+[7]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/collaborationHealth.js Collaboration health boundary
+[8]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/extensionContracts.js Public extension contracts

@@ -2,17 +2,15 @@ import { getVerifierObservability } from './verifierObservability.js'
 import { buildDurableReconciliationReport } from './payments/reconciliationService.js'
 
 export async function buildVerifierOperationsEvidence({ client, config, now = new Date() }) {
-  const [verifier, reconciliation, auditResult] = await Promise.all([
-    getVerifierObservability({ client, config, now }),
-    buildDurableReconciliationReport({ client, asOf: now, maxProjectionLagMs: config.payments.reconciliationLagThresholdMs }),
-    client.query(`
-      SELECT action, COUNT(*)::int AS count, MAX(created_at) AS latest_at
-      FROM financial_audit_events
-      WHERE actor_type IN ('verifier', 'ledger_worker')
-      GROUP BY action
-      ORDER BY action
-    `)
-  ])
+  const verifier = await getVerifierObservability({ client, config, now })
+  const reconciliation = await buildDurableReconciliationReport({ client, asOf: now, maxProjectionLagMs: config.payments.reconciliationLagThresholdMs })
+  const auditResult = await client.query(`
+    SELECT action, COUNT(*)::int AS count, MAX(created_at) AS latest_at
+    FROM financial_audit_events
+    WHERE actor_type IN ('verifier', 'ledger_worker')
+    GROUP BY action
+    ORDER BY action
+  `)
 
   const auditActivity = auditResult.rows.map((row) => ({
     action: row.action,

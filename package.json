@@ -17,6 +17,7 @@
     "backend:verifier:operations:check": "node packages/backend/scripts/inspect-verifier-operations.mjs",
     "backend:outbox:health:check": "node packages/backend/scripts/inspect-outbox-health.mjs",
     "backend:advisory:ai:check": "node packages/backend/scripts/inspect-advisory-ai.mjs",
+    "backend:ready:postgres:check": "node packages/backend/scripts/verify-ready-postgres-contracts.mjs",
     "backend:token:metadata:check": "node packages/backend/scripts/verify-token-registry-metadata.mjs",
     "backend:smoke:phase2:check": "node packages/backend/scripts/verify-phase2-loop.mjs",
     "backend:deployment:check": "node packages/backend/scripts/verify-deployment-preflight.mjs",

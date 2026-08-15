@@ -52,6 +52,8 @@ import { listDiscoveryOutcomeLineage } from './lib/discoveryLineageService.js'
 import { buildVerifierOperationsEvidence } from './lib/verifierOperationsEvidence.js'
 import { getOutboxHealth, listOutboxEvents } from './lib/outboxDeliveryService.js'
 import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory } from './lib/advisoryAiBoundary.js'
+import { buildCollaborationHealth } from './lib/collaborationHealth.js'
+import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
 import { assertLegacyPaymentMutationAllowed } from './lib/payments/legacyPaymentPolicy.js'
 import {
   generateServiceToken,
@@ -309,7 +311,7 @@ async function enqueueWebhookDeliveries(eventName, payload) {
       hookId: hook.id,
       event: eventName,
       callbackUrl: hook.callbackUrl,
-      payload,
+      payload: hook.apiVersion === 'v2' ? projectExtensionPayload({ hook, payload }) : payload,
       status: 'pending',
       attempts: 0,
       maxAttempts: config.webhooks.maxAttempts,
@@ -1134,6 +1136,19 @@ app.get('/api/health/readiness', (req, res) => {
     success: report.ready,
     ...report
   })
+})
+
+app.get('/api/v2/collaboration/health', (req, res) => {
+  const report = buildCollaborationHealth({
+    env: config.env,
+    databaseStatus: getDatabaseStatus(),
+    livekitStatus: config.livekit.apiKey ? 'ready' : 'not_configured',
+    sessionAuthStatus: config.jwt.secret ? 'ready' : 'unconfigured',
+    paymentRpcStatus: config.payments.rpcUrl ? 'ready' : 'not_configured',
+    verifierStatus: 'not_configured',
+    indexerStatus: 'not_configured'
+  })
+  res.status(report.collaborationAvailable ? 200 : 503).json({ success: report.collaborationAvailable, health: report })
 })
 
 app.post('/api/auth/challenge', (req, res, next) => {
@@ -3282,6 +3297,41 @@ app.post('/api/ops/reconciliation/run', authenticateToken, requireScopes('ops:*'
 
   const inconsistent = report.filter((item) => item.consistent === false).length
   res.json({ success: true, total: report.length, inconsistent, report })
+})
+
+app.get('/api/v2/extensions/contracts', authenticateToken, requireScopes('extensions:*'), (req, res) => {
+  res.json({ success: true, contracts: getExtensionContractCapabilities() })
+})
+
+app.post('/api/v2/extensions/hooks', authenticateToken, requireScopes('extensions:*'), async (req, res, next) => {
+  try {
+    const callbackUrl = validateWebhookUrl(req.body.callbackUrl)
+    await assertSafeWebhookUrl(callbackUrl)
+    const contract = normalizeExtensionHookInput({
+      event: req.body.event,
+      callbackUrl,
+      projections: req.body.projections,
+      apiVersion: req.body.apiVersion || 'v2',
+      replayWindowSeconds: req.body.replayWindowSeconds
+    })
+    const id = String(extensionHooks.size + 1)
+    const hook = {
+      id,
+      ownerWallet: req.walletAddress,
+      ...contract,
+      createdAt: nowIso()
+    }
+    extensionHooks.set(id, hook)
+    markStateDirty()
+    res.json({ success: true, hook })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/extensions/hooks', authenticateToken, requireScopes('extensions:*'), (req, res) => {
+  const hooks = Array.from(extensionHooks.values()).filter((hook) => hook.apiVersion === 'v2' && hook.ownerWallet === req.walletAddress)
+  res.json({ success: true, apiVersion: 'v2', count: hooks.length, hooks })
 })
 
 app.post('/api/extensions/hooks', authenticateToken, requireScopes('extensions:*'), async (req, res, next) => {

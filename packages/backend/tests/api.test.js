@@ -169,6 +169,13 @@ describe('PayTray backend skeleton', () => {
     expect(response.body.error).toContain('Missing required scopes')
   })
 
+  it('keeps collaboration health available when payment dependencies are degraded', async () => {
+    const response = await request(app).get('/api/v2/collaboration/health')
+    expect([200, 503]).toContain(response.status)
+    expect(response.body.health).toMatchObject({ collaborationAvailable: true, settlementAuthority: false, mutation: 'read_only' })
+    expect(response.body.health.checks.paymentDependency.blocksCollaboration).toBe(false)
+  })
+
   it('fails closed when an operator requests audit or discovery-lineage evidence without a database', async () => {
     const wallet = new Wallet('0x8cc2cd804c6eea453f0f79fd4e276ca5a69481cf6be1dd3ee0835d3088c9f612')
     const token = await loginWallet(wallet)
@@ -1221,6 +1228,30 @@ describe('PayTray backend skeleton', () => {
     expect(typeof sloResponse.body.slo.operations.webhooks.total).toBe('number')
     expect(typeof sloResponse.body.slo.operations.retryableQueueJobs).toBe('number')
     expect(typeof sloResponse.body.slo.operations.retryableWebhookDeliveries).toBe('number')
+  })
+
+  it('registers and lists versioned extension hooks with bounded contract metadata', async () => {
+    const owner = Wallet.createRandom()
+    const ownerToken = await loginWallet(owner, { scopes: ['extensions:*'] })
+
+    const contracts = await request(app)
+      .get('/api/v2/extensions/contracts')
+      .set('Authorization', `Bearer ${ownerToken}`)
+    expect(contracts.status).toBe(200)
+    expect(contracts.body.contracts).toMatchObject({ apiVersion: 'v2', settlementAuthority: false, mutation: 'read_only' })
+
+    const hook = await request(app)
+      .post('/api/v2/extensions/hooks')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ event: 'engagement.created', callbackUrl: 'https://example.com/v2-hook', projections: ['identifiers', 'lifecycle'], replayWindowSeconds: 600 })
+    expect(hook.status).toBe(200)
+    expect(hook.body.hook).toMatchObject({ apiVersion: 'v2', event: 'engagement.created', replayWindowSeconds: 600, delivery: { signed: true, retryable: true } })
+
+    const listed = await request(app)
+      .get('/api/v2/extensions/hooks')
+      .set('Authorization', `Bearer ${ownerToken}`)
+    expect(listed.status).toBe(200)
+    expect(listed.body.hooks.some((item) => item.id === hook.body.hook.id)).toBe(true)
   })
 
   it('queues and processes webhook deliveries in dry-run mode', async () => {

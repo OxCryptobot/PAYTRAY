@@ -10,7 +10,7 @@
 
 ## 1. Current delivery state
 
-The latest multi-phase tranche is validated and pushed to the remote branch. It adds reproducible recovery evidence, verifier-operations evidence, route-level degraded-database contracts, read-only ERC-20 metadata validation, lineage-backed evaluation export, controlled Base Sepolia smoke guardrails, versioned API documentation, durable outbox delivery health, and bounded advisory-AI provider/retrieval boundaries on top of the pushed AR–AT capabilities.
+The latest multi-phase tranche is validated and pushed to the remote branch. The current local tranche adds collaboration degraded-state health, a real ready-PostgreSQL route-contract verifier, versioned public extension schemas, and failure-mode coverage on top of the pushed AY/BA capabilities.
 
 | Batch | Capability | State | Evidence |
 |---|---|---|---|
@@ -21,15 +21,16 @@ The latest multi-phase tranche is validated and pushed to the remote branch. It 
 | AT | Discovery impression → engagement → outcome lineage | Pushed | `packages/backend/lib/discoveryLineageService.js`; `GET /api/v2/ops/discovery/lineage` |
 | AU | Isolated PostgreSQL recovery evidence with backup fingerprint and restore verification | Pushed | `packages/backend/scripts/verify-recovery-evidence.mjs`; disposable restore returned `verified` |
 | AV | Verifier operations evidence CLI and scoped operator endpoint | Pushed | `packages/backend/lib/verifierOperationsEvidence.js`; `GET /api/v2/ops/verifier/operations` |
-| AW | Route-level degraded-database and scope integration contracts | Pushed | `packages/backend/tests/api.test.js`; 3 operator evidence routes fail closed |
+| AW | Route-level contracts plus ready-PostgreSQL integration fixture | Local validated | `packages/backend/scripts/verify-ready-postgres-contracts.mjs`; isolated CI target returned `status: verified` |
 | AX | Read-only ERC-20 symbol/decimals/chain metadata probe | Pushed | `packages/backend/lib/payments/tokenMetadataProbe.js` |
 | AZ | Lineage-backed evaluation export coverage | Pushed | `packages/backend/lib/evaluationExport.js` |
 | BC | Controlled Base Sepolia smoke harness with disposable-data and no-chain-mutation guards | Pushed | `packages/backend/scripts/verify-phase2-loop.mjs` |
-| BD | Versioned v2 operations and lineage API documentation | Pushed | `docs/api/v2-operations-and-lineage-contracts.md` |
+| BD | Versioned v2 operations, lineage, and public extension schemas | Local validated | `packages/backend/lib/extensionContracts.js`; `/api/v2/extensions/contracts`; updated API documentation |
 | AY | Durable outbox and operator delivery health | Pushed | `packages/backend/lib/outboxDeliveryService.js`; `GET /api/v2/ops/outbox/health` |
 | BA | Bounded advisory-AI provider and retrieval boundary | Pushed | `packages/backend/lib/advisoryAiBoundary.js`; `POST /api/v2/intelligence/advisory` |
+| BB | Collaboration degraded-state health | Local validated | `packages/backend/lib/collaborationHealth.js`; `GET /api/v2/collaboration/health` |
 
-The latest full validation passed **43 test files and 190 tests**, ESLint, migrations through 013, the disposable isolated recovery check, the read-only outbox health check, the intentionally blocked advisory-AI capability check, and `git diff --check`. The release manifest is ready and read-only. Production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
+The BB/AW/BD tranche passed **45 test files and 199 tests**, ESLint, migrations through 013, isolated ready-PostgreSQL route verification with `status: verified`, intentional no-isolation blocking before database access, release-manifest validation, and `git diff --check`. The release manifest is read-only; production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
 
 ## 2. Mandatory release blockers
 
@@ -96,7 +97,10 @@ The sequence below is the master operator checklist. Each step must be completed
 - [ ] Verify the public-key fingerprint through an independent security review.
 - [ ] Run rate-limit, secret-handling, audit-log, and incident-rollback checks.
 - [ ] Run the no-live-funds smoke path: discovery → engagement → payment intent → verifier-read-only status.
+- [ ] Run `READY_POSTGRES_DATABASE_ISOLATED=true npm run backend:ready:postgres:check` against an explicitly isolated target and preserve `status: verified` evidence.
+- [ ] Run `GET /api/v2/collaboration/health` under payment/verifier degradation and confirm collaboration remains available with `paymentStateMayBeStale: true`.
 - [ ] Confirm no smoke test claims settlement before verifier-owned chain evidence.
+- [ ] Verify v2 extension hooks use allowlisted events, bounded projections, signed/retryable delivery, and forbidden raw-content exclusion.
 
 ### Release artifact and approval evidence
 
@@ -147,12 +151,12 @@ The items below are the next build sequence. They are deliberately separated fro
 | AY | Durable outbox and operator delivery health for audit/lineage/reconciliation evidence | Completed locally | Verifier API and worker projections enqueue durable events; health/event endpoints expose retry, lease, failure, and dead-letter states without financial mutation. |
 | AZ | Discovery evaluation export extension using the new lineage endpoint and verified outcome labels | Completed locally | Export now includes lineage status, ranking position, outcome IDs, coverage counts, and `rawContentIncluded: false`. |
 | BA | Advisory AI provider/retrieval boundary with provenance, cost, latency, and human override | Completed locally | Provider contract, content-free retrieval references, source-event provenance, retention, latency/cost budgets, human review, and no-settlement authority are enforced. |
-| BB | Collaboration provider health/degraded-state surface | P1 | Chat/call UX remains responsive when payment RPC, verifier, or indexer is degraded. |
+| BB | Collaboration provider health/degraded-state surface | Completed locally | `/api/v2/collaboration/health` separates collaboration availability from payment/verifier/indexer degradation; core store/auth failures block while payment degradation does not. |
 | BC | Controlled Base Sepolia smoke harness with zero-live-funds guardrails | Completed locally | Harness refuses non-isolated databases, non-Base-Sepolia policy, missing enabled token registry, and chain mutations; disposable target execution remains operator-run. |
-| BD | Public API and extension contract documentation with versioning and scope matrix | Completed locally | v2 operations, lineage, verifier, recovery, token metadata, and smoke contracts are documented; broader public extension schema work remains. |
+| BD | Public API and extension contract documentation with versioning and scope matrix | Completed locally | v2 operations, lineage, verifier, recovery, token metadata, smoke, and public extension schemas are documented; broader external SDK work remains. |
 | BE | Multi-chain expansion | Deferred | Only consider after single-chain reliability targets, reconciliation SLOs, and incident rollback evidence are met. |
 
-The safest remaining engineering order is **ready-target evidence for AU/AV/AX/BC/AY/BA → ready-PostgreSQL AW fixtures → BB collaboration health → broader BD public extension schemas**, while **BE remains intentionally deferred**. The user-visible product can advance through discovery, collaboration, and Base Sepolia time-to-money flows without pretending that multi-chain or autonomous AI promotion is production-ready.
+The safest remaining engineering order is **target evidence for AU/AV/AX/BC/AY/BA → BB collaboration health → ready-PostgreSQL AW fixtures → broader BD extension/SDK work**, while **BE remains intentionally deferred**. The user-visible product can advance through discovery, collaboration, and Base Sepolia time-to-money flows without pretending that multi-chain or autonomous AI promotion is production-ready.
 
 ## 6. Current release commands
 
@@ -169,6 +173,7 @@ npm run backend:recovery:check
 npm run backend:verifier:operations:check
 npm run backend:outbox:health:check
 npm run backend:advisory:ai:check
+READY_POSTGRES_DATABASE_ISOLATED=true npm run backend:ready:postgres:check
 npm run backend:token:metadata:check
 npm run backend:smoke:phase2:check
 npm run backend:railway:trial:check

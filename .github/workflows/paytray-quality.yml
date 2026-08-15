@@ -67,6 +67,7 @@ jobs:
       - name: Run operations-quality matrix
         run: npm run backend:operations:quality:check
         env:
+          DATABASE_URL: ''
           OPERATIONS_QUALITY_STRICT: 'false'
 
   postgres-contract:

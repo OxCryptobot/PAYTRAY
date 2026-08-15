@@ -54,7 +54,11 @@ This authenticated operator endpoint aggregates the canonical runtime-health rep
 
 ## `backend:operations:quality:check`
 
-This command runs the existing read-only quality, migration, extension, SDK, verifier-worker, target-operations, release-evidence, and reconciliation-evidence checks and emits one machine-readable matrix. A successful check is classified as `passed`; missing target infrastructure or genuine operator evidence is classified as `operator_blocked` in normal mode rather than hidden or misreported as a code failure. Set `OPERATIONS_QUALITY_STRICT=true` in a fully configured release environment to treat every remaining blocker as a failure. The matrix never deploys, submits transactions, mutates settlement or ledger state, approves shadow reviews, promotes AI ranking, or marks a release eligible.
+This command runs the existing read-only quality, migration, extension, SDK, verifier-worker, target-operations, release-evidence, and reconciliation-evidence checks and emits one machine-readable matrix. A successful check is classified as `passed`; missing target infrastructure or genuine operator evidence is classified as `operator_blocked` in normal mode rather than hidden or misreported as a code failure. Set `OPERATIONS_QUALITY_STRICT=true` in a fully configured release environment to treat every remaining blocker as a failure. The matrix never deploys, submits transactions, mutates settlement or ledger state, approves shadow reviews, promotes AI ranking, or marks a release eligible. When a PostgreSQL database is available, the CLI also appends a redacted run summary to `operations_quality_runs` with a canonical SHA-256 report hash. Audit persistence is best-effort for local runs without a database and never changes the matrix exit classification.
+
+## `GET /api/v2/ops/operations-quality/runs`
+
+This authenticated operator endpoint returns bounded summaries of durable operations-quality runs without returning the stored report payload. It supports an optional `status` filter, requires a ready PostgreSQL database, and returns `200` with `authority: 'operations_quality_audit'`, `mutation: 'read_only'`, `releaseEligible: false`, and `settlementAuthority: false`. The table is non-financial and append-only from the application path; listing it cannot rerun checks, mutate payment or ledger state, approve reviews, or grant release authority.
 
 ## `GET /api/v2/ops/audit/events`
 

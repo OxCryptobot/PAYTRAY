@@ -17,6 +17,38 @@ export PAYTRAY_BASE_URL='https://<authorized-paytray-target>'
 export OPS_ACCESS_TOKEN='<real-operator-access-token>'
 ```
 
+### 1.1 Read-only health and evidence preflight
+
+Before reviewing or submitting any shadow decision, capture the current operator state from the same authenticated target. The dashboard is diagnostic only; it does not approve reviews, start workers, process the outbox, or grant release or settlement authority.
+
+```bash
+curl --fail-with-body --silent --show-error \
+  "${PAYTRAY_BASE_URL}/api/v2/ops/health/dashboard" \
+  -H "Authorization: Bearer ${OPS_ACCESS_TOKEN}" \
+  -o /protected/evidence/paytray-health-dashboard-<COMMIT>.json
+
+curl --fail-with-body --silent --show-error \
+  "${PAYTRAY_BASE_URL}/api/v2/ops/evidence" \
+  -H "Authorization: Bearer ${OPS_ACCESS_TOKEN}" \
+  -o /protected/evidence/paytray-unified-evidence-<COMMIT>.json
+```
+
+A `503` response is expected while verifier freshness, reconciliation, Railway, recovery, shadow-review, sign-off, or signing-key evidence is incomplete. Preserve the response body rather than retrying until it appears healthy. Confirm the dashboard contains `authority: "operator_health_aggregation_only"`, `releaseEligible: false`, `settlementAuthority: false`, `mutation: "read_only"`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`.
+
+Run the local or CI matrix before target-specific checks:
+
+```bash
+npm run backend:operations:quality:check
+```
+
+In normal mode, `status: "operator_blocked"` with `unexpectedFailureCount: 0` is an honest result when target evidence is unavailable. Do not set strict mode on a development target. In a fully configured release environment only, the authorized operator may run:
+
+```bash
+OPERATIONS_QUALITY_STRICT=true npm run backend:operations:quality:check
+```
+
+Strict mode must fail until all required operator evidence is real. Neither mode changes `releaseEligible`, `settlementAuthority`, payment state, ledger state, reviewer decisions, or AI promotion status.
+
 List pending runs before reviewing them:
 
 ```bash
@@ -169,7 +201,7 @@ RECOVERY_TARGET_ISOLATED=true \
 npm run backend:recovery:check
 ```
 
-The script rejects a restore when the source and restore URLs are identical or when `RECOVERY_TARGET_ISOLATED` is not exactly `true`. It restores with `pg_restore --exit-on-error --no-owner --no-privileges`, then checks all expected public tables and requires exactly 17 rows in `schema_migrations`. A successful result has `status: verified`, `restore.status: verified`, `restore.migrationCount: 17`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`.
+The script rejects a restore when the source and restore URLs are identical or when `RECOVERY_TARGET_ISOLATED` is not exactly `true`. It restores with `pg_restore --exit-on-error --no-owner --no-privileges`, then checks all expected public tables and requires exactly 18 rows in `schema_migrations`. A successful result has `status: verified`, `restore.status: verified`, `restore.migrationCount: 18`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`.
 
 The recovery script’s count check should be followed by the stricter migration/schema verifier against the isolated target:
 
@@ -194,6 +226,11 @@ That command checks the exact migration names:
 011_payment_stream_verifier_provenance
 012_shadow_run_review
 013_verifier_cursors
+014_webhook_replay_claims
+015_verified_trust_signals
+016_webhook_inbox
+017_extension_hooks
+018_operations_quality_runs
 ```
 
 It also checks the required table set, `payment_verifier_cursors`, shadow-review columns, verifier provenance columns, outcome-verification columns, payment lifecycle columns, discovery columns, and the unique ledger index. Preserve the backup SHA-256, catalog listing, isolated restore log, migration output, and application connectivity result together as the recovery evidence bundle.

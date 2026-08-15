@@ -59,6 +59,7 @@ import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory 
 import { buildCollaborationHealth } from './lib/collaborationHealth.js'
 import { buildRuntimeHealthReport } from './lib/runtimeHealthService.js'
 import { buildOperatorHealthDashboard } from './lib/operatorHealthDashboard.js'
+import { listOperationsQualityRuns } from './lib/operationsQualityAuditService.js'
 import { collectReleaseEvidence, collectReconciliationEvidence, buildUnifiedOperatorEvidence } from './lib/releaseEvidenceService.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
 import { getExtensionOpenApiDocument } from './lib/extensionOpenApi.js'
@@ -2300,6 +2301,21 @@ app.get('/api/v2/ops/health/dashboard', authenticateToken, requireScopes('ops:*'
       })
     })
     res.status(dashboard.status === 'ok' ? 200 : 503).json({ success: dashboard.status === 'ok', dashboard })
+  } catch (error) {
+    next(error)
+  }
+})
+app.get('/api/v2/ops/operations-quality/runs', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'operations-quality audit requires a ready PostgreSQL database')
+    }
+    const runs = await transaction((client) => listOperationsQualityRuns({
+      client,
+      limit: req.query.limit,
+      status: req.query.status
+    }))
+    res.json({ success: true, runs })
   } catch (error) {
     next(error)
   }

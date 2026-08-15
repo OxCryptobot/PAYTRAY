@@ -76,6 +76,12 @@ A Redis consumer should use a single atomic `SET` operation with `NX` and `PX`, 
 
 Redis availability, failover, and eviction policy must be treated as security dependencies. Do not deploy replay protection on an eviction policy that can remove unexpired keys, and do not accept a webhook when Redis is unavailable unless a separate durable inbox has already established the same unique constraint.
 
+## Durable inbox state machine
+
+PayTray migration `016_webhook_inbox` provides the consumer-side state machine that must follow signature verification and durable replay claiming. A new valid event enters `claimed` with a bounded lease. Successful business handling transitions it to `processed`. Processing failures transition to `retryable` with bounded exponential delay until the attempt limit is reached, after which the event becomes `quarantined`. Schema/policy violations may be quarantined immediately. Processed and quarantined events are not re-executed; expired claims can be reclaimed only when the next-attempt time is due.
+
+The inbox payload is a bounded public projection and rejects raw collaboration content and secrets. Its state is downstream delivery evidence and must never be treated as chain evidence, ledger authority, or settlement.
+
 ## Crash, retry, and multi-instance semantics
 
 A simple replay guard intentionally rejects a duplicate after the key is claimed. That is correct for duplicate suppression but can reject a legitimate retry if the consumer crashes after claiming and before completing work. Production consumers should therefore separate **inbox claim** from **business processing**:
@@ -91,6 +97,6 @@ The business effect must have its own durable idempotency key, preferably the pr
 
 ## Operational acceptance criteria
 
-Before enabling horizontally scaled webhook consumption, verify that two concurrent consumers cannot both claim the same key, restart does not erase accepted keys, expired keys become claimable only after the configured retention, invalid signatures do not create keys, stale timestamps do not create keys, and store outages fail closed. Load tests should measure duplicate rejection, claim latency, cleanup lag, cardinality, and the ratio of valid signatures to accepted business effects.
+Before enabling horizontally scaled webhook consumption, verify that two concurrent consumers cannot both claim the same key, restart does not erase accepted keys, expired keys become claimable only after the configured retention, invalid signatures do not create keys, stale timestamps do not create keys, store outages fail closed, and a crash between claim and processing can recover through the inbox lease/retry state machine. The production outbox worker must be explicitly enabled, load active hooks from durable migration `017_extension_hooks`, require `WEBHOOK_SIGNING_SECRET`, and use bounded poll/batch/lease/timeout settings. Load tests should measure duplicate rejection, claim latency, cleanup lag, cardinality, retry/quarantine transitions, worker restart recovery, and the ratio of valid signatures to accepted business effects.
 
 This guidance does not authorize production settlement, chain mutation, ledger mutation, AI promotion, or automatic reviewer decisions. It only defines safe downstream webhook acceptance.

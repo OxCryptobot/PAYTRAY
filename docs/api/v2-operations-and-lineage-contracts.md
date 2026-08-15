@@ -179,9 +179,21 @@ The response is always explicit about `authority: durable_outbox_delivery`, `set
 
 `WebhookReplayGuard` is a bounded in-process verifier primitive for development and focused tests. It is not a horizontally scaled production replay store. Consumers operating multiple instances must implement the atomic shared claim contract described in [`webhook-replay-store-integration.md`][11], preserve signature-before-claim ordering, fail closed when the store is unavailable, and use a durable inbox/idempotency record for crash-safe processing.
 
+## `GET /api/v2/ops/trust-signals`
+
+Returns verifier-owned durable trust signals derived only from outcomes whose verification status is `verified`, provenance source is `verifier`, and evidence hash is present. The response is read-only, permanently `eligibleForRanking: false`, `promotionStatus: shadow_only`, and `settlementAuthority: false`. Positive signals are participant-specific; verified dispute evidence is neutral and cannot create a negative reputation score. Unverified participant reports, rejected outcomes, and unsupported outcome types derive no signal.
+
+## Durable webhook inbox
+
+Migration `016_webhook_inbox` defines the downstream consumer state machine: `claimed`, `processed`, `retryable`, and `quarantined`. Signature verification and timestamp checks must complete before an inbox claim. Processed or quarantined duplicates are not re-executed; expired claims can be reclaimed with bounded attempts; max-attempt failures become quarantined. Payloads reject raw collaboration content and secrets. Inbox state is downstream delivery evidence only and cannot establish payment settlement.
+
+## Production outbox worker
+
+`backend:outbox:worker` is an explicit production entrypoint. It requires `OUTBOX_WORKER_ENABLED=true`, a ready PostgreSQL database, and `WEBHOOK_SIGNING_SECRET`. It loads active v2 hooks from durable migration `017_extension_hooks`, runs the existing bounded outbox processor with `OUTBOX_WORKER_BATCH_SIZE`, `OUTBOX_WORKER_LEASE_MS`, `OUTBOX_WORKER_POLL_INTERVAL_MS`, and `OUTBOX_WORKER_TIMEOUT_MS`, and stops cleanly on SIGTERM/SIGINT. The worker uses at-least-once bounded retry semantics and has no settlement authority.
+
 ## `backend:idempotency:cleanup`
 
-Runs bounded expiry housekeeping for durable `idempotency_records` in a PostgreSQL transaction. The command deletes only records with `expires_at <= now`, uses `FOR UPDATE SKIP LOCKED`, and caps each batch at 5,000 rows. It reports `authority: idempotency_housekeeping`, `settlementAuthority: false`, and `settlementMutationPerformed: false`; it cannot create, reverse, or infer payment settlement. Set `IDEMPOTENCY_CLEANUP_BATCH_SIZE` for a smaller bounded batch and use `IDEMPOTENCY_CLEANUP_NOW` only for isolated deterministic verification.
+Runs bounded expiry housekeeping for durable `idempotency_records` in a PostgreSQL transaction. Migration 015 verified trust signals, 016 webhook inbox, and 017 durable extension hooks are separate state boundaries and are never removed by this command. The command deletes only records with `expires_at <= now`, uses `FOR UPDATE SKIP LOCKED`, and caps each batch at 5,000 rows. It reports `authority: idempotency_housekeeping`, `settlementAuthority: false`, and `settlementMutationPerformed: false`; it cannot create, reverse, or infer payment settlement. Set `IDEMPOTENCY_CLEANUP_BATCH_SIZE` for a smaller bounded batch and use `IDEMPOTENCY_CLEANUP_NOW` only for isolated deterministic verification.
 
 For horizontally scaled webhook consumers, migration `014_webhook_replay_claims` provides the durable `webhook_replay_claims` primary-key barrier and expiry index. `verifyWebhookSignatureWithPostgresReplayStore` performs exact-body HMAC and timestamp verification before an atomic insert-or-expired-row-update claim. Store errors fail closed. The process-local `WebhookReplayGuard` remains suitable for focused tests and single-process development only; it is not the production multi-instance replay store.
 

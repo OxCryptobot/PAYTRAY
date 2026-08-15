@@ -53,9 +53,11 @@ if (!isolated) {
     const contracts = await request(app).get('/api/v2/extensions/contracts').set(auth)
     const hook = await request(app).post('/api/v2/extensions/hooks').set(auth).send({ event: 'engagement.created', callbackUrl: 'https://example.com/paytray-contract-check', projections: ['identifiers', 'lifecycle'] })
     const hooks = await request(app).get('/api/v2/extensions/hooks').set(auth)
+    const trustSignals = await request(app).get('/api/v2/ops/trust-signals').set(auth)
     const audit = await request(app).get('/api/v2/ops/audit/events').set(auth)
     const lineage = await request(app).get('/api/v2/ops/discovery/lineage').set(auth)
     const outbox = await request(app).get('/api/v2/ops/outbox/health').set(auth)
+    const inbox = await request(app).get('/api/v2/ops/webhook-inbox/health').set(auth)
     const outboxProcess = await request(app)
       .post('/api/v2/ops/outbox/process')
       .set(auth)
@@ -66,10 +68,12 @@ if (!isolated) {
       collaboration: collaboration.status === 200 && collaboration.body.health?.collaborationAvailable === true,
       engagementPaymentState: engagementCreate.status === 201 && paymentState.status === 200 && paymentState.body.paymentState?.payment_status === 'not_requested' && paymentState.body.paymentState?.paymentStateMayBeStale === false && paymentState.body.paymentState?.mutation === 'read_only' && paymentState.body.paymentState?.settlementAuthority === false,
       extensionContracts: contracts.status === 200 && contracts.body.contracts?.apiVersion === 'v2',
-      extensionRegistration: hook.status === 200 && hooks.status === 200,
+      extensionRegistration: hook.status === 200 && hook.body.persistence === 'postgresql_durable' && hooks.status === 200 && hooks.body.persistence === 'postgresql_durable',
+      trustSignals: trustSignals.status === 200 && trustSignals.body.eligibleForRanking === false && trustSignals.body.mutation === 'read_only' && trustSignals.body.settlementAuthority === false,
       audit: audit.status === 200 && Array.isArray(audit.body.audit?.events),
       lineage: lineage.status === 200 && Array.isArray(lineage.body.lineage?.impressions),
       outbox: outbox.status === 200 && outbox.body.health?.mutation === 'read_only',
+      webhookInbox: inbox.status === 200 && inbox.body.health?.mutation === 'read_only' && inbox.body.health?.settlementAuthority === false,
       outboxDryRun: outboxProcess.status === 200 && outboxProcess.body.dryRun === true && outboxProcess.body.claimed === 0 && outboxProcess.body.mutation === 'read_only' && outboxProcess.body.settlementAuthority === false && outboxProcess.body.settlementMutationPerformed === false,
       verifier: [200, 503].includes(verifier.status) && verifier.body.evidence?.mutation === 'read_only'
     }
@@ -78,7 +82,7 @@ if (!isolated) {
       status: ready ? 'verified' : 'blocked',
       databaseStatus: getDatabaseStatus(),
       checks,
-      routeStatuses: { collaboration: collaboration.status, engagementCreate: engagementCreate.status, paymentState: paymentState.status, contracts: contracts.status, hook: hook.status, hooks: hooks.status, audit: audit.status, lineage: lineage.status, outbox: outbox.status, outboxProcess: outboxProcess.status, verifier: verifier.status },
+      routeStatuses: { collaboration: collaboration.status, engagementCreate: engagementCreate.status, paymentState: paymentState.status, contracts: contracts.status, hook: hook.status, hooks: hooks.status, trustSignals: trustSignals.status, audit: audit.status, lineage: lineage.status, outbox: outbox.status, inbox: inbox.status, outboxProcess: outboxProcess.status, verifier: verifier.status },
       settlementAuthority: false,
       mutation: 'read_only',
       deploymentPerformed: false,

@@ -35,7 +35,7 @@ The decoder currently accepts the verified `CreateFlowStream` event because it c
 
 ## Validation evidence
 
-The latest validation completed with **23 test files and 131 passing tests**, ESLint passing, `git diff --check` passing, and PostgreSQL migration validation passing through migration 014. The Base Sepolia decoder has focused coverage for valid stream creation, contract filtering, unsupported event rejection, and explicit RPC configuration. The finality worker has coverage for confirmation-based finalization, bounded scanning, and durable cursor behavior. The chain-event processor has coverage for stale non-final event rejection after finality.
+The latest validation completed with **23 test files and 131 passing tests**, ESLint passing, `git diff --check` passing, and PostgreSQL migration validation passing through migration 017. The Base Sepolia decoder has focused coverage for valid stream creation, contract filtering, unsupported event rejection, and explicit RPC configuration. The finality worker has coverage for confirmation-based finalization, bounded scanning, and durable cursor behavior. The chain-event processor has coverage for stale non-final event rejection after finality.
 
 The CI release-readiness inspection continues to report healthy telemetry and verified outcome coverage, while ranking promotion remains blocked by pending shadow reviews and the permanently false promotion-authority gate. This is the correct safety state for the current testnet shadow pilot.
 

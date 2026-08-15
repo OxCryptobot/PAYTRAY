@@ -21,14 +21,14 @@
 | Gate | Required evidence | Owner | Pass condition |
 |---|---|---|---|
 | Railway configuration | Authenticated, redacted environment comparison for database, JWT, HTTPS RPC, protocol contract, token registry, webhook signing, verifier threshold, and mainnet flag | Operator | Target values match the approved release configuration; secrets are never copied into reports. |
-| Database | Migration check through migration 014 plus backup/restore evidence | Database operator | Migrations complete successfully and restoration is verified. |
+| Database | Migration check through migration 017 plus backup/restore evidence | Database operator | Migrations complete successfully and restoration is verified. |
 | Settlement policy | Chain ID, protocol address, token registry, decimals, sender/receiver rules, and confirmation policy | Protocol operator | Base Sepolia remains selected unless a separately approved mainnet change exists. |
 | Verifier | Fresh durable cursor, configured RPC, bounded polling, cursor persistence, and chain-event audit evidence | Protocol operator | Verifier classification is `fresh`; `missing`, `stale`, or `not_configured` blocks release. |
 | Reconciliation | Durable reconciliation report with no unresolved finalized-without-ledger, transaction-evidence, unlinked-event, or projection-lag issues | Finance/operator team | Report status is `ok`; any attention state blocks release until reviewed. |
 | Shadow evaluation | Candidate baseline comparison, sample size, confidence bound, rollback target, and segment evidence | AI review owner | Quality gate passes, but promotion remains `shadow_only` until human approval. |
 | Human review queue | Pending shadow-run review and reviewer decision evidence | AI review owner | No unreviewed blocking runs remain; every approved pilot has reviewer identity, notes, and rollback context. |
 | Collaboration intelligence | Provenance, retention, latency, cost, raw-content exclusion, and human-override evidence | Product/operator team | Advisory outputs are attributable and cannot mutate payment, ledger, outcome, reputation, or settlement state. |
-| Webhooks | SSRF validation, delivery-time DNS revalidation, signing, retry backoff, and dead-letter handling | Platform operator | Only approved HTTPS destinations are enabled and retry behavior is bounded. |
+| Webhooks | SSRF validation, delivery-time DNS revalidation, signing, durable replay/inbox claims, retry backoff, dead-letter handling, and production worker configuration | Platform operator | Only approved HTTPS destinations are enabled, the signing secret is configured, durable hooks survive restart, and retry behavior is bounded. |
 | Security | Wallet challenge/session checks, operator scopes, rate limits, secret handling, and audit logs | Security owner | No known critical authorization or secret-exposure issue remains open. |
 | Smoke test | Authenticated non-production or controlled production smoke test with no live funds | Release operator | Discovery → engagement → intent → verifier-read-only status path succeeds without claiming settlement prematurely. |
 | Final approval | Completed `GET /api/v2/ops/release-approval` or `backend:release:approval:check` artifact plus reviewer identity and timestamp | Authorized human approver | Artifact is eligible and explicit human approval is recorded. |

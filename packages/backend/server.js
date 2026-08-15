@@ -37,6 +37,7 @@ import {
   updateCollaborationState
 } from './lib/engagementService.js'
 import { getPilotMetrics, recordOutcome, verifyOutcome } from './lib/outcomeService.js'
+import { listVerifiedTrustSignals } from './lib/trustSignalService.js'
 import { ingestTelemetryEvent } from './lib/telemetryService.js'
 import { processVerifiedChainEvent } from './lib/payments/verifiedEventService.js'
 import { getTelemetryHealth } from './lib/telemetryObservability.js'
@@ -57,6 +58,8 @@ import { processDurableOutbox } from './lib/outboxProcessorService.js'
 import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory } from './lib/advisoryAiBoundary.js'
 import { buildCollaborationHealth } from './lib/collaborationHealth.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
+import { listExtensionHooks, registerExtensionHook } from './lib/extensionHookService.js'
+import { getWebhookInboxHealth } from './lib/webhookInboxService.js'
 import { assertLegacyPaymentMutationAllowed } from './lib/payments/legacyPaymentPolicy.js'
 import {
   generateServiceToken,
@@ -2033,6 +2036,18 @@ app.get('/api/v2/ops/outbox/health', authenticateToken, requireScopes('ops:*'), 
   }
 })
 
+app.get('/api/v2/ops/webhook-inbox/health', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'webhook inbox health requires a ready PostgreSQL database')
+    }
+    const health = await transaction((client) => getWebhookInboxHealth({ client }))
+    res.status(health.status === 'ok' ? 200 : 503).json({ success: health.status === 'ok', health })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.get('/api/v2/ops/outbox/events', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
   try {
     if (getDatabaseStatus() !== 'ready') {
@@ -2057,9 +2072,9 @@ app.post('/api/v2/ops/outbox/process', authenticateToken, requireScopes('ops:*')
       throw new ExternalServiceError('Database', 'outbox processing requires a ready PostgreSQL database')
     }
     const dryRun = req.body.dryRun !== false
-    const result = await transaction((client) => processDurableOutbox({
+    const result = await transaction(async (client) => processDurableOutbox({
       client,
-      hooks: Array.from(extensionHooks.values()).filter((hook) => hook.apiVersion === 'v2'),
+      hooks: await listExtensionHooks({ client }),
       dryRun,
       limit: req.body.limit,
       leaseMs: req.body.leaseMs,
@@ -2369,6 +2384,24 @@ app.post('/api/v2/outcomes/:outcomeId/verify', authenticateToken, requireScopes(
       source: 'verifier_owned_outcome_evidence',
       authority: 'verified_evidence_only'
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/trust-signals', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'verified trust signals require a ready PostgreSQL database')
+    }
+    const signals = await transaction((client) => listVerifiedTrustSignals({
+      client,
+      subjectWalletAddress: req.query.subjectWallet,
+      signalType: req.query.signalType,
+      limit: req.query.limit,
+      offset: req.query.offset
+    }))
+    res.json({ success: true, ...signals })
   } catch (error) {
     next(error)
   }
@@ -3348,6 +3381,10 @@ app.get('/api/v2/extensions/contracts', authenticateToken, requireScopes('extens
 
 app.post('/api/v2/extensions/hooks', authenticateToken, requireScopes('extensions:*'), async (req, res, next) => {
   try {
+    const databaseReady = getDatabaseStatus() === 'ready'
+    if (!databaseReady && config.isProd) {
+      throw new ExternalServiceError('Database', 'v2 extension hooks require a ready PostgreSQL database')
+    }
     const callbackUrl = validateWebhookUrl(req.body.callbackUrl)
     await assertSafeWebhookUrl(callbackUrl)
     const contract = normalizeExtensionHookInput({
@@ -3357,24 +3394,32 @@ app.post('/api/v2/extensions/hooks', authenticateToken, requireScopes('extension
       apiVersion: req.body.apiVersion || 'v2',
       replayWindowSeconds: req.body.replayWindowSeconds
     })
-    const id = String(extensionHooks.size + 1)
-    const hook = {
-      id,
-      ownerWallet: req.walletAddress,
-      ...contract,
-      createdAt: nowIso()
+    if (!databaseReady) {
+      const id = String(extensionHooks.size + 1)
+      const hook = { id, ownerWallet: req.walletAddress, ...contract, createdAt: nowIso() }
+      extensionHooks.set(id, hook)
+      markStateDirty()
+      return res.json({ success: true, hook, persistence: 'process_local_development_fallback' })
     }
-    extensionHooks.set(id, hook)
-    markStateDirty()
-    res.json({ success: true, hook })
+    const hook = await transaction((client) => registerExtensionHook({ client, ownerWallet: req.walletAddress, hook: contract }))
+    res.json({ success: true, hook, persistence: 'postgresql_durable' })
   } catch (error) {
     next(error)
   }
 })
 
-app.get('/api/v2/extensions/hooks', authenticateToken, requireScopes('extensions:*'), (req, res) => {
-  const hooks = Array.from(extensionHooks.values()).filter((hook) => hook.apiVersion === 'v2' && hook.ownerWallet === req.walletAddress)
-  res.json({ success: true, apiVersion: 'v2', count: hooks.length, hooks })
+app.get('/api/v2/extensions/hooks', authenticateToken, requireScopes('extensions:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      if (config.isProd) throw new ExternalServiceError('Database', 'v2 extension hooks require a ready PostgreSQL database')
+      const hooks = Array.from(extensionHooks.values()).filter((hook) => hook.apiVersion === 'v2' && hook.ownerWallet === req.walletAddress)
+      return res.json({ success: true, apiVersion: 'v2', count: hooks.length, hooks, persistence: 'process_local_development_fallback' })
+    }
+    const hooks = await transaction((client) => listExtensionHooks({ client, ownerWallet: req.walletAddress }))
+    res.json({ success: true, apiVersion: 'v2', count: hooks.length, hooks, persistence: 'postgresql_durable' })
+  } catch (error) {
+    next(error)
+  }
 })
 
 app.post('/api/extensions/hooks', authenticateToken, requireScopes('extensions:*'), async (req, res, next) => {

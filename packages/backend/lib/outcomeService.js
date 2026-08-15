@@ -1,5 +1,6 @@
 import { ConflictError, NotFoundError, ValidationError } from './errors.js'
 import { hashStructuredInput } from './aiEvaluation.js'
+import { deriveVerifiedTrustSignals } from './trustSignalService.js'
 
 const OUTCOME_TYPES = new Set(['meeting_completed', 'paid_minutes_delivered', 'no_show', 'dispute_opened', 'repeat_booking'])
 const EVIDENCE_TYPES = new Set(['session', 'payment_chain_event', 'ledger_entry', 'dispute_record', 'engagement'])
@@ -90,7 +91,12 @@ export async function verifyOutcome({ client, outcomeId, verifierId, verificatio
   if (!existing.rows[0]) throw new NotFoundError('Outcome')
   const current = existing.rows[0]
   if (current.verification_status !== 'unverified') {
-    if (current.verification_status === verificationStatus) return { outcome: current, idempotentReplay: true }
+    if (current.verification_status === verificationStatus) {
+      const trustSignals = verificationStatus === 'verified'
+        ? await deriveVerifiedTrustSignals({ client, outcome: current })
+        : { derived: false, reason: 'outcome_rejected', signals: [], authority: 'verified_outcome_evidence', mutation: 'read_only' }
+      return { outcome: current, idempotentReplay: true, trustSignals }
+    }
     throw new ConflictError('Outcome has already reached a terminal verification status')
   }
 
@@ -108,7 +114,10 @@ export async function verifyOutcome({ client, outcomeId, verifierId, verificatio
     [verificationStatus, String(verifierId), verifiedAt, evidenceHash, JSON.stringify({ verificationSource: 'verifier', verifierId: String(verifierId), verifiedAt, verificationEvidenceHash: evidenceHash }), outcomeId]
   )
   if (!updated.rows[0]) throw new ConflictError('Outcome verification raced with another verifier')
-  return { outcome: updated.rows[0], idempotentReplay: false }
+  const trustSignals = verificationStatus === 'verified'
+    ? await deriveVerifiedTrustSignals({ client, outcome: updated.rows[0] })
+    : { derived: false, reason: 'outcome_rejected', signals: [], authority: 'verified_outcome_evidence', mutation: 'read_only' }
+  return { outcome: updated.rows[0], idempotentReplay: false, trustSignals }
 }
 
 export async function getPilotMetrics({ client, from = null, to = null }) {

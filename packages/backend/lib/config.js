@@ -78,6 +78,14 @@ export const config = {
     signatureToleranceMs: Number.parseInt(process.env.WEBHOOK_SIGNATURE_TOLERANCE_MS || '300000', 10),
     replayCacheMaxEntries: Number.parseInt(process.env.WEBHOOK_REPLAY_CACHE_MAX_ENTRIES || '10000', 10)
   },
+  outboxWorker: {
+    enabled: process.env.OUTBOX_WORKER_ENABLED === 'true',
+    pollIntervalMs: Number.parseInt(process.env.OUTBOX_WORKER_POLL_INTERVAL_MS || '5000', 10),
+    batchSize: Number.parseInt(process.env.OUTBOX_WORKER_BATCH_SIZE || '25', 10),
+    leaseMs: Number.parseInt(process.env.OUTBOX_WORKER_LEASE_MS || '120000', 10),
+    timeoutMs: Number.parseInt(process.env.OUTBOX_WORKER_TIMEOUT_MS || process.env.WEBHOOK_TIMEOUT_MS || '2500', 10),
+    maxIdlePolls: Number.parseInt(process.env.OUTBOX_WORKER_MAX_IDLE_POLLS || '0', 10)
+  },
   advisoryAi: {
     enabled: process.env.ADVISORY_AI_ENABLED === 'true',
     providerName: process.env.ADVISORY_AI_PROVIDER || null,
@@ -118,6 +126,25 @@ export function validateConfig() {
   }
   if (!Number.isInteger(config.webhooks.replayCacheMaxEntries) || config.webhooks.replayCacheMaxEntries < 1 || config.webhooks.replayCacheMaxEntries > 1000000) {
     errors.push('WEBHOOK_REPLAY_CACHE_MAX_ENTRIES must be an integer between 1 and 1000000')
+  }
+
+  if (!Number.isInteger(config.outboxWorker.pollIntervalMs) || config.outboxWorker.pollIntervalMs < 1000 || config.outboxWorker.pollIntervalMs > 86400000) {
+    errors.push('OUTBOX_WORKER_POLL_INTERVAL_MS must be an integer between 1000 and 86400000 milliseconds')
+  }
+  if (!Number.isInteger(config.outboxWorker.batchSize) || config.outboxWorker.batchSize < 1 || config.outboxWorker.batchSize > 100) {
+    errors.push('OUTBOX_WORKER_BATCH_SIZE must be an integer between 1 and 100')
+  }
+  if (!Number.isInteger(config.outboxWorker.leaseMs) || config.outboxWorker.leaseMs < 1000 || config.outboxWorker.leaseMs > 86400000) {
+    errors.push('OUTBOX_WORKER_LEASE_MS must be an integer between 1000 and 86400000 milliseconds')
+  }
+  if (!Number.isInteger(config.outboxWorker.timeoutMs) || config.outboxWorker.timeoutMs < 100 || config.outboxWorker.timeoutMs > 120000) {
+    errors.push('OUTBOX_WORKER_TIMEOUT_MS must be an integer between 100 and 120000 milliseconds')
+  }
+  if (!Number.isInteger(config.outboxWorker.maxIdlePolls) || config.outboxWorker.maxIdlePolls < 0 || config.outboxWorker.maxIdlePolls > 1000000) {
+    errors.push('OUTBOX_WORKER_MAX_IDLE_POLLS must be an integer between 0 and 1000000')
+  }
+  if (config.isProd && config.outboxWorker.enabled && !config.webhooks.signingSecret) {
+    errors.push('WEBHOOK_SIGNING_SECRET is required when OUTBOX_WORKER_ENABLED=true in production')
   }
 
   if (!Number.isInteger(config.payments.finalityConfirmations) || config.payments.finalityConfirmations < 1) {

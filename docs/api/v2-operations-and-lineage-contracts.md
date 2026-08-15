@@ -197,6 +197,14 @@ Runs bounded expiry housekeeping for durable `idempotency_records` in a PostgreS
 
 For horizontally scaled webhook consumers, migration `014_webhook_replay_claims` provides the durable `webhook_replay_claims` primary-key barrier and expiry index. `verifyWebhookSignatureWithPostgresReplayStore` performs exact-body HMAC and timestamp verification before an atomic insert-or-expired-row-update claim. Store errors fail closed. The process-local `WebhookReplayGuard` remains suitable for focused tests and single-process development only; it is not the production multi-instance replay store.
 
+## `GET /api/v2/extensions/openapi.json`
+
+Returns the public, versioned OpenAPI 3.1 document for the v2 extension surface without authentication. The document is generated from the runtime contract capabilities, pins callback URLs to HTTPS, enumerates the supported event and projection sets, and includes `x-paytray-safety` metadata declaring `settlementAuthority: false`, `mutation: read_only`, `rawContentPersistence: false`, and `aiPromotion: shadow_only`. The document describes schemas only; it does not grant extension or operator access.
+
+## `@paytray/sdk`
+
+The workspace package `@paytray/sdk` provides a dependency-free Node 18+ client for `getContractCapabilities()`, owner-scoped `listHooks()`, and `registerHook()`. It requires an explicit bearer access token, accepts only HTTPS callback URLs in its registration helper, surfaces non-2xx responses as structured `PayTrayApiError` instances, and exposes no payment, ledger, settlement, or AI-promotion mutation methods. Consumers can retrieve the OpenAPI document directly from `/api/v2/extensions/openapi.json` or use the generated TypeScript declarations at `packages/sdk/src/index.d.ts`.
+
 ## `GET /api/v2/extensions/contracts`
 
 Returns the versioned BD public extension contract for an `extensions:*` token. The v2 contract enumerates supported event names, allowed projections (`identifiers`, `lifecycle`, `provenance`, `timestamps`, and `metrics`), bounded replay windows, signed/retryable delivery, dead-letter observability, forbidden raw-content keys, and `settlementAuthority: false`.
@@ -211,7 +219,7 @@ Lists only the authenticated owner’s v2 hooks and their contract metadata. Leg
 
 ## `backend:ready:postgres:check`
 
-The AW verifier requires `READY_POSTGRES_DATABASE_ISOLATED=true` before it initializes PostgreSQL. With an explicitly isolated target, it runs migrations, creates a disposable engagement fixture, exercises the BG payment-state route, registers v2 extension contracts, reads audit/lineage/outbox/verifier evidence, and calls the BH outbox processor in dry-run mode. The BG check requires `payment_status: not_requested`, `paymentStateMayBeStale: false`, `mutation: read_only`, and `settlementAuthority: false`; the BH check requires `dryRun: true`, `claimed: 0`, `mutation: read_only`, and no settlement mutation. It accepts a `503` verifier response when the cursor is not configured, but requires the response to remain structured, read-only, and non-authoritative. The disposable CI run returned `status: verified`; without the isolation flag it exits `1` before database access. BF’s reviewer write path remains intentionally excluded because the verifier must not fabricate a human reviewer decision.
+The AW verifier requires `READY_POSTGRES_DATABASE_ISOLATED=true` before it initializes PostgreSQL. With an explicitly isolated target, it runs migrations, creates a disposable engagement fixture, reads the public extension OpenAPI document, exercises the BG payment-state route, registers v2 extension contracts, reads audit/lineage/outbox/inbox/verifier evidence, and calls the BH outbox processor in dry-run mode. The BG check requires `payment_status: not_requested`, `paymentStateMayBeStale: false`, `mutation: read_only`, and `settlementAuthority: false`; the BH check requires `dryRun: true`, `claimed: 0`, `mutation: read_only`, and no settlement mutation. It accepts a `503` verifier response when the cursor is not configured, but requires the response to remain structured, read-only, and non-authoritative. The disposable CI run returned `status: verified`; without the isolation flag it exits `1` before database access. BF’s reviewer write path remains intentionally excluded because the verifier must not fabricate a human reviewer decision.
 
 ## `GET /api/v2/ops/outbox/health`
 

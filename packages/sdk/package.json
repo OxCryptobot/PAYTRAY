@@ -1,0 +1,19 @@
+{
+  "name": "@paytray/sdk",
+  "version": "0.1.0",
+  "description": "PayTray v2 extension contract client for verifier-owned, read-only delivery integrations",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "types": "./src/index.d.ts"
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "private": true
+}

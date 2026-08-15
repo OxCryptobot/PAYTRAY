@@ -50,6 +50,7 @@ if (!isolated) {
     const paymentState = engagementId
       ? await request(app).get(`/api/v2/engagements/${engagementId}/payment-state`).set(auth)
       : { status: 500, body: {} }
+    const openapi = await request(app).get('/api/v2/extensions/openapi.json')
     const contracts = await request(app).get('/api/v2/extensions/contracts').set(auth)
     const hook = await request(app).post('/api/v2/extensions/hooks').set(auth).send({ event: 'engagement.created', callbackUrl: 'https://example.com/paytray-contract-check', projections: ['identifiers', 'lifecycle'] })
     const hooks = await request(app).get('/api/v2/extensions/hooks').set(auth)
@@ -67,6 +68,7 @@ if (!isolated) {
     const checks = {
       collaboration: collaboration.status === 200 && collaboration.body.health?.collaborationAvailable === true,
       engagementPaymentState: engagementCreate.status === 201 && paymentState.status === 200 && paymentState.body.paymentState?.payment_status === 'not_requested' && paymentState.body.paymentState?.paymentStateMayBeStale === false && paymentState.body.paymentState?.mutation === 'read_only' && paymentState.body.paymentState?.settlementAuthority === false,
+      extensionOpenApi: openapi.status === 200 && openapi.body.openapi === '3.1.0' && openapi.body['x-paytray-safety']?.mutation === 'read_only' && openapi.body['x-paytray-safety']?.settlementAuthority === false,
       extensionContracts: contracts.status === 200 && contracts.body.contracts?.apiVersion === 'v2',
       extensionRegistration: hook.status === 200 && hook.body.persistence === 'postgresql_durable' && hooks.status === 200 && hooks.body.persistence === 'postgresql_durable',
       trustSignals: trustSignals.status === 200 && trustSignals.body.eligibleForRanking === false && trustSignals.body.mutation === 'read_only' && trustSignals.body.settlementAuthority === false,
@@ -82,7 +84,7 @@ if (!isolated) {
       status: ready ? 'verified' : 'blocked',
       databaseStatus: getDatabaseStatus(),
       checks,
-      routeStatuses: { collaboration: collaboration.status, engagementCreate: engagementCreate.status, paymentState: paymentState.status, contracts: contracts.status, hook: hook.status, hooks: hooks.status, trustSignals: trustSignals.status, audit: audit.status, lineage: lineage.status, outbox: outbox.status, inbox: inbox.status, outboxProcess: outboxProcess.status, verifier: verifier.status },
+      routeStatuses: { collaboration: collaboration.status, engagementCreate: engagementCreate.status, paymentState: paymentState.status, openapi: openapi.status, contracts: contracts.status, hook: hook.status, hooks: hooks.status, trustSignals: trustSignals.status, audit: audit.status, lineage: lineage.status, outbox: outbox.status, inbox: inbox.status, outboxProcess: outboxProcess.status, verifier: verifier.status },
       settlementAuthority: false,
       mutation: 'read_only',
       deploymentPerformed: false,

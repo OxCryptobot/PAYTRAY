@@ -58,6 +58,7 @@ import { processDurableOutbox } from './lib/outboxProcessorService.js'
 import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory } from './lib/advisoryAiBoundary.js'
 import { buildCollaborationHealth } from './lib/collaborationHealth.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
+import { getExtensionOpenApiDocument } from './lib/extensionOpenApi.js'
 import { listExtensionHooks, registerExtensionHook } from './lib/extensionHookService.js'
 import { getWebhookInboxHealth } from './lib/webhookInboxService.js'
 import { assertLegacyPaymentMutationAllowed } from './lib/payments/legacyPaymentPolicy.js'
@@ -3373,6 +3374,10 @@ app.post('/api/ops/reconciliation/run', authenticateToken, requireScopes('ops:*'
 
   const inconsistent = report.filter((item) => item.consistent === false).length
   res.json({ success: true, total: report.length, inconsistent, report })
+})
+
+app.get('/api/v2/extensions/openapi.json', (req, res) => {
+  res.type('application/json').json(getExtensionOpenApiDocument())
 })
 
 app.get('/api/v2/extensions/contracts', authenticateToken, requireScopes('extensions:*'), (req, res) => {

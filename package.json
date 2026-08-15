@@ -19,6 +19,7 @@
     "backend:idempotency:cleanup": "node packages/backend/scripts/cleanup-idempotency-records.mjs",
     "backend:outbox:worker": "node packages/backend/scripts/run-outbox-worker.mjs",
     "backend:outbox:worker:check": "node packages/backend/scripts/verify-outbox-worker-config.mjs",
+    "backend:extension:contract:check": "node packages/backend/scripts/verify-extension-contract.mjs",
     "backend:advisory:ai:check": "node packages/backend/scripts/inspect-advisory-ai.mjs",
     "backend:ready:postgres:check": "node packages/backend/scripts/verify-ready-postgres-contracts.mjs",
     "backend:token:metadata:check": "node packages/backend/scripts/verify-token-registry-metadata.mjs",
@@ -35,7 +36,8 @@
   },
   "workspaces": {
     "packages": [
-      "packages/backend"
+      "packages/backend",
+      "packages/sdk"
     ]
   }
 }

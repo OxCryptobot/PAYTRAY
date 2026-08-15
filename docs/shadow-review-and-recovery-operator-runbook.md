@@ -35,6 +35,18 @@ curl --fail-with-body --silent --show-error \
 
 A `503` response is expected while verifier freshness, reconciliation, Railway, recovery, shadow-review, sign-off, or signing-key evidence is incomplete. Preserve the response body rather than retrying until it appears healthy. Confirm the dashboard contains `authority: "operator_health_aggregation_only"`, `releaseEligible: false`, `settlementAuthority: false`, `mutation: "read_only"`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`.
 
+Create and independently verify the canonical evidence bundle before preserving the release evidence package:
+
+```bash
+DATABASE_URL="$DATABASE_URL" npm run backend:ops:evidence:bundle:check \
+  > /protected/evidence/paytray-evidence-bundle-<COMMIT>.json
+
+npm run backend:ops:evidence:bundle:verify \
+  /protected/evidence/paytray-evidence-bundle-<COMMIT>.json
+```
+
+The bundle generator may exit `1` while real release evidence is incomplete; preserve that blocked artifact and require the verifier command to return `status: "verified"` before treating the file as integrity-verified. Integrity verification proves only that the saved bundle is internally consistent. It does not prove release readiness, approve reviewers, or grant settlement authority.
+
 Run the local or CI matrix before target-specific checks:
 
 ```bash

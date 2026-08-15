@@ -22,6 +22,7 @@
     "backend:target:operations:check": "node packages/backend/scripts/verify-target-operations.mjs",
     "backend:operations:quality:check": "node packages/backend/scripts/verify-operations-quality.mjs",
     "backend:ops:evidence:bundle:check": "node packages/backend/scripts/inspect-operator-evidence-bundle.mjs",
+    "backend:ops:evidence:bundle:verify": "node packages/backend/scripts/verify-operator-evidence-bundle.mjs",
     "backend:verifier:worker": "node packages/backend/scripts/run-verifier-worker.mjs",
     "backend:verifier:worker:check": "node packages/backend/scripts/verify-verifier-worker-config.mjs",
     "backend:outbox:worker": "node packages/backend/scripts/run-outbox-worker.mjs",

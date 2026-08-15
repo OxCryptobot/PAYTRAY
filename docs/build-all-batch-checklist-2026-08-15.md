@@ -29,7 +29,8 @@
 | CK | Durable operations-quality audit trail | Pushed | `d105cf1`; added migration `018_operations_quality_runs`, redacted canonical report hashing, best-effort CLI persistence, bounded read-only `GET /api/v2/ops/operations-quality/runs`, and isolated route/migration coverage. |
 | CL | Detailed operations-quality audit lookup | Pushed | `6c4c64e`; added UUID-validated `GET /api/v2/ops/operations-quality/runs/:runId`, persisted redacted report retrieval, 404 behavior for missing runs, and ready-PostgreSQL detail-route coverage. |
 | CM | Canonical operator evidence-bundle export | Pushed | `3d6c524`; added `GET /api/v2/ops/evidence/bundle` and `backend:ops:evidence:bundle:check`, composing release, reconciliation, and operations-quality history into a deterministic SHA-256 bundle; incomplete evidence remains fail-closed at `503`/exit `1`. |
-| CN | Evidence-bundle operations-quality integration | Validated locally | The nine-check `backend:operations:quality:check` matrix now includes the bundle CLI; normal mode exits `0` with expected `operator_blocked` classification and zero unexpected failures. |
+| CN | Evidence-bundle operations-quality integration | Pushed | `98db605`; the nine-check `backend:operations:quality:check` matrix now includes the bundle CLI; normal mode exits `0` with expected `operator_blocked` classification and zero unexpected failures. |
+| CO | Detached evidence-bundle integrity verification | Validated locally | Added `backend:ops:evidence:bundle:verify`, canonical SHA-256 recomputation, PostgreSQL timestamp normalization, tamper detection, and immutable safety-field rejection; a blocked bundle verifies internally while remaining non-releaseable. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work

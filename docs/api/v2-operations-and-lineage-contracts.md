@@ -60,6 +60,8 @@ This command runs nine existing read-only quality, migration, extension, SDK, ve
 
 This authenticated operator endpoint returns bounded summaries of durable operations-quality runs without returning the stored report payload. It supports an optional `status` filter, requires a ready PostgreSQL database, and returns `200` with `authority: 'operations_quality_audit'`, `mutation: 'read_only'`, `releaseEligible: false`, and `settlementAuthority: false`. The table is non-financial and append-only from the application path; listing it cannot rerun checks, mutate payment or ledger state, approve reviews, or grant release authority.
 
+`backend:ops:evidence:bundle:verify <bundle.json>` independently recomputes the bundle’s canonical SHA-256 fingerprint and validates the bundle schema and immutable safety fields. A valid blocked bundle can verify successfully because verification proves artifact integrity, not release readiness. The verifier never approves reviewers, marks release eligibility, grants settlement authority, or submits transactions.
+
 `GET /api/v2/ops/operations-quality/runs/:runId` returns one valid-UUID run and its stored redacted report, including the canonical `report_hash` and per-check classification. It returns `404` when no durable run exists and rejects malformed run identifiers before database lookup. The detail response retains `authority: 'operations_quality_audit'`, `mutation: 'read_only'`, `releaseEligible: false`, and `settlementAuthority: false`.
 
 ## `GET /api/v2/ops/audit/events`

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildOperatorEvidenceBundle } from '../lib/operatorEvidenceBundleService.js'
+import { buildOperatorEvidenceBundle, verifyOperatorEvidenceBundle } from '../lib/operatorEvidenceBundleService.js'
 
 const releaseEvidence = {
   evidenceComplete: true,
@@ -26,7 +26,7 @@ const operationsQualityRuns = {
       operator_blocker_count: 3,
       unexpected_failure_count: 0,
       report_hash: 'a'.repeat(64),
-      completed_at: '2026-08-15T20:00:00.000Z'
+      completed_at: new Date('2026-08-15T20:00:00.000Z')
     }
   ]
 }
@@ -64,6 +64,24 @@ describe('operator evidence bundle service', () => {
     })
     expect(first.evidenceFingerprint).toEqual(second.evidenceFingerprint)
     expect(first.references.operationsQualityRunIds).toEqual(['11111111-1111-4111-8111-111111111111'])
+    expect(first.quality.latest.completedAt).toBe('2026-08-15T20:00:00.000Z')
+  })
+
+  it('verifies an untampered bundle and rejects content or authority tampering', () => {
+    const bundle = buildOperatorEvidenceBundle({
+      releaseEvidence,
+      reconciliationEvidence,
+      operationsQualityRuns,
+      gitCommit: 'commit-1',
+      now: new Date('2026-08-15T20:00:00.000Z')
+    })
+    expect(verifyOperatorEvidenceBundle(bundle)).toMatchObject({ status: 'verified', verified: true, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+
+    const tamperedContent = { ...bundle, quality: { ...bundle.quality, count: 99 } }
+    expect(verifyOperatorEvidenceBundle(tamperedContent)).toMatchObject({ status: 'blocked', verified: false, reason: 'evidence fingerprint does not match canonical content' })
+
+    const tamperedAuthority = { ...bundle, settlementAuthority: true }
+    expect(verifyOperatorEvidenceBundle(tamperedAuthority)).toMatchObject({ status: 'blocked', verified: false, reason: 'immutable safety metadata is invalid', settlementAuthority: false })
   })
 
   it('fails closed and names reconciliation blockers without inventing evidence', () => {

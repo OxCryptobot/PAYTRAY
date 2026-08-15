@@ -31,7 +31,8 @@
 | CM | Canonical operator evidence-bundle export | Pushed | `3d6c524`; added `GET /api/v2/ops/evidence/bundle` and `backend:ops:evidence:bundle:check`, composing release, reconciliation, and operations-quality history into a deterministic SHA-256 bundle; incomplete evidence remains fail-closed at `503`/exit `1`. |
 | CN | Evidence-bundle operations-quality integration | Pushed | `98db605`; the nine-check `backend:operations:quality:check` matrix now includes the bundle CLI; normal mode exits `0` with expected `operator_blocked` classification and zero unexpected failures. |
 | CO | Detached evidence-bundle integrity verification | Pushed | `52255ae`; added `backend:ops:evidence:bundle:verify`, canonical SHA-256 recomputation, PostgreSQL timestamp normalization, tamper detection, and immutable safety-field rejection; a blocked bundle verifies internally while remaining non-releaseable. |
-| CP | CI operations-quality artifact retention | Validated locally | The standalone CI matrix writes a redacted machine-readable JSON artifact and uploads it for seven-day operator inspection; the job remains non-strict and fails only on unexpected check failures. |
+| CP | CI operations-quality artifact retention | Pushed | `7c91fbc`; the standalone CI matrix writes a redacted machine-readable JSON artifact and uploads it for seven-day operator inspection; the job remains non-strict and fails only on unexpected check failures. |
+| CQ | CI operations-quality artifact fingerprint | Validated locally | The retained JSON report now receives a SHA-256 sidecar fingerprint before upload, allowing operators to verify artifact integrity without exposing secrets or granting release authority. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work

@@ -30,10 +30,10 @@ The latest multi-phase tranche is validated and pushed to the remote branch. It 
 | BA | Bounded advisory-AI provider and retrieval boundary | Pushed | `packages/backend/lib/advisoryAiBoundary.js`; `POST /api/v2/intelligence/advisory` |
 | BB | Collaboration degraded-state health | Pushed | `packages/backend/lib/collaborationHealth.js`; `GET /api/v2/collaboration/health` |
 | BF | Durable reviewer-decision audit records | Pushed | `810868f97ab0b8706dfde5747830d9e935eb7c67`; `shadow_review_recorded` and `shadow_review_replayed` financial audit events |
-| BG | Verifier-owned engagement payment-state surface | Implemented locally | `GET /api/v2/engagements/:engagementId/payment-state`; lifecycle/finality/payment status with explicit verifier cursor staleness and collaboration independence |
-| BH | Durable outbox delivery processor | Implemented locally | `POST /api/v2/ops/outbox/process`; dry-run planning, allowlisted v2 hook delivery, bounded retry, signed payloads, and outbox-only authority |
+| BG | Verifier-owned engagement payment-state surface | Pushed | `a40adb4f4a83e15d9806ebefc7047641085784d6`; `GET /api/v2/engagements/:engagementId/payment-state` |
+| BH | Durable outbox delivery processor | Pushed | `a40adb4f4a83e15d9806ebefc7047641085784d6`; `POST /api/v2/ops/outbox/process` |
 
-The BB/AW/BD tranche passed **45 test files and 199 tests**, ESLint, migrations through 013, isolated ready-PostgreSQL route verification with `status: verified`, intentional no-isolation blocking before database access, release-manifest validation, and `git diff --check`. The release manifest is read-only; production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
+The BB/AW/BD/BF/BG/BH tranche passed **46 test files and 207 tests**, ESLint, migrations through 013, focused verifier-owned payment-state tests, durable outbox processor tests, extension-event contract tests, degraded-database API coverage, isolated ready-PostgreSQL route verification with `status: verified`, intentional no-isolation blocking before database access, release-manifest validation, and `git diff --check`. The release manifest is read-only; production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
 
 ## 2. Mandatory release blockers
 
@@ -158,8 +158,8 @@ The items below are the next build sequence. They are deliberately separated fro
 | BC | Controlled Base Sepolia smoke harness with zero-live-funds guardrails | Completed locally | Harness refuses non-isolated databases, non-Base-Sepolia policy, missing enabled token registry, and chain mutations; disposable target execution remains operator-run. |
 | BD | Public API and extension contract documentation with versioning and scope matrix | Completed locally | v2 operations, lineage, verifier, recovery, token metadata, smoke, and public extension schemas are documented; broader external SDK work remains. |
 | BF | Durable reviewer-decision audit records | Pushed | New and replayed human shadow-review decisions are written as operator audit evidence in the same transaction; notes are hashed rather than copied, outbox events are queued, and responses remain `shadow_only`. |
-| BG | Engagement payment-state surface | Implemented locally | The authenticated participant can read verifier/ledger-owned lifecycle, finality, payment status, cursor freshness, and `paymentStateMayBeStale` without blocking collaboration. |
-| BH | Outbox delivery processor | Implemented locally | Operators can dry-run or process due durable events to matching v2 hooks with SSRF-safe signed delivery, bounded retry, dead-letter evidence, and no settlement authority. |
+| BG | Engagement payment-state surface | Pushed | The authenticated participant can read verifier/ledger-owned lifecycle, finality, payment status, cursor freshness, and `paymentStateMayBeStale` without blocking collaboration. |
+| BH | Outbox delivery processor | Pushed | Operators can dry-run or process due durable events to matching v2 hooks with SSRF-safe signed delivery, bounded retry, dead-letter evidence, and no settlement authority. |
 | BE | Multi-chain expansion | Deferred | Only consider after single-chain reliability targets, reconciliation SLOs, and incident rollback evidence are met. |
 
 The safest remaining engineering order is **target evidence for AU/AV/AX/BC/AY/BA → ready-PostgreSQL verification of BF/BG/BH → idempotency expiry cleanup and durable trust-signal persistence → broader BD extension/SDK work**, while **BE remains intentionally deferred**.

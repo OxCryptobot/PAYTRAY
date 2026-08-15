@@ -44,6 +44,8 @@ jobs:
         run: npm ci
       - name: Run shared quality gate
         run: npm run backend:quality:check
+        env:
+          DATABASE_URL: ''
       - name: Verify verifier-worker configuration contract
         run: npm run backend:verifier:worker:check
         env:

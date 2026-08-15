@@ -18,6 +18,64 @@ function jsonObject(value, fieldName) {
   return value
 }
 
+function derivePaymentStatus({ engagementPaymentStatus, intentStatus, lifecycleState, finalityStatus, ledgerEntryCount }) {
+  if (lifecycleState === 'failed' || ['reorged', 'invalid'].includes(finalityStatus)) return 'degraded'
+  if (Number(ledgerEntryCount || 0) > 0 && ['ledger_reflected', 'chain_finalized', 'withdrawal_finalized'].includes(lifecycleState)) return 'ledger_reflected'
+  if (finalityStatus === 'finalized' || lifecycleState === 'chain_finalized') return 'chain_finalized'
+  if (['wallet_submitted', 'chain_pending', 'chain_included'].includes(lifecycleState)) return 'chain_pending'
+  if (['wallet_submitted', 'chain_pending'].includes(intentStatus)) return intentStatus
+  if (intentStatus === 'failed') return 'degraded'
+  return engagementPaymentStatus || intentStatus || 'not_requested'
+}
+
+function verifierCursorStatus({ cursorUpdatedAt, paymentStatus, verifierProjection, now = new Date(), maxAgeMs }) {
+  if (paymentStatus === 'not_requested') return 'not_required'
+  if (!verifierProjection || !cursorUpdatedAt) return 'missing'
+  const ageMs = Math.max(0, now.getTime() - new Date(cursorUpdatedAt).getTime())
+  return ageMs <= maxAgeMs ? 'fresh' : 'stale'
+}
+
+export function mapEngagementPaymentState(row, { now = new Date(), maxVerifierCursorAgeMs = 300000 } = {}) {
+  const verifierProjection = row.stream_source === 'verifier'
+  const lifecycleState = verifierProjection ? (row.lifecycle_state || null) : null
+  const finalityStatus = verifierProjection ? (row.finality_status || 'unverified') : 'unverified'
+  const paymentStatus = derivePaymentStatus({
+    engagementPaymentStatus: row.engagement_payment_status,
+    intentStatus: row.intent_status,
+    lifecycleState,
+    finalityStatus,
+    ledgerEntryCount: row.ledger_entry_count
+  })
+  const cursorStatus = verifierCursorStatus({
+    cursorUpdatedAt: row.verifier_cursor_updated_at,
+    paymentStatus,
+    verifierProjection,
+    now,
+    maxAgeMs: maxVerifierCursorAgeMs
+  })
+  return {
+    engagementId: row.id,
+    lifecycle_state: lifecycleState,
+    finality_status: finalityStatus,
+    payment_status: paymentStatus,
+    lifecycleState,
+    finalityStatus,
+    paymentStatus,
+    paymentStateMayBeStale: cursorStatus === 'missing' || cursorStatus === 'stale',
+    verifierCursorStatus: cursorStatus,
+    paymentStateAuthority: verifierProjection ? 'verifier_and_ledger_only' : 'durable_engagement_projection_until_verifier_evidence',
+    source: verifierProjection ? 'verifier_payment_projection' : 'durable_engagement_payment_projection',
+    streamId: row.stream_id || null,
+    intentId: row.intent_id || null,
+    chainId: row.chain_id == null ? null : Number(row.chain_id),
+    tokenAddress: row.token_address || null,
+    lastVerifierUpdateAt: row.lifecycle_updated_at || null,
+    ledgerEntryCount: Number(row.ledger_entry_count || 0),
+    mutation: 'read_only',
+    settlementAuthority: false
+  }
+}
+
 async function ensureUser(client, walletAddress) {
   const existing = await client.query('SELECT id, wallet_address FROM users WHERE wallet_address = $1', [walletAddress])
   if (existing.rows[0]) return existing.rows[0]
@@ -92,6 +150,61 @@ export async function createEngagementContext({ client, input }) {
   }
 
   return { ...result.rows[0], discovery_impression_linked: discoveryImpressionLinked }
+}
+
+export async function getEngagementPaymentState({ client, engagementId, walletAddress, maxVerifierCursorAgeMs = 300000, now = new Date() }) {
+  const normalizedWallet = wallet(walletAddress, 'walletAddress')
+  const result = await client.query(
+    `SELECT
+       e.id,
+       e.payment_status AS engagement_payment_status,
+       pi.id AS intent_id,
+       pi.status AS intent_status,
+       COALESCE(ps.chain_id, pi.chain_id) AS chain_id,
+       COALESCE(ps.token_address, pi.token_address) AS token_address,
+       ps.id AS stream_id,
+       ps.lifecycle_state,
+       ps.finality_status,
+       ps.lifecycle_updated_at,
+       ps.source AS stream_source,
+       COALESCE(ledger.ledger_entry_count, 0)::int AS ledger_entry_count,
+       cursor.updated_at AS verifier_cursor_updated_at
+     FROM engagements e
+     JOIN users client ON client.id = e.client_id
+     JOIN users provider ON provider.id = e.provider_id
+     LEFT JOIN LATERAL (
+       SELECT pi.*
+       FROM payment_intents pi
+       WHERE pi.engagement_id = e.id
+       ORDER BY pi.updated_at DESC, pi.created_at DESC
+       LIMIT 1
+     ) pi ON true
+     LEFT JOIN LATERAL (
+       SELECT ps.*
+       FROM payment_streams ps
+       WHERE ps.engagement_id = e.id
+       ORDER BY ps.lifecycle_updated_at DESC, ps.created_at DESC
+       LIMIT 1
+     ) ps ON true
+     LEFT JOIN LATERAL (
+       SELECT COUNT(DISTINCT le.id) AS ledger_entry_count
+       FROM payment_chain_events pce
+       JOIN ledger_entries le ON le.source_chain_event_id = pce.id
+       WHERE pce.stream_id = ps.id
+     ) ledger ON true
+     LEFT JOIN LATERAL (
+       SELECT pvc.updated_at
+       FROM payment_verifier_cursors pvc
+       WHERE pvc.chain_id = COALESCE(ps.chain_id, pi.chain_id)
+       ORDER BY pvc.updated_at DESC
+       LIMIT 1
+     ) cursor ON true
+     WHERE e.id = $1
+       AND (client.wallet_address = $2 OR provider.wallet_address = $2)`,
+    [required(engagementId, 'engagementId'), normalizedWallet]
+  )
+  if (!result.rows[0]) throw new NotFoundError('Engagement')
+  return mapEngagementPaymentState(result.rows[0], { now, maxVerifierCursorAgeMs })
 }
 
 export async function getEngagementContext({ client, engagementId, walletAddress }) {

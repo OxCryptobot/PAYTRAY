@@ -176,7 +176,7 @@ describe('PayTray backend skeleton', () => {
     expect(response.body.health.checks.paymentDependency.blocksCollaboration).toBe(false)
   })
 
-  it('fails closed when an operator requests audit or discovery-lineage evidence without a database', async () => {
+  it('fails closed when an operator requests audit, payment-state, or outbox evidence without a database', async () => {
     const wallet = new Wallet('0x8cc2cd804c6eea453f0f79fd4e276ca5a69481cf6be1dd3ee0835d3088c9f612')
     const token = await loginWallet(wallet)
 
@@ -188,6 +188,19 @@ describe('PayTray backend skeleton', () => {
       expect(response.status).toBe(502)
       expect(response.body.error).toContain('Database service error')
     }
+
+    const paymentState = await request(app)
+      .get('/api/v2/engagements/11111111-1111-4111-8111-111111111111/payment-state')
+      .set('Authorization', `Bearer ${token}`)
+    expect(paymentState.status).toBe(502)
+    expect(paymentState.body.error).toContain('Database service error')
+
+    const outboxProcess = await request(app)
+      .post('/api/v2/ops/outbox/process')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ dryRun: true })
+    expect(outboxProcess.status).toBe(502)
+    expect(outboxProcess.body.error).toContain('Database service error')
   })
 
   it('exposes bounded advisory-AI capabilities and blocks invocation without a configured provider', async () => {

@@ -33,6 +33,7 @@ import {
   attachPaymentIntentToEngagement,
   createEngagementContext,
   getEngagementContext,
+  getEngagementPaymentState,
   updateCollaborationState
 } from './lib/engagementService.js'
 import { getPilotMetrics, recordOutcome, verifyOutcome } from './lib/outcomeService.js'
@@ -51,6 +52,7 @@ import { listFinancialAuditEvents } from './lib/auditLogService.js'
 import { listDiscoveryOutcomeLineage } from './lib/discoveryLineageService.js'
 import { buildVerifierOperationsEvidence } from './lib/verifierOperationsEvidence.js'
 import { getOutboxHealth, listOutboxEvents } from './lib/outboxDeliveryService.js'
+import { processDurableOutbox } from './lib/outboxProcessorService.js'
 import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory } from './lib/advisoryAiBoundary.js'
 import { buildCollaborationHealth } from './lib/collaborationHealth.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
@@ -2049,6 +2051,29 @@ app.get('/api/v2/ops/outbox/events', authenticateToken, requireScopes('ops:*'), 
   }
 })
 
+app.post('/api/v2/ops/outbox/process', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'outbox processing requires a ready PostgreSQL database')
+    }
+    const dryRun = req.body.dryRun !== false
+    const result = await transaction((client) => processDurableOutbox({
+      client,
+      hooks: Array.from(extensionHooks.values()).filter((hook) => hook.apiVersion === 'v2'),
+      dryRun,
+      limit: req.body.limit,
+      leaseMs: req.body.leaseMs,
+      maxAttempts: config.webhooks.maxAttempts,
+      retryBaseDelayMs: config.webhooks.retryBaseDelayMs,
+      timeoutMs: config.webhooks.timeoutMs,
+      signingSecret: config.webhooks.signingSecret
+    }))
+    res.status(result.status === 'ok' ? 200 : 503).json({ success: result.status === 'ok', ...result })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.get('/api/v2/ops/verifier/operations', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
   try {
     if (getDatabaseStatus() !== 'ready') {
@@ -2241,6 +2266,23 @@ app.get('/api/v2/engagements/:engagementId', authenticateToken, async (req, res,
       walletAddress: req.walletAddress
     }))
     res.json({ success: true, engagement, source: 'durable_engagement_context' })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/engagements/:engagementId/payment-state', authenticateToken, async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'engagement payment state requires a ready PostgreSQL database')
+    }
+    const paymentState = await transaction((client) => getEngagementPaymentState({
+      client,
+      engagementId: req.params.engagementId,
+      walletAddress: req.walletAddress,
+      maxVerifierCursorAgeMs: config.payments.verifierCursorMaxAgeMs
+    }))
+    res.json({ success: true, paymentState, source: 'verifier_owned_payment_state' })
   } catch (error) {
     next(error)
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createEngagementContext, normalizeEngagementInput } from '../lib/engagementService.js'
+import { createEngagementContext, getEngagementPaymentState, mapEngagementPaymentState, normalizeEngagementInput } from '../lib/engagementService.js'
 
 describe('Paytray engagement context', () => {
   const clientWallet = '0x1111111111111111111111111111111111111111'
@@ -53,6 +53,72 @@ describe('Paytray engagement context', () => {
     expect(engagement.payment_status).toBe('not_requested')
     expect(engagement.thread_id).toMatch(/^thread-/)
     expect(calls.some((call) => call.sql.includes('INSERT INTO engagements'))).toBe(true)
+  })
+
+  it('returns verifier-owned finalized and ledger-reflected payment state', async () => {
+    const client = {
+      async query(sql) {
+        expect(sql).toContain('FROM engagements e')
+        return { rows: [{
+          id: 'engagement-1',
+          engagement_payment_status: 'intent_created',
+          intent_id: 'intent-1',
+          intent_status: 'chain_pending',
+          chain_id: 84532,
+          token_address: '0x3333333333333333333333333333333333333333',
+          stream_id: 'stream-1',
+          stream_source: 'verifier',
+          lifecycle_state: 'chain_finalized',
+          finality_status: 'finalized',
+          lifecycle_updated_at: '2026-08-15T03:00:00.000Z',
+          ledger_entry_count: 1,
+          verifier_cursor_updated_at: '2026-08-15T03:04:00.000Z'
+        }] }
+      }
+    }
+    const state = await getEngagementPaymentState({
+      client,
+      engagementId: 'engagement-1',
+      walletAddress: clientWallet,
+      maxVerifierCursorAgeMs: 300000,
+      now: new Date('2026-08-15T03:05:00.000Z')
+    })
+    expect(state).toMatchObject({
+      payment_status: 'ledger_reflected',
+      lifecycle_state: 'chain_finalized',
+      finality_status: 'finalized',
+      paymentStateMayBeStale: false,
+      verifierCursorStatus: 'fresh',
+      paymentStateAuthority: 'verifier_and_ledger_only',
+      mutation: 'read_only',
+      settlementAuthority: false
+    })
+  })
+
+  it('marks payment state stale when verifier evidence is unavailable or old', () => {
+    const state = mapEngagementPaymentState({
+      id: 'engagement-2',
+      engagement_payment_status: 'intent_created',
+      intent_status: 'intent_created',
+      lifecycle_state: null,
+      finality_status: 'unverified',
+      verifier_cursor_updated_at: null,
+      ledger_entry_count: 0
+    }, { now: new Date('2026-08-15T03:05:00.000Z'), maxVerifierCursorAgeMs: 300000 })
+    expect(state).toMatchObject({ payment_status: 'intent_created', paymentStateMayBeStale: true, verifierCursorStatus: 'missing' })
+  })
+
+  it('does not claim verifier staleness when no payment has been requested', () => {
+    const state = mapEngagementPaymentState({
+      id: 'engagement-3',
+      engagement_payment_status: 'not_requested',
+      intent_status: null,
+      lifecycle_state: null,
+      finality_status: 'unverified',
+      verifier_cursor_updated_at: null,
+      ledger_entry_count: 0
+    })
+    expect(state).toMatchObject({ payment_status: 'not_requested', paymentStateMayBeStale: false, verifierCursorStatus: 'not_required' })
   })
 
   it('rejects identical participant wallets and short briefs', () => {

@@ -10,7 +10,9 @@ const SUPPORTED_EVENTS = new Set([
   'payment.chain_event_projected',
   'payment.reconciliation_attention',
   'discovery.outcome_verified',
-  'risk.review_required'
+  'risk.review_required',
+  'ai.shadow_review_recorded',
+  'ai.shadow_review_replayed'
 ])
 const ALLOWED_PROJECTIONS = new Set(['identifiers', 'lifecycle', 'provenance', 'timestamps', 'metrics'])
 const FORBIDDEN_KEYS = new Set(['message', 'body', 'content', 'transcript', 'recording', 'audio', 'video', 'rawPayload', 'privateKey', 'signature'])

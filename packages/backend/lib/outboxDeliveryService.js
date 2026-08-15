@@ -51,6 +51,10 @@ function safeEvent(row, maxAttempts) {
   }
 }
 
+function deliveryEvent(row, maxAttempts) {
+  return { ...safeEvent(row, maxAttempts), payload: row.payload && typeof row.payload === 'object' ? row.payload : {} }
+}
+
 export async function enqueueOutboxEvent({ client, aggregateType, aggregateId, eventType, payload = {}, correlationId = null, availableAt = null }) {
   const result = await client.query(`
     INSERT INTO outbox_events (aggregate_type, aggregate_id, event_type, payload, correlation_id, available_at)
@@ -89,7 +93,22 @@ export async function claimOutboxEvents({ client, limit = 25, leaseMs = 120000, 
     WHERE event.id = picked.id
     RETURNING event.*
   `, [boundedLimit, boundedMaxAttempts, boundedLeaseMs])
-  return result.rows.map((row) => safeEvent(row, boundedMaxAttempts))
+  return result.rows.map((row) => deliveryEvent(row, boundedMaxAttempts))
+}
+
+export async function listDueOutboxEvents({ client, limit = 25, maxAttempts = 5 }) {
+  const boundedLimit = positiveInteger(limit, 'limit')
+  const boundedMaxAttempts = positiveInteger(maxAttempts, 'maxAttempts', 100)
+  const result = await client.query(`
+    SELECT *
+    FROM outbox_events
+    WHERE processed_at IS NULL
+      AND available_at <= CURRENT_TIMESTAMP
+      AND attempts < $2
+    ORDER BY available_at, occurred_at
+    LIMIT $1
+  `, [boundedLimit, boundedMaxAttempts])
+  return result.rows.map((row) => deliveryEvent(row, boundedMaxAttempts))
 }
 
 export async function markOutboxProcessed({ client, eventId }) {
@@ -182,4 +201,4 @@ export async function listOutboxEvents({ client, limit = 50, offset = 0, status 
   return result.rows.map((row) => safeEvent(row, boundedMaxAttempts))
 }
 
-export { hashPayload, safeEvent, statusFor }
+export { deliveryEvent, hashPayload, safeEvent, statusFor }

@@ -4,11 +4,20 @@ import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectE
 describe('versioned public extension contracts', () => {
   it('exposes bounded v2 capabilities with signed retryable delivery and no settlement authority', () => {
     expect(getExtensionContractCapabilities()).toMatchObject({ apiVersion: 'v2', contractVersion: '2026-08-15', delivery: { signed: true, retryable: true, deadLetterObservable: true, replayWindowBounded: true }, settlementAuthority: false, mutation: 'read_only' })
+    expect(getExtensionContractCapabilities().supportedEvents).toEqual(expect.arrayContaining(['ai.shadow_review_recorded', 'ai.shadow_review_replayed']))
   })
 
   it('normalizes an allowed hook with bounded projections and replay window', () => {
     const hook = normalizeExtensionHookInput({ event: 'payment.chain_event_projected', callbackUrl: 'https://example.com/hook', projections: ['identifiers', 'lifecycle', 'identifiers'], replayWindowSeconds: 600 })
     expect(hook).toMatchObject({ apiVersion: 'v2', event: 'payment.chain_event_projected', projections: ['identifiers', 'lifecycle'], replayWindowSeconds: 600, delivery: { signed: true } })
+  })
+
+  it('normalizes reviewer-audit events for bounded public delivery', () => {
+    const hook = normalizeExtensionHookInput({ event: 'ai.shadow_review_recorded', callbackUrl: 'https://example.com/reviewer-hook', projections: ['identifiers', 'lifecycle', 'provenance'] })
+    const projected = projectExtensionPayload({ hook, payload: { runId: 'run-1', reviewerNotesHash: 'hash', reviewerNotes: 'private', applied: false, promotionStatus: 'shadow_only' } })
+    expect(projected.event).toBe('ai.shadow_review_recorded')
+    expect(projected.data.identifiers.runId).toBe('run-1')
+    expect(JSON.stringify(projected)).not.toContain('private')
   })
 
   it('rejects unsupported events, projections, and unbounded replay windows', () => {

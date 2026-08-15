@@ -147,6 +147,36 @@ Returns collaboration availability independently from payment and verifier healt
 }
 ```
 
+## `GET /api/v2/engagements/:engagementId/payment-state`
+
+Returns the authenticated participant's verifier-owned payment read model without making collaboration availability depend on the payment provider or chain latency. The response surfaces both the exact contract fields (`lifecycle_state`, `finality_status`, and `payment_status`) and camelCase aliases used by existing clients. `paymentStateMayBeStale: true` means the payment projection has no fresh verifier cursor for the relevant chain; it does not claim a failed payment and does not block messaging or engagement context.
+
+```json
+{
+  "success": true,
+  "source": "verifier_owned_payment_state",
+  "paymentState": {
+    "engagementId": "engagement-uuid",
+    "lifecycle_state": "chain_finalized",
+    "finality_status": "finalized",
+    "payment_status": "ledger_reflected",
+    "paymentStateMayBeStale": false,
+    "verifierCursorStatus": "fresh",
+    "paymentStateAuthority": "verifier_and_ledger_only",
+    "settlementAuthority": false,
+    "mutation": "read_only"
+  }
+}
+```
+
+When no payment has been requested, the endpoint returns `payment_status: not_requested` and `verifierCursorStatus: not_required`. A missing or stale cursor is explicit operational evidence, not a settlement transition.
+
+## `POST /api/v2/ops/outbox/process`
+
+Processes due durable `outbox_events` under `ops:*`. `dryRun` defaults to `true` and performs a read-only candidate plan without leasing or mutating events. With `dryRun: false`, due events are leased using `FOR UPDATE SKIP LOCKED`, delivered only to matching versioned v2 extension hooks, marked processed after all matching callbacks succeed, or recorded as failed with bounded exponential retry and dead-letter classification. Callback URL validation and delivery-time DNS revalidation remain mandatory; signed payloads use the configured webhook secret when present.
+
+The response is always explicit about `authority: durable_outbox_delivery`, `settlementAuthority: false`, and `settlementMutationPerformed: false`. Delivery failure cannot establish, reverse, or infer payment settlement. Reviewer-audit outbox events are allowlisted as `ai.shadow_review_recorded` and `ai.shadow_review_replayed`; their projections exclude reviewer note text and other forbidden raw content.
+
 ## `GET /api/v2/extensions/contracts`
 
 Returns the versioned BD public extension contract for an `extensions:*` token. The v2 contract enumerates supported event names, allowed projections (`identifiers`, `lifecycle`, `provenance`, `timestamps`, and `metrics`), bounded replay windows, signed/retryable delivery, dead-letter observability, forbidden raw-content keys, and `settlementAuthority: false`.
@@ -193,7 +223,7 @@ Returns durable `outbox_events` delivery health and is protected by `ops:*`. The
 
 Returns bounded, paginated, filterable outbox evidence. Supported status filters are `processed`, `pending`, `leased`, `failed`, and `dead`. Payload bodies are not returned; the response contains payload SHA-256 fingerprints and top-level payload keys to prevent sensitive event content from becoming an operator export.
 
-The durable outbox is written in the same transaction as verifier-owned financial audit projection for API-ingested and worker-ingested chain events. Delivery failure is retryable with bounded backoff; reaching the configured attempt limit classifies an event as dead-letter attention. A delivery attempt cannot establish settlement.
+The durable outbox is written in the same transaction as verifier-owned financial audit projection for API-ingested and worker-ingested chain events and human shadow-review audit evidence. Delivery failure is retryable with bounded backoff; reaching the configured attempt limit classifies an event as dead-letter attention. A delivery attempt cannot establish settlement.
 
 ## `GET /api/v2/ops/verifier/operations`
 

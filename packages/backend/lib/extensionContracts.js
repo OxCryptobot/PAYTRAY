@@ -55,13 +55,14 @@ export function normalizeExtensionHookInput({ event, callbackUrl, projections = 
   })
 }
 
-export function projectExtensionPayload({ hook, payload = {}, occurredAt = new Date().toISOString() }) {
+export function projectExtensionPayload({ hook, payload = {}, occurredAt = new Date().toISOString(), eventId = null }) {
   const safePayload = stripForbiddenContent(payload)
   const projected = {
     apiVersion: hook.apiVersion,
     contractVersion: hook.contractVersion,
     event: hook.event,
-    eventId: crypto.randomUUID(),
+    eventId: eventId || crypto.randomUUID(),
+
     occurredAt,
     data: {}
   }

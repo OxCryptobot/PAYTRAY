@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { processDurableOutbox } from '../lib/outboxProcessorService.js'
+import { createWebhookSignature } from '../lib/webhookSignature.js'
 
 const row = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -70,6 +71,12 @@ describe('durable outbox processor', () => {
     expect(result.results[0].status).toBe('processed')
     expect(request.url).toBe('https://example.com/hook')
     expect(request.options.headers['x-paytray-signature']).toMatch(/^v1=/)
+    const expectedDigest = createWebhookSignature({
+      timestamp: request.options.headers['x-paytray-timestamp'],
+      body: request.options.body,
+      secret: 'test-secret'
+    })
+    expect(request.options.headers['x-paytray-signature']).toBe(`v1=${expectedDigest}`)
     expect(request.options.body).toContain('stream-1')
     expect(request.options.body).not.toContain('must not be delivered as raw content')
     expect(client.queries[1].sql).toContain('SET processed_at')

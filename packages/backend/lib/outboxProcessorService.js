@@ -1,6 +1,6 @@
-import crypto from 'node:crypto'
 import { projectExtensionPayload } from './extensionContracts.js'
 import { assertSafeWebhookUrl, validateWebhookUrl } from './webhookSecurity.js'
+import { assertTimestampFresh, createWebhookSignatureHeader } from './webhookSignature.js'
 import {
   claimOutboxEvents,
   listDueOutboxEvents,
@@ -12,15 +12,16 @@ function boundedString(value, maximum = 500) {
   return String(value || '').slice(0, maximum)
 }
 
-function createDispatchEnvelope({ hook, event, payload, signingSecret, timestamp = String(Date.now()) }) {
+function createDispatchEnvelope({ hook, event, payload, signingSecret, eventId = null, timestamp = String(Date.now()), signatureToleranceMs = 300000, nowMs = Date.now() }) {
+  if (signingSecret) assertTimestampFresh(Number(timestamp), { nowMs, toleranceMs: signatureToleranceMs })
   const projectedPayload = hook.apiVersion === 'v2'
-    ? projectExtensionPayload({ hook, payload, occurredAt: new Date(Number(timestamp)).toISOString() })
+    ? projectExtensionPayload({ hook, payload, eventId: eventId || undefined, occurredAt: new Date(Number(timestamp)).toISOString() })
     : payload
   const body = JSON.stringify({ event, payload: projectedPayload })
   const signature = signingSecret
-    ? `v1=${crypto.createHmac('sha256', signingSecret).update(`${timestamp}.${body}`).digest('hex')}`
+    ? createWebhookSignatureHeader({ timestamp, body, secret: signingSecret })
     : null
-  return { body, timestamp, signature }
+  return { body, timestamp: String(timestamp), signature }
 }
 
 function matchingHooks(hooks, eventType) {
@@ -43,14 +44,16 @@ function safeDeliveryResult({ event, hook, status, error = null, signatureProvid
   }
 }
 
-async function deliverToHook({ event, hook, signingSecret, timeoutMs, fetchImpl = globalThis.fetch }) {
+async function deliverToHook({ event, hook, signingSecret, timeoutMs, signatureToleranceMs, fetchImpl = globalThis.fetch }) {
   if (typeof fetchImpl !== 'function') throw new Error('fetch implementation is required for outbox delivery')
   const callbackUrl = await assertSafeWebhookUrl(hook.callbackUrl)
   const envelope = createDispatchEnvelope({
     hook,
     event: hook.event,
     payload: event.payload,
-    signingSecret
+    signingSecret,
+    eventId: `${event.id}:${hook.id}`,
+    signatureToleranceMs
   })
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
@@ -73,7 +76,7 @@ async function deliverToHook({ event, hook, signingSecret, timeoutMs, fetchImpl 
   }
 }
 
-function dryRunHookResult({ event, hook, signingSecret }) {
+function dryRunHookResult({ event, hook, signingSecret, signatureToleranceMs }) {
   try {
     validateWebhookUrl(hook.callbackUrl)
     const envelope = createDispatchEnvelope({
@@ -81,6 +84,8 @@ function dryRunHookResult({ event, hook, signingSecret }) {
       event: hook.event,
       payload: event.payload,
       signingSecret,
+      eventId: `${event.id}:${hook.id}`,
+      signatureToleranceMs,
       timestamp: String(Date.now())
     })
     return safeDeliveryResult({ event, hook, status: 'would_deliver', signatureProvided: Boolean(envelope.signature) })
@@ -99,6 +104,7 @@ export async function processDurableOutbox({
   retryBaseDelayMs = 1000,
   timeoutMs = 2500,
   signingSecret = null,
+  signatureToleranceMs = 300000,
   fetchImpl = globalThis.fetch
 }) {
   const events = dryRun
@@ -129,7 +135,7 @@ export async function processDurableOutbox({
     }
 
     if (dryRun) {
-      const hookResults = subscribers.map((hook) => dryRunHookResult({ event, hook, signingSecret }))
+      const hookResults = subscribers.map((hook) => dryRunHookResult({ event, hook, signingSecret, signatureToleranceMs }))
       const blocked = hookResults.some((item) => item.status === 'blocked')
       if (blocked) failed += 1
       else processed += 1
@@ -151,7 +157,7 @@ export async function processDurableOutbox({
     let eventError = null
     for (const hook of subscribers) {
       try {
-        deliveries.push(await deliverToHook({ event, hook, signingSecret, timeoutMs, fetchImpl }))
+        deliveries.push(await deliverToHook({ event, hook, signingSecret, timeoutMs, signatureToleranceMs, fetchImpl }))
       } catch (error) {
         eventError = eventError || error
         deliveries.push(safeDeliveryResult({ event, hook, status: 'failed', error, signatureProvided: Boolean(signingSecret) }))

@@ -47,6 +47,7 @@ import { getShadowRunDetails, listShadowRuns, reviewShadowRun } from './lib/shad
 import { buildDurableReconciliationReport } from './lib/payments/reconciliationService.js'
 import { createConfiguredBaseSepoliaVerifierWorker } from './lib/payments/verifierWorkerService.js'
 import { assertSafeWebhookUrl, validateWebhookUrl } from './lib/webhookSecurity.js'
+import { createWebhookSignatureHeader } from './lib/webhookSignature.js'
 import { getFinancialSummary, getVerifierObservability } from './lib/verifierObservability.js'
 import { listFinancialAuditEvents } from './lib/auditLogService.js'
 import { listDiscoveryOutcomeLineage } from './lib/discoveryLineageService.js'
@@ -580,17 +581,16 @@ function createWebhookDispatchEnvelope(delivery) {
   const timestamp = String(Date.now())
   const bodyPayload = {
     event: delivery.event,
+    eventId: String(delivery.id),
     payload: delivery.payload
   }
   const body = JSON.stringify(bodyPayload)
-  const signatureValue = config.webhooks.signingSecret
-    ? crypto.createHmac('sha256', config.webhooks.signingSecret).update(`${timestamp}.${body}`).digest('hex')
-    : null
-
   return {
     timestamp,
     body,
-    signatureHeader: signatureValue ? `v1=${signatureValue}` : null
+    signatureHeader: config.webhooks.signingSecret
+      ? createWebhookSignatureHeader({ timestamp, body, secret: config.webhooks.signingSecret })
+      : null
   }
 }
 
@@ -2066,7 +2066,8 @@ app.post('/api/v2/ops/outbox/process', authenticateToken, requireScopes('ops:*')
       maxAttempts: config.webhooks.maxAttempts,
       retryBaseDelayMs: config.webhooks.retryBaseDelayMs,
       timeoutMs: config.webhooks.timeoutMs,
-      signingSecret: config.webhooks.signingSecret
+      signingSecret: config.webhooks.signingSecret,
+      signatureToleranceMs: config.webhooks.signatureToleranceMs
     }))
     res.status(result.status === 'ok' ? 200 : 503).json({ success: result.status === 'ok', ...result })
   } catch (error) {

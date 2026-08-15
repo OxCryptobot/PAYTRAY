@@ -6,6 +6,8 @@ describe('PayTray payment configuration safety', () => {
     expect(config.payments.settlementChainId).toBe(84532)
     expect(config.payments.mainnetEnabled).toBe(false)
     expect(config.webhooks.retryBaseDelayMs).toBe(1000)
+    expect(config.webhooks.signatureToleranceMs).toBe(300000)
+    expect(config.webhooks.replayCacheMaxEntries).toBe(10000)
     expect(validateConfig()).toBe(true)
   })
 })

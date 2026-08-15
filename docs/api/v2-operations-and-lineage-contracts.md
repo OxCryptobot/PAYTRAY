@@ -173,7 +173,7 @@ When no payment has been requested, the endpoint returns `payment_status: not_re
 
 ## `POST /api/v2/ops/outbox/process`
 
-Processes due durable `outbox_events` under `ops:*`. `dryRun` defaults to `true` and performs a read-only candidate plan without leasing or mutating events. With `dryRun: false`, due events are leased using `FOR UPDATE SKIP LOCKED`, delivered only to matching versioned v2 extension hooks, marked processed after all matching callbacks succeed, or recorded as failed with bounded exponential retry and dead-letter classification. Callback URL validation and delivery-time DNS revalidation remain mandatory; signed payloads use the configured webhook secret when present.
+Processes due durable `outbox_events` under `ops:*`. `dryRun` defaults to `true` and performs a read-only candidate plan without leasing or mutating events. With `dryRun: false`, due events are leased using `FOR UPDATE SKIP LOCKED`, delivered only to matching versioned v2 extension hooks, marked processed after all matching callbacks succeed, or recorded as failed with bounded exponential retry and dead-letter classification. Callback URL validation and delivery-time DNS revalidation remain mandatory. When configured, signed payloads use HMAC-SHA256 over the exact string `timestamp + "." + body`, emit `v1=<hex-digest>`, and carry a stable per-event/per-hook identifier for consumer replay protection. The shared verifier rejects malformed signatures, signatures outside `WEBHOOK_SIGNATURE_TOLERANCE_MS`, and duplicate replay keys within the bounded replay window.
 
 The response is always explicit about `authority: durable_outbox_delivery`, `settlementAuthority: false`, and `settlementMutationPerformed: false`. Delivery failure cannot establish, reverse, or infer payment settlement. Reviewer-audit outbox events are allowlisted as `ai.shadow_review_recorded` and `ai.shadow_review_replayed`; their projections exclude reviewer note text and other forbidden raw content.
 
@@ -191,7 +191,7 @@ Lists only the authenticated owner’s v2 hooks and their contract metadata. Leg
 
 ## `backend:ready:postgres:check`
 
-The AW verifier requires `READY_POSTGRES_DATABASE_ISOLATED=true` before it initializes PostgreSQL. With an explicitly isolated target, it runs migrations and exercises authentication, collaboration health, v2 extension contracts and registration, audit events, discovery lineage, outbox health, and verifier operations. It accepts a `503` verifier response when the cursor is not configured, but requires the response to remain structured, read-only, and non-authoritative. The disposable CI run returned `status: verified`; without the isolation flag it exits `1` before database access.
+The AW verifier requires `READY_POSTGRES_DATABASE_ISOLATED=true` before it initializes PostgreSQL. With an explicitly isolated target, it runs migrations, creates a disposable engagement fixture, exercises the BG payment-state route, registers v2 extension contracts, reads audit/lineage/outbox/verifier evidence, and calls the BH outbox processor in dry-run mode. The BG check requires `payment_status: not_requested`, `paymentStateMayBeStale: false`, `mutation: read_only`, and `settlementAuthority: false`; the BH check requires `dryRun: true`, `claimed: 0`, `mutation: read_only`, and no settlement mutation. It accepts a `503` verifier response when the cursor is not configured, but requires the response to remain structured, read-only, and non-authoritative. The disposable CI run returned `status: verified`; without the isolation flag it exits `1` before database access. BF’s reviewer write path remains intentionally excluded because the verifier must not fabricate a human reviewer decision.
 
 ## `GET /api/v2/ops/outbox/health`
 
@@ -310,3 +310,4 @@ The controlled smoke harness is `backend:smoke:phase2:check`. It refuses to run 
 [7]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/collaborationHealth.js Collaboration health boundary
 [8]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/extensionContracts.js Public extension contracts
 [9]: https://github.com/OxCryptobot/PAYTRAY/blob/ef79f40d29b9d6c46124da13ebb7cb381b9fafb5/packages/backend/lib/shadowReviewService.js Durable shadow-review audit evidence
+[10]: https://github.com/OxCryptobot/PAYTRAY/blob/abc9039ee6cded559d3da730bc13d8140f3e53ec/packages/backend/lib/webhookSignature.js Webhook HMAC, timestamp, and replay verification

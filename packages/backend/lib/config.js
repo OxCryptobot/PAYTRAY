@@ -74,7 +74,9 @@ export const config = {
     timeoutMs: Number.parseInt(process.env.WEBHOOK_TIMEOUT_MS || '2500', 10),
     maxAttempts: Number.parseInt(process.env.WEBHOOK_MAX_ATTEMPTS || '3', 10),
     retryBaseDelayMs: Number.parseInt(process.env.WEBHOOK_RETRY_BASE_DELAY_MS || '1000', 10),
-    signingSecret: process.env.WEBHOOK_SIGNING_SECRET || null
+    signingSecret: process.env.WEBHOOK_SIGNING_SECRET || null,
+    signatureToleranceMs: Number.parseInt(process.env.WEBHOOK_SIGNATURE_TOLERANCE_MS || '300000', 10),
+    replayCacheMaxEntries: Number.parseInt(process.env.WEBHOOK_REPLAY_CACHE_MAX_ENTRIES || '10000', 10)
   },
   advisoryAi: {
     enabled: process.env.ADVISORY_AI_ENABLED === 'true',
@@ -109,6 +111,13 @@ export function validateConfig() {
 
   if (config.isProd && !config.database.url) {
     errors.push('DATABASE_URL is required in production')
+  }
+
+  if (!Number.isInteger(config.webhooks.signatureToleranceMs) || config.webhooks.signatureToleranceMs < 1000 || config.webhooks.signatureToleranceMs > 86400000) {
+    errors.push('WEBHOOK_SIGNATURE_TOLERANCE_MS must be an integer between 1000 and 86400000 milliseconds')
+  }
+  if (!Number.isInteger(config.webhooks.replayCacheMaxEntries) || config.webhooks.replayCacheMaxEntries < 1 || config.webhooks.replayCacheMaxEntries > 1000000) {
+    errors.push('WEBHOOK_REPLAY_CACHE_MAX_ENTRIES must be an integer between 1 and 1000000')
   }
 
   if (!Number.isInteger(config.payments.finalityConfirmations) || config.payments.finalityConfirmations < 1) {

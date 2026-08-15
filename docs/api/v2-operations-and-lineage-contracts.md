@@ -177,6 +177,8 @@ Processes due durable `outbox_events` under `ops:*`. `dryRun` defaults to `true`
 
 The response is always explicit about `authority: durable_outbox_delivery`, `settlementAuthority: false`, and `settlementMutationPerformed: false`. Delivery failure cannot establish, reverse, or infer payment settlement. Reviewer-audit outbox events are allowlisted as `ai.shadow_review_recorded` and `ai.shadow_review_replayed`; their projections exclude reviewer note text and other forbidden raw content.
 
+`WebhookReplayGuard` is a bounded in-process verifier primitive for development and focused tests. It is not a horizontally scaled production replay store. Consumers operating multiple instances must implement the atomic shared claim contract described in [`webhook-replay-store-integration.md`][11], preserve signature-before-claim ordering, fail closed when the store is unavailable, and use a durable inbox/idempotency record for crash-safe processing.
+
 ## `GET /api/v2/extensions/contracts`
 
 Returns the versioned BD public extension contract for an `extensions:*` token. The v2 contract enumerates supported event names, allowed projections (`identifiers`, `lifecycle`, `provenance`, `timestamps`, and `metrics`), bounded replay windows, signed/retryable delivery, dead-letter observability, forbidden raw-content keys, and `settlementAuthority: false`.
@@ -311,3 +313,4 @@ The controlled smoke harness is `backend:smoke:phase2:check`. It refuses to run 
 [8]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/extensionContracts.js Public extension contracts
 [9]: https://github.com/OxCryptobot/PAYTRAY/blob/ef79f40d29b9d6c46124da13ebb7cb381b9fafb5/packages/backend/lib/shadowReviewService.js Durable shadow-review audit evidence
 [10]: https://github.com/OxCryptobot/PAYTRAY/blob/124701ba78d79d96f2abd51ccd59580e9db86a49/packages/backend/lib/webhookSignature.js Webhook HMAC, timestamp, and replay verification
+[11]: https://github.com/OxCryptobot/PAYTRAY/blob/124701ba78d79d96f2abd51ccd59580e9db86a49/docs/security/webhook-replay-store-integration.md Shared durable replay-store integration guidelines

@@ -8,6 +8,10 @@
 
 Every `/api/v2/ops/*` route requires a valid PayTray access token with the `ops:*` scope. Ordinary wallet sessions and profile-only tokens must receive `403`. A valid operator token must receive an explicit database-service error when PostgreSQL is unavailable; the endpoint must not silently return an empty or fabricated report.
 
+## `backend:target:operations:check`
+
+This read-only CLI composes the deployment preflight, redacted Railway trial settings comparison, Base Sepolia policy, HTTPS payment RPC, durable outbox-worker opt-in, and idempotency-housekeeping schedule configuration. It reports `status: ready` only when those configuration checks match, but it always emits `releaseEligible: false`: configuration is not a substitute for a fresh durable verifier cursor, target backup-restore evidence, reconciliation evidence, human shadow-review decisions, four reviewer sign-offs, or an operator signing key. The command performs no Railway API call, deployment, database migration, chain transaction, settlement mutation, or secret export. Without explicit target settings and operational opt-ins, it exits nonzero with named blockers rather than inferring readiness.
+
 ## `GET /api/v2/ops/audit/events`
 
 Returns durable financial audit events from `financial_audit_events`. The route is paginated, filterable, and read-only. Sensitive metadata keys such as private keys, signatures, authorization headers, JWTs, passwords, and secrets are recursively redacted.

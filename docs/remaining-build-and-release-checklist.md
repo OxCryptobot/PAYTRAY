@@ -4,7 +4,7 @@
 
 **Branch:** `paytray/batch-delivery`
 
-**Current pushed commit:** `2008dedf6f0dd21aba3237e048fae3b01c08b0d4`
+**Current pushed branch:** `origin/paytray/batch-delivery` (verify the exact tip with `git rev-parse HEAD` and `git rev-parse origin/paytray/batch-delivery`).
 
 **Safety boundary:** Base Sepolia (`84532`) remains the safe settlement default. The verifier and ledger remain the economic authority. AI remains `shadow_only`. No live funds, mainnet transaction, production deployment, real user-data migration, fabricated approval, or fabricated signing key is authorized by this checklist.
 

@@ -5,6 +5,7 @@ const EXPECTED_BLOCKED_CHECKS = new Set([
   'reconciliation-evidence',
   'unified-evidence',
   'evidence-bundle',
+  'release-gates',
   'railway-trial',
   'recovery',
   'verifier-operations',
@@ -41,10 +42,11 @@ export function classifyOperationsCheck({ name, exitCode, output = '', strict = 
     parsed?.payload?.evidence?.manifest?.status,
     parsed?.evidence?.manifest?.status
   ].filter(Boolean)
-  const status = statuses.find((value) => ['blocked', 'settings_unavailable', 'not_ready', 'attention', 'unparseable'].includes(value)) || statuses[0] || 'unparseable'
+  const status = statuses.find((value) => ['blocked', 'operator_blocked', 'settings_unavailable', 'not_ready', 'attention', 'unparseable'].includes(value)) || statuses[0] || 'unparseable'
   const infrastructureBlocked = name === 'migrations' && /(DATABASE_URL|actual.*unconfigured|PostgreSQL|ECONNREFUSED|ready.*unconfigured)/i.test(raw)
-  const expectedBlocked = exitCode !== 0 && (EXPECTED_BLOCKED_CHECKS.has(name) || infrastructureBlocked) && ['blocked', 'settings_unavailable', 'not_ready', 'attention', 'unparseable'].includes(status)
-  const state = exitCode === 0 ? 'passed' : expectedBlocked && !strict ? 'operator_blocked' : 'failed'
+  const blockedStatus = ['blocked', 'operator_blocked', 'settings_unavailable', 'not_ready', 'attention', 'unparseable'].includes(status)
+  const expectedBlocked = (EXPECTED_BLOCKED_CHECKS.has(name) || infrastructureBlocked) && blockedStatus && (exitCode !== 0 || status === 'operator_blocked')
+  const state = expectedBlocked && !strict ? 'operator_blocked' : exitCode === 0 ? 'passed' : 'failed'
   return {
     name,
     state,
@@ -59,13 +61,14 @@ export function classifyOperationsCheck({ name, exitCode, output = '', strict = 
   }
 }
 
-export function buildOperationsQualityReport({ checks = [], strict = false, generatedAt = new Date() } = {}) {
+export function buildOperationsQualityReport({ checks = [], strict = false, generatedAt = new Date(), reportKind = 'operations_quality' } = {}) {
   const normalized = Array.isArray(checks) ? checks : []
   const unexpectedFailures = normalized.filter((check) => check.state === 'failed')
   const operatorBlockers = normalized.filter((check) => check.state === 'operator_blocked')
   const passed = normalized.filter((check) => check.state === 'passed')
   return {
     status: unexpectedFailures.length > 0 ? 'failed' : operatorBlockers.length > 0 ? 'operator_blocked' : 'passed',
+    reportKind: String(reportKind || 'operations_quality'),
     strict,
     checkCount: normalized.length,
     passedCount: passed.length,

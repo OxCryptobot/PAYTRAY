@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildOperationsQualityAuditRecord, getOperationsQualityRun, listOperationsQualityRuns, recordOperationsQualityRun } from '../lib/operationsQualityAuditService.js'
+import { buildOperationsQualityAuditRecord, getLatestReleaseGatesRun, getOperationsQualityRun, listOperationsQualityRuns, recordOperationsQualityRun } from '../lib/operationsQualityAuditService.js'
 
 const report = {
   status: 'operator_blocked',
@@ -65,6 +65,7 @@ describe('operations quality audit service', () => {
       settlementMutationPerformed: false
     })
     expect(record.report.checks[0]).not.toHaveProperty('secret')
+    expect(record.report.reportKind).toBe('operations_quality')
     expect(record.report.releaseEligible).toBe(false)
     expect(record.report.settlementAuthority).toBe(false)
     expect(record.reportHash).toMatch(/^[0-9a-f]{64}$/)
@@ -95,6 +96,19 @@ describe('operations quality audit service', () => {
     expect(result).toMatchObject({ status: 'ok', authority: 'operations_quality_audit', mutation: 'read_only', releaseEligible: false, settlementAuthority: false })
     expect(result.run.report).toMatchObject({ status: 'operator_blocked', releaseEligible: false })
     await expect(getOperationsQualityRun({ client, runId: 'not-a-uuid' })).rejects.toThrow('runId must be a valid UUID')
+  })
+
+  it('returns the latest durable release-gates run or a fail-closed absence result', async () => {
+    const client = { query: vi.fn().mockResolvedValueOnce({ rows: [{ run_id: 'release-run', report: { reportKind: 'release_gates', releaseEligible: false }, report_hash: 'c'.repeat(64) }] }) }
+    const result = await getLatestReleaseGatesRun({ client })
+
+    expect(result).toMatchObject({ status: 'ok', authority: 'operations_quality_audit', mutation: 'read_only', releaseEligible: false, settlementAuthority: false })
+    expect(result.run.report.reportKind).toBe('release_gates')
+    expect(client.query.mock.calls[0][0]).toContain("report->>'reportKind' = 'release_gates'")
+
+    const absentClient = { query: vi.fn().mockResolvedValue({ rows: [] }) }
+    const absent = await getLatestReleaseGatesRun({ client: absentClient })
+    expect(absent).toMatchObject({ status: 'not_recorded', run: null, mutation: 'read_only', releaseEligible: false, settlementAuthority: false })
   })
 
   it('lists bounded summary rows without returning report payloads', async () => {

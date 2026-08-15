@@ -59,7 +59,7 @@ import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory 
 import { buildCollaborationHealth } from './lib/collaborationHealth.js'
 import { buildRuntimeHealthReport } from './lib/runtimeHealthService.js'
 import { buildOperatorHealthDashboard } from './lib/operatorHealthDashboard.js'
-import { getOperationsQualityRun, listOperationsQualityRuns } from './lib/operationsQualityAuditService.js'
+import { getLatestReleaseGatesRun, getOperationsQualityRun, listOperationsQualityRuns } from './lib/operationsQualityAuditService.js'
 import { buildOperatorEvidenceBundle } from './lib/operatorEvidenceBundleService.js'
 import { collectReleaseEvidence, collectReconciliationEvidence, buildUnifiedOperatorEvidence } from './lib/releaseEvidenceService.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
@@ -2318,6 +2318,17 @@ app.get('/api/v2/ops/evidence/bundle', authenticateToken, requireScopes('ops:*')
       return buildOperatorEvidenceBundle({ releaseEvidence, reconciliationEvidence, operationsQualityRuns })
     })
     res.status(bundle.status === 'complete_pending_release_gate' ? 200 : 503).json({ success: bundle.status === 'complete_pending_release_gate', bundle })
+  } catch (error) {
+    next(error)
+  }
+})
+app.get('/api/v2/ops/release-gates/latest', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'latest release-gates audit requires a ready PostgreSQL database')
+    }
+    const releaseGates = await transaction((client) => getLatestReleaseGatesRun({ client }))
+    res.status(releaseGates.status === 'ok' ? 200 : 503).json({ success: releaseGates.status === 'ok', releaseGates })
   } catch (error) {
     next(error)
   }

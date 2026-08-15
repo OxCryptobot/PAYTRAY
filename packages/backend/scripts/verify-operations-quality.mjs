@@ -17,7 +17,8 @@ const checks = [
   { name: 'target-operations', script: 'backend:target:operations:check' },
   { name: 'release-evidence', script: 'backend:release:evidence:check' },
   { name: 'reconciliation-evidence', script: 'backend:reconciliation:evidence:check' },
-  { name: 'evidence-bundle', script: 'backend:ops:evidence:bundle:check' }
+  { name: 'evidence-bundle', script: 'backend:ops:evidence:bundle:check' },
+  { name: 'release-gates', script: 'backend:release:gates:check' }
 ]
 
 function extractJson(output) {
@@ -36,6 +37,7 @@ function runChecks() {
   return checks.map(({ name, script }) => {
     const childEnv = { ...process.env }
     if (name === 'quality-gate') delete childEnv.DATABASE_URL
+    if (name === 'release-gates' && childEnv.RELEASE_GATES_STRICT === undefined) childEnv.RELEASE_GATES_STRICT = String(strict)
     const result = spawnSync(npmCommand, ['run', script], {
       cwd: process.cwd(),
       env: childEnv,

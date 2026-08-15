@@ -13,6 +13,11 @@ describe('operations quality service', () => {
       exitCode: 1,
       output: JSON.stringify({ status: 'failed', reason: 'contract drift' })
     })
+    const releaseGatesBlocked = classifyOperationsCheck({
+      name: 'release-gates',
+      exitCode: 0,
+      output: JSON.stringify({ status: 'operator_blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    })
     const bundleBlocked = classifyOperationsCheck({
       name: 'evidence-bundle',
       exitCode: 1,
@@ -40,6 +45,8 @@ describe('operations quality service', () => {
       exitCode: 1,
       output: JSON.stringify({ status: 'ok', artifact: { status: 'blocked' } })
     })
+    expect(releaseGatesBlocked.state).toBe('operator_blocked')
+    expect(releaseGatesBlocked.expectedBlocked).toBe(true)
     expect(bundleBlocked.state).toBe('operator_blocked')
     expect(bundleBlocked.expectedBlocked).toBe(true)
     expect(manifestBlocked.state).toBe('operator_blocked')
@@ -68,12 +75,14 @@ describe('operations quality service', () => {
 
   it('builds an immutable report with no release or settlement authority', () => {
     const report = buildOperationsQualityReport({
+      reportKind: 'release_gates',
       checks: [
         { name: 'quality-gate', state: 'passed', status: 'ok', exitCode: 0 },
         { name: 'target-operations', state: 'operator_blocked', status: 'blocked', reason: 'settings unavailable', exitCode: 1 }
       ]
     })
     expect(report.status).toBe('operator_blocked')
+    expect(report.reportKind).toBe('release_gates')
     expect(report.passedCount).toBe(1)
     expect(report.operatorBlockerCount).toBe(1)
     expect(report.unexpectedFailureCount).toBe(0)

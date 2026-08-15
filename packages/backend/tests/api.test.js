@@ -180,7 +180,7 @@ describe('PayTray backend skeleton', () => {
     const wallet = new Wallet('0x8cc2cd804c6eea453f0f79fd4e276ca5a69481cf6be1dd3ee0835d3088c9f612')
     const token = await loginWallet(wallet)
 
-    for (const path of ['/api/v2/ops/audit/events', '/api/v2/ops/discovery/lineage', '/api/v2/ops/verifier/operations', '/api/v2/ops/runtime/health', '/api/v2/ops/evidence', '/api/v2/ops/release-evidence', '/api/v2/ops/reconciliation/evidence', '/api/v2/ops/health/dashboard', '/api/v2/ops/evidence/bundle', '/api/v2/ops/operations-quality/runs', '/api/v2/ops/operations-quality/runs/11111111-1111-4111-8111-111111111111', '/api/v2/ops/outbox/health', '/api/v2/ops/outbox/events', '/api/v2/ops/webhook-inbox/health']) {
+    for (const path of ['/api/v2/ops/audit/events', '/api/v2/ops/discovery/lineage', '/api/v2/ops/verifier/operations', '/api/v2/ops/runtime/health', '/api/v2/ops/evidence', '/api/v2/ops/release-evidence', '/api/v2/ops/reconciliation/evidence', '/api/v2/ops/health/dashboard', '/api/v2/ops/evidence/bundle', '/api/v2/ops/release-gates/latest', '/api/v2/ops/operations-quality/runs', '/api/v2/ops/operations-quality/runs/11111111-1111-4111-8111-111111111111', '/api/v2/ops/outbox/health', '/api/v2/ops/outbox/events', '/api/v2/ops/webhook-inbox/health']) {
       const response = await request(app)
         .get(path)
         .set('Authorization', `Bearer ${token}`)

@@ -40,6 +40,7 @@ export function buildOperationsQualityAuditRecord({ report, runId, startedAt, co
   const checks = Array.isArray(report.checks) ? report.checks.map(safeCheck) : []
   const safeReport = {
     status,
+    reportKind: String(report.reportKind || 'operations_quality'),
     strict: report.strict === true,
     checkCount: Number(report.checkCount || checks.length),
     passedCount: Number(report.passedCount || 0),
@@ -118,6 +119,42 @@ export async function getOperationsQualityRun({ client, runId } = {}) {
     [normalizedRunId]
   )
   if (!result.rows[0]) return null
+  return {
+    status: 'ok',
+    run: result.rows[0],
+    authority: 'operations_quality_audit',
+    mutation: 'read_only',
+    releaseEligible: false,
+    settlementAuthority: false,
+    deploymentPerformed: false,
+    settlementMutationPerformed: false
+  }
+}
+
+export async function getLatestReleaseGatesRun({ client } = {}) {
+  if (!client || typeof client.query !== 'function') throw new TypeError('client is required')
+  const result = await client.query(
+    `SELECT id, run_id, strict_mode, status, check_count, passed_count,
+            operator_blocker_count, unexpected_failure_count, report,
+            report_hash, started_at, completed_at, created_at
+     FROM operations_quality_runs
+     WHERE report->>'reportKind' = 'release_gates'
+     ORDER BY created_at DESC
+     LIMIT 1`
+  )
+  if (!result.rows[0]) {
+    return {
+      status: 'not_recorded',
+      reason: 'no durable release-gate matrix run is available',
+      run: null,
+      authority: 'operations_quality_audit',
+      mutation: 'read_only',
+      releaseEligible: false,
+      settlementAuthority: false,
+      deploymentPerformed: false,
+      settlementMutationPerformed: false
+    }
+  }
   return {
     status: 'ok',
     run: result.rows[0],

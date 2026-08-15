@@ -1,9 +1,12 @@
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { closeDatabase, getDatabaseStatus, initializeDatabase, transaction } from '../lib/database.js'
+import { recordOperationsQualityRun } from '../lib/operationsQualityAuditService.js'
 import { classifyOperationsCheck, buildOperationsQualityReport, isOperationsQualityExitSuccess } from '../lib/operationsQualityService.js'
 
 const strict = String(process.env.RELEASE_GATES_STRICT || '').toLowerCase() === 'true'
 const runId = randomUUID()
+const startedAt = new Date()
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const checks = [
   { name: 'quality-gate', script: 'backend:quality:check' },
@@ -62,10 +65,28 @@ function runChecks() {
   })
 }
 
-const report = buildOperationsQualityReport({ checks: runChecks(), strict })
+const report = buildOperationsQualityReport({ checks: runChecks(), strict, reportKind: 'release_gates' })
+const completedAt = new Date()
+let audit = { status: 'not_recorded', reason: 'DATABASE_URL is not configured' }
+if (process.env.DATABASE_URL) {
+  try {
+    await initializeDatabase()
+    if (getDatabaseStatus() === 'ready') {
+      const result = await transaction((client) => recordOperationsQualityRun({ client, report, runId, startedAt, completedAt }))
+      audit = { status: result.idempotentReplay ? 'replayed' : 'recorded', runId: result.runId, reportHash: result.reportHash }
+    } else {
+      audit = { status: 'not_recorded', reason: 'database is not ready' }
+    }
+  } catch {
+    audit = { status: 'not_recorded', reason: 'durable audit persistence was unavailable' }
+  } finally {
+    await closeDatabase().catch(() => {})
+  }
+}
 console.log(JSON.stringify({
   ...report,
   runId,
+  audit,
   authority: 'release_gate_inspection_only',
   paymentStateAuthority: 'verifier_and_ledger_only',
   executedWithoutDeployment: true,

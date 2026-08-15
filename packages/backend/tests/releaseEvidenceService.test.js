@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildReleaseEvidenceBundle } from '../lib/releaseEvidenceService.js'
+import { buildReleaseEvidenceBundle, buildUnifiedOperatorEvidence } from '../lib/releaseEvidenceService.js'
 
 const baseEvidence = {
   targetOperations: { status: 'ready', releaseEligible: false },
@@ -29,6 +29,22 @@ describe('release evidence aggregation', () => {
     expect(bundle.signingKeyMaterialIncluded).toBe(false)
     expect(bundle.authority).toBe('release_evidence_aggregation_only')
     expect(bundle.settlementAuthority).toBe(false)
+    expect(bundle.evidenceFingerprint.algorithm).toBe('sha256')
+    expect(bundle.evidenceFingerprint.kind).toBe('release_evidence')
+  })
+
+  it('combines release and reconciliation evidence without granting release authority', () => {
+    const releaseEvidence = buildReleaseEvidenceBundle(baseEvidence)
+    const unified = buildUnifiedOperatorEvidence({
+      releaseEvidence,
+      reconciliationEvidence: { status: 'verified', evidenceHash: 'reconciliation-hash' }
+    })
+    expect(unified.status).toBe('complete_pending_release_gate')
+    expect(unified.evidenceComplete).toBe(true)
+    expect(unified.evidenceFingerprint.kind).toBe('operator_evidence')
+    expect(unified.releaseEligible).toBe(false)
+    expect(unified.settlementAuthority).toBe(false)
+    expect(unified.mutation).toBe('read_only')
   })
 
   it('names missing target and human evidence without weakening the gate', () => {

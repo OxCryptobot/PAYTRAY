@@ -8,6 +8,7 @@ import { getWebhookInboxHealth } from './webhookInboxService.js'
 import { listShadowRuns } from './shadowReviewService.js'
 import { buildDurableReconciliationReport } from './payments/reconciliationService.js'
 import { buildReconciliationEvidence } from './reconciliationEvidenceService.js'
+import { buildEvidenceFingerprint } from './evidenceFingerprint.js'
 
 function check(name, ready, reason, evidence = null) {
   return { name, ready: Boolean(ready), reason, evidence }
@@ -73,6 +74,40 @@ export async function collectReconciliationEvidence({ client, config, gitCommit 
   return buildReconciliationEvidence({ report, gitCommit })
 }
 
+export function buildUnifiedOperatorEvidence({ releaseEvidence = null, reconciliationEvidence = null } = {}) {
+  const reconciliationVerified = reconciliationEvidence?.status === 'verified'
+  const evidenceComplete = releaseEvidence?.evidenceComplete === true && reconciliationVerified
+  const evidenceFingerprint = buildEvidenceFingerprint({
+    kind: 'operator_evidence',
+    content: {
+      releaseEvidenceFingerprint: releaseEvidence?.evidenceFingerprint?.value || null,
+      reconciliationEvidenceHash: reconciliationEvidence?.evidenceHash || null,
+      releaseEvidenceComplete: releaseEvidence?.evidenceComplete === true,
+      reconciliationVerified,
+      releaseEligible: false,
+      settlementAuthority: false,
+      mutation: 'read_only'
+    }
+  })
+  return {
+    status: evidenceComplete ? 'complete_pending_release_gate' : 'blocked',
+    evidenceComplete,
+    releaseEligible: false,
+    authority: 'operator_evidence_aggregation_only',
+    mutation: 'read_only',
+    settlementAuthority: false,
+    deploymentPerformed: false,
+    settlementMutationPerformed: false,
+    evidenceFingerprint,
+    releaseEvidence,
+    reconciliationEvidence,
+    blockers: [
+      ...(releaseEvidence?.blockers || []),
+      ...(reconciliationVerified ? [] : [{ name: 'reconciliation', reason: 'reconciliation evidence is not verified' }])
+    ]
+  }
+}
+
 export function buildReleaseEvidenceBundle({
   targetOperations = null,
   deploymentPreflight = null,
@@ -101,6 +136,18 @@ export function buildReleaseEvidenceBundle({
     check('signingKey', signingKeyEvidencePresent === true, signingKeyEvidencePresent ? 'operator signing-key presence was reported without exposing key material' : 'operator signing-key evidence is not present')
   ]
   const evidenceComplete = checks.every((item) => item.ready)
+  const evidenceFingerprint = buildEvidenceFingerprint({
+    kind: 'release_evidence',
+    content: {
+      checks,
+      signoffSummary,
+      signingKeyMaterialIncluded: false,
+      authority: 'release_evidence_aggregation_only',
+      mutation: 'read_only',
+      settlementAuthority: false,
+      releaseEligible: false
+    }
+  })
   return {
     status: evidenceComplete ? 'evidence_complete_pending_release_gate' : 'blocked',
     evidenceComplete,
@@ -116,6 +163,7 @@ export function buildReleaseEvidenceBundle({
     blockers: checks.filter((item) => !item.ready).map(({ name, reason }) => ({ name, reason })),
     signoffSummary,
     signingKeyMaterialIncluded: false,
+    evidenceFingerprint,
     generatedAt: new Date().toISOString()
   }
 }

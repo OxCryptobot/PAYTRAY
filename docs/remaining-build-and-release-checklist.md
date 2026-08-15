@@ -52,8 +52,10 @@ The latest multi-phase tranche is validated and pushed to the remote branch. It 
 | CB | Canonical hashed reconciliation evidence | Pushed | `918d115`; `backend:reconciliation:evidence:check` wraps the durable reconciliation report with deterministic SHA-256 evidence hashing, commit boundary, issue count, and immutable read-only authority metadata. |
 | CC | Centralized release/reconciliation evidence collectors | Pushed | `661af74`; shared collectors make the CLI and API use one database-backed evidence contract, with sign-off file parsing, target preflight, verifier, readiness, delivery, and reconciliation assembly. |
 | CD | Authenticated operator evidence APIs | Pushed | `661af74`; `GET /api/v2/ops/release-evidence` and `GET /api/v2/ops/reconciliation/evidence` expose read-only evidence with structured `503` behavior and no settlement, approval, or AI-promotion authority; ready-PostgreSQL route checks pass. |
+| CE | Immutable evidence fingerprint utility | Validated locally | Canonical SHA-256 fingerprints for release, reconciliation, and unified operator evidence; no secrets or signing-key material included. |
+| CF | Unified operator evidence surface | Validated locally | `GET /api/v2/ops/evidence` combines release and reconciliation evidence, returns structured `503` until complete, and remains `releaseEligible: false` and `settlementAuthority: false`. |
 
-The BB/AW/BD/BF/BG/BH/BI/BJ/BL/BM/BN/BO/BP/BQ/BR/BS/BT/BU/BW/BX/BZ/CA/CB/CC/CD tranche now includes durable trust-signal, webhook inbox, durable-hook, worker, OpenAPI, SDK, housekeeping-schedule, target-operations-preflight, verifier-worker, CI, and HTTP hardening coverage; the latest validation passed **62 test files and 257 tests**, ESLint, migration code validation through migration 017, the runtime-to-OpenAPI contract verifier, a 100-event simulated webhook delivery/replay-load test, exact outbound HMAC digest tests, malformed/tampered signature rejection, timestamp skew rejection, replay detection and expiry coverage, durable idempotency cleanup tests, PostgreSQL replay-claim tests, focused verifier-owned payment-state tests, durable outbox processor tests, extension-event contract tests, degraded-database API coverage, and isolated ready-PostgreSQL verification with `engagementPaymentState: true`, `extensionOpenApi: true`, `trustSignals: true`, `webhookInbox: true`, `outboxDryRun: true`, and worker configuration status `ready`. The release manifest is read-only; production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
+The BB/AW/BD/BF/BG/BH/BI/BJ/BL/BM/BN/BO/BP/BQ/BR/BS/BT/BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF tranche now includes durable trust-signal, webhook inbox, durable-hook, worker, OpenAPI, SDK, housekeeping-schedule, target-operations-preflight, verifier-worker, CI, and HTTP hardening coverage; the latest validation passed **62 test files and 257 tests**, ESLint, migration code validation through migration 017, the runtime-to-OpenAPI contract verifier, a 100-event simulated webhook delivery/replay-load test, exact outbound HMAC digest tests, malformed/tampered signature rejection, timestamp skew rejection, replay detection and expiry coverage, durable idempotency cleanup tests, PostgreSQL replay-claim tests, focused verifier-owned payment-state tests, durable outbox processor tests, extension-event contract tests, degraded-database API coverage, and isolated ready-PostgreSQL verification with `engagementPaymentState: true`, `extensionOpenApi: true`, `trustSignals: true`, `webhookInbox: true`, `outboxDryRun: true`, and worker configuration status `ready`. The release manifest is read-only; production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
 
 ## 2. Mandatory release blockers
 
@@ -186,7 +188,7 @@ The items below are the next build sequence. They are deliberately separated fro
 | BH | Outbox delivery processor | Pushed | Operators can dry-run or process due durable events to matching v2 hooks with SSRF-safe signed delivery, bounded retry, dead-letter evidence, and no settlement authority. |
 | BE | Multi-chain expansion | Deferred | Only consider after single-chain reliability targets, reconciliation SLOs, and incident rollback evidence are met. |
 
-The safest remaining engineering order is **target evidence for AU/AV/AX/BC/AY/BA/BI/BL/BM/BN/BO/BP/BQ/BR/BS/BT/BU/BW/BX/BZ/CA/CB/CC/CD → authenticated Railway target verification → verifier, outbox, and housekeeping activation**, while **BE remains intentionally deferred**.
+The safest remaining engineering order is **target evidence for AU/AV/AX/BC/AY/BA/BI/BL/BM/BN/BO/BP/BQ/BR/BS/BT/BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF → authenticated Railway target verification → verifier, outbox, and housekeeping activation**, while **BE remains intentionally deferred**.
  The user-visible product can advance through discovery, collaboration, and Base Sepolia time-to-money flows without pretending that multi-chain or autonomous AI promotion is production-ready.
 
 ## 6. Current release commands
@@ -210,6 +212,7 @@ npm run backend:verifier:worker:check
 npm run backend:sdk:contract:check
 npm run backend:release:evidence:check
 DATABASE_URL="$DATABASE_URL" npm run backend:reconciliation:evidence:check
+curl -H "Authorization: Bearer $OPS_ACCESS_TOKEN" "$PAYTRAY_BASE_URL/api/v2/ops/evidence"
 curl -H "Authorization: Bearer $OPS_ACCESS_TOKEN" "$PAYTRAY_BASE_URL/api/v2/ops/release-evidence"
 curl -H "Authorization: Bearer $OPS_ACCESS_TOKEN" "$PAYTRAY_BASE_URL/api/v2/ops/reconciliation/evidence"
 npm run backend:advisory:ai:check

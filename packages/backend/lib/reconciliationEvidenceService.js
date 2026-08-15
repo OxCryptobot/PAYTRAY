@@ -1,17 +1,12 @@
-import crypto from 'node:crypto'
+import { canonicalizeEvidence, buildEvidenceFingerprint } from './evidenceFingerprint.js'
 
 function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize)
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]))
-  }
-  return value
+  return canonicalizeEvidence(value)
 }
 
 export function buildReconciliationEvidence({ report, gitCommit = null, generatedAt = new Date() } = {}) {
   const normalizedReport = canonicalize(report || {})
-  const canonicalJson = JSON.stringify(normalizedReport)
-  const evidenceHash = crypto.createHash('sha256').update(canonicalJson).digest('hex')
+  const evidenceHash = buildEvidenceFingerprint({ kind: 'reconciliation', content: normalizedReport }).value
   const issues = Array.isArray(report?.issues) ? report.issues : []
   return {
     status: report?.status === 'ok' ? 'verified' : 'attention',

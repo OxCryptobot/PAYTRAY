@@ -19,8 +19,10 @@
 | BZ | Composite runtime health and API SLOs | Implemented locally | Authenticated operator endpoint with bounded availability/latency samples, dependency health, named blockers, and immutable payment/release authority metadata. |
 | CA | Ready-PostgreSQL runtime-health contract | Pushed | `35550cc`; isolated verifier confirms runtime-health route safety and accepts expected `503` while verifier freshness is absent; overall `status: verified`. |
 | CB | Canonical hashed reconciliation evidence | Pushed | `918d115`; deterministic SHA-256 evidence hash, current Git boundary, issue count, and immutable read-only metadata; local disposable report returned `status: verified` with zero issues. |
-| CC | Centralized release/reconciliation evidence collectors | Validated locally | Shared database-backed collectors keep the CLI and authenticated operator APIs on one evidence contract. |
-| CD | Authenticated operator evidence APIs | Validated locally | Release and reconciliation evidence endpoints pass ready-PostgreSQL safety checks and preserve structured `503` responses when evidence is incomplete. |
+| CC | Centralized release/reconciliation evidence collectors | Pushed | `661af74`; shared database-backed collectors keep the CLI and authenticated operator APIs on one evidence contract. |
+| CD | Authenticated operator evidence APIs | Pushed | `661af74`; release and reconciliation evidence endpoints pass ready-PostgreSQL safety checks and preserve structured `503` responses when evidence is incomplete. |
+| CE | Immutable evidence fingerprint utility | Validated locally | Canonical SHA-256 fingerprints for release, reconciliation, and unified operator evidence; no secrets or signing-key material included. |
+| CF | Unified operator evidence surface | Validated locally | `/api/v2/ops/evidence` combines release and reconciliation evidence, returns expected `503` while target/verifier/reviewer gates are incomplete, and remains read-only. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work
@@ -49,7 +51,7 @@ These gates cannot be completed by code changes alone and must remain pending un
 
 ## Latest validation evidence
 
-The BS–BU/BW/BX/BZ/CA/CB/CC/CD tranche passed **62 test files and 257 tests**, ESLint, the shared quality gate, migration validation through migration 017, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
+The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF tranche passed **62 test files and 258 tests**, ESLint, the shared quality gate, migration validation through migration 017, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
 
 ## Standard execution order
 

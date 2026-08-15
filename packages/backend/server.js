@@ -58,7 +58,7 @@ import { processDurableOutbox } from './lib/outboxProcessorService.js'
 import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory } from './lib/advisoryAiBoundary.js'
 import { buildCollaborationHealth } from './lib/collaborationHealth.js'
 import { buildRuntimeHealthReport } from './lib/runtimeHealthService.js'
-import { collectReleaseEvidence, collectReconciliationEvidence } from './lib/releaseEvidenceService.js'
+import { collectReleaseEvidence, collectReconciliationEvidence, buildUnifiedOperatorEvidence } from './lib/releaseEvidenceService.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
 import { getExtensionOpenApiDocument } from './lib/extensionOpenApi.js'
 import { listExtensionHooks, registerExtensionHook } from './lib/extensionHookService.js'
@@ -2117,6 +2117,21 @@ app.get('/api/v2/ops/verifier-observability', authenticateToken, requireScopes('
   }
 })
 
+app.get('/api/v2/ops/evidence', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'unified operator evidence requires a ready PostgreSQL database')
+    }
+    const evidence = await transaction(async (client) => {
+      const releaseEvidence = await collectReleaseEvidence({ client, config })
+      const reconciliationEvidence = await collectReconciliationEvidence({ client, config })
+      return buildUnifiedOperatorEvidence({ releaseEvidence, reconciliationEvidence })
+    })
+    res.status(evidence.evidenceComplete ? 200 : 503).json({ success: evidence.evidenceComplete, evidence })
+  } catch (error) {
+    next(error)
+  }
+})
 app.get('/api/v2/ops/release-evidence', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
   try {
     if (getDatabaseStatus() !== 'ready') {

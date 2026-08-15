@@ -46,6 +46,8 @@ This read-only command runs the durable reconciliation report against PostgreSQL
 
 `GET /api/v2/ops/release-evidence` and `GET /api/v2/ops/reconciliation/evidence` expose the same evidence contracts to authenticated `ops:*` callers. Both require a ready PostgreSQL database, return structured `503` responses when evidence is incomplete or requires attention, and preserve the report body for diagnosis. The release-evidence response always has `releaseEligible: false`, while reconciliation evidence includes a deterministic `evidenceHash`; neither endpoint submits transactions, writes financial state, approves reviews, promotes AI ranking, or includes signing-key material.
 
+`GET /api/v2/ops/evidence` is the consolidated read-only surface. It combines both reports into one response, includes a SHA-256 `evidenceFingerprint` over the safe evidence references, and returns `complete_pending_release_gate` only when the evidence is complete; it never changes `releaseEligible: false`, `settlementAuthority: false`, or `mutation: 'read_only'`. The shared `evidenceFingerprint.js` utility canonicalizes object keys before hashing so equivalent evidence ordering produces the same fingerprint.
+
 ## `GET /api/v2/ops/audit/events`
 
 Returns durable financial audit events from `financial_audit_events`. The route is paginated, filterable, and read-only. Sensitive metadata keys such as private keys, signatures, authorization headers, JWTs, passwords, and secrets are recursively redacted.

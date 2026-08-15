@@ -35,6 +35,7 @@
 | CQ | CI operations-quality artifact fingerprint | Validated locally | The retained JSON report now receives a SHA-256 sidecar fingerprint before upload, allowing operators to verify artifact integrity without exposing secrets or granting release authority. |
 | CR | Automated release-gate matrix | Validated locally | Added `backend:release:gates:check` and a standalone CI job that executes 19 read-only gate checks, retains redacted JSON plus SHA-256 evidence, and classifies missing target/human evidence as `operator_blocked` with zero unexpected failures. |
 | CS | CI unit-job database isolation | Validated locally | The unit quality job now runs with `DATABASE_URL: ''`, matching the no-database test contract and preventing CI’s global PostgreSQL service variable from forcing collaboration-health tests into the wrong failure mode. |
+| CT | Automated backup and isolated recovery validation | Validated locally | Added a PostgreSQL 16 CI job that creates a disposable custom-format backup, restores into a separate database, requires migration 018, verifies ready-PostgreSQL contracts, and uploads only redacted summaries plus SHA-256 evidence. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work

@@ -164,3 +164,75 @@ jobs:
         run: npm run backend:ready:postgres:check
         env:
           READY_POSTGRES_DATABASE_ISOLATED: 'true'
+
+  recovery-contract:
+    name: Disposable backup and isolated recovery contract
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: paytray_ci
+          POSTGRES_PASSWORD: paytray_ci
+          POSTGRES_DB: paytray_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paytray_ci -d paytray_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Create isolated restore database
+        run: createdb -h 127.0.0.1 -U paytray_ci paytray_recovery_ci
+        env:
+          PGPASSWORD: paytray_ci
+      - name: Backup and restore into isolated database
+        run: |
+          mkdir -p artifacts
+          set +e
+          npm run backend:recovery:check > artifacts/recovery-evidence.json
+          status=$?
+          cat artifacts/recovery-evidence.json
+          exit $status
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
+          RECOVERY_BACKUP_FILE: ${{ runner.temp }}/paytray-${{ github.sha }}.dump
+          RECOVERY_RESTORE_DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+          RECOVERY_TARGET_ISOLATED: 'true'
+      - name: Verify restored migrations
+        run: npm run backend:migrations:check > artifacts/restored-migrations.json
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+      - name: Verify restored ready-PostgreSQL contracts
+        run: npm run backend:ready:postgres:check > artifacts/restored-ready-postgres.json
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+          READY_POSTGRES_DATABASE_ISOLATED: 'true'
+      - name: Fingerprint recovery evidence
+        if: always()
+        run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json | tee artifacts/recovery-evidence.sha256
+      - name: Upload redacted recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-evidence-${{ github.run_id }}
+          path: |
+            artifacts/recovery-evidence.json
+            artifacts/restored-migrations.json
+            artifacts/restored-ready-postgres.json
+            artifacts/recovery-evidence.sha256
+          if-no-files-found: error
+          retention-days: 7

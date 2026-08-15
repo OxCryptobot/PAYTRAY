@@ -3,7 +3,7 @@
 **Date:** 2026-08-14  
 **Branch:** `paytray/batch-delivery`  
 **Remote baseline:** `8498c8643e32691abb12aaa320862dd829e2e3a8`  
-**Current state:** Batch AO is validated locally with hardened manual sign-off evidence and remains uncommitted.
+**Current state:** Batch AP is validated locally with migration/recovery evidence and a fail-closed signed release payload, and remains uncommitted.
 
 ## Delivered in this update
 
@@ -33,10 +33,11 @@
 | **AM — release approval inspection CLI** | Added `backend:release:approval:check`, which emits the same composed approval artifact for CI/Railway preflight review and exits nonzero when approval is blocked. Added `docs/final-production-release-checklist.md` with the final human sign-off gates. | The CLI and checklist are read-only; the observed local result was honestly blocked only because explicit human approval and authenticated Railway settings were absent, while deployment and settlement mutation remained false. |
 | **AN — release-candidate manifest** | Added `backend:release:manifest:check`, which fingerprints runtime artifacts, captures the active commit and settlement policy, and verifies clean-worktree and artifact-hash evidence. | The manifest is read-only and fails closed on dirty or incomplete release evidence; it does not deploy or mutate settlement. |
 | **AO — complete manual sign-off evidence** | Hardened the release-approval gate so approval requires a reviewer identity, valid timestamp, `production_release` scope, and explicit rollback acknowledgement in addition to an approved decision. | Incomplete or ambiguous sign-off remains blocked; no deployment, AI promotion, or settlement mutation can pass through the artifact. |
+| **AP — final pre-flight and signed release payload** | Added `backend:release:payload:check`, Ed25519 canonical payload signing, signature verification tests, migration validation, schema backup/catalog recovery evidence, and Railway configuration comparison. | The payload remains blocked when Railway settings, full recovery evidence, or human approval are unavailable; no deployment or settlement mutation is authorized. |
 
 ## Validation
 
-The latest run passed **36 test files and 166 tests**, client JavaScript syntax validation, backend/client artifact existence checks, the read-only deployment preflight, the Railway trial gate tests, focused reconciliation SLO tests, focused AI quality-gate tests, focused collaboration-AI guardrail tests, focused Flow v3 adverse-event tests, focused release-approval tests including complete and incomplete manual sign-off evidence, the Batch AM release-approval CLI dry-run, the Batch AN release-manifest CLI dry-run, final checklist consistency review, ESLint, PostgreSQL migration validation through migration 013, and `git diff --check`. The Batch AM CLI exited 1 as designed because explicit human approval was absent; the Batch AN manifest also exited 1 because the working tree was intentionally dirty while its artifact hashes and testnet policy checks passed. All release artifacts reported `deploymentPerformed: false` and `settlementMutationPerformed: false`.
+The latest run passed **37 test files and 169 tests**, client JavaScript syntax validation, backend/client artifact existence checks, the read-only deployment preflight, the Railway trial gate tests, focused reconciliation SLO tests, focused AI quality-gate tests, focused collaboration-AI guardrail tests, focused Flow v3 adverse-event tests, focused release-approval tests including complete and incomplete manual sign-off evidence, the Batch AM release-approval CLI dry-run, the Batch AN release-manifest CLI dry-run, the Batch AP signed-payload CLI dry-run, PostgreSQL migration validation through migration 013, schema-only custom-format backup creation, `pg_restore --list` catalog validation, final checklist consistency review, ESLint, and `git diff --check`. The local backup procedure verified migration/schema catalog recoverability only; a full restore into an isolated database remains a manual release gate. The AP payload exited 1 as designed because approval, Railway settings, and full recovery evidence were incomplete. All release artifacts reported `deploymentPerformed: false` and `settlementMutationPerformed: false`.
 
 ## Railway development-server trial context
 
@@ -57,13 +58,16 @@ Before any Railway deployment, the project still requires explicit deployment ap
 | **AM — completed locally** | Added the read-only release-approval inspection CLI for CI/Railway preflight workflows. | A blocked CLI exit is an intentional safety signal, not a deployment failure or state mutation. |
 | **AN — completed locally** | Added the read-only release-candidate manifest and artifact fingerprint CLI. | Dirty or incomplete release evidence blocks the manifest; no deployment or settlement mutation occurs. |
 | **AO — completed locally** | Hardened human approval evidence requirements in the final release gate. | Approval requires reviewer, timestamp, release scope, rollback acknowledgement, and approved decision; otherwise the artifact remains blocked. |
+| **AP — completed locally** | Added the fail-closed Ed25519 signed release payload, migration/schema backup catalog evidence, and Railway configuration status checks. | Payload signing is not a deployment action; incomplete recovery or unavailable Railway settings keep the payload blocked. |
 
 ## Commit and push boundary
 
-Only the following Batch AO files are modified locally and have not been committed or pushed:
+Only the following Batch AP files are modified locally and have not been committed or pushed:
 
-- `packages/backend/lib/releaseApprovalGate.js`
-- `packages/backend/tests/releaseApprovalGate.test.js`
+- `package.json`
+- `packages/backend/lib/releasePayload.js`
+- `packages/backend/scripts/inspect-release-payload.mjs`
+- `packages/backend/tests/releasePayload.test.js`
 - `docs/accelerated-batch-update-2026-08-14.md`
 
-No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, Batch AG is pushed at `f9b5f842837c593d72d971f12781b9488c623ab6`, Batch AH is pushed at `c44703bbfb1e52ff806e2006f08f919da704c23e`, Batch AI is pushed at `405f11eb800e0b7ac5155c9255a34a83e9d1faae`, Batch AJ is pushed at `de91f5b41bc662d69ef515ac1b64e15d787448d5`, Batch AK is pushed at `e1749c3e1b6f673f8580fab962b0aba77ffcdb5a`, Batch AL is pushed at `65ee66dc084a01d8c62c64935a2cd7d976295f75`, Batch AM is pushed at `17f77b17f5c551c04ab57c32ca6d9e90d37be1b0`, Batch AN is pushed at `9d6f17fb601e9ec2909500f1c4a43b3378e71ad5`, and Batch AO is the current local uncommitted tranche.
+No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, Batch AG is pushed at `f9b5f842837c593d72d971f12781b9488c623ab6`, Batch AH is pushed at `c44703bbfb1e52ff806e2006f08f919da704c23e`, Batch AI is pushed at `405f11eb800e0b7ac5155c9255a34a83e9d1faae`, Batch AJ is pushed at `de91f5b41bc662d69ef515ac1b64e15d787448d5`, Batch AK is pushed at `e1749c3e1b6f673f8580fab962b0aba77ffcdb5a`, Batch AL is pushed at `65ee66dc084a01d8c62c64935a2cd7d976295f75`, Batch AM is pushed at `17f77b17f5c551c04ab57c32ca6d9e90d37be1b0`, Batch AN is pushed at `9d6f17fb601e9ec2909500f1c4a43b3378e71ad5`, Batch AO is pushed at `f8fe980d2b67ca8ea3a8693b3658f21775199b22`, and Batch AP is the current local uncommitted tranche.

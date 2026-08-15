@@ -42,6 +42,10 @@ This authenticated operator endpoint composes request availability and p95 laten
 
 This read-only command runs the durable reconciliation report against PostgreSQL and wraps the canonicalized report in a SHA-256 evidence hash plus the current Git commit boundary and issue count. It returns `status: verified` only when reconciliation reports `ok`; unresolved projection, lifecycle, ledger-linkage, or transaction-evidence issues produce `status: attention` and a nonzero exit. The command never changes streams, ledger entries, verifier cursors, settlement state, or release eligibility, and its output never includes secrets.
 
+## Operator evidence API endpoints
+
+`GET /api/v2/ops/release-evidence` and `GET /api/v2/ops/reconciliation/evidence` expose the same evidence contracts to authenticated `ops:*` callers. Both require a ready PostgreSQL database, return structured `503` responses when evidence is incomplete or requires attention, and preserve the report body for diagnosis. The release-evidence response always has `releaseEligible: false`, while reconciliation evidence includes a deterministic `evidenceHash`; neither endpoint submits transactions, writes financial state, approves reviews, promotes AI ranking, or includes signing-key material.
+
 ## `GET /api/v2/ops/audit/events`
 
 Returns durable financial audit events from `financial_audit_events`. The route is paginated, filterable, and read-only. Sensitive metadata keys such as private keys, signatures, authorization headers, JWTs, passwords, and secrets are recursively redacted.

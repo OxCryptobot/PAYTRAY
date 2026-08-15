@@ -58,6 +58,7 @@ import { processDurableOutbox } from './lib/outboxProcessorService.js'
 import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory } from './lib/advisoryAiBoundary.js'
 import { buildCollaborationHealth } from './lib/collaborationHealth.js'
 import { buildRuntimeHealthReport } from './lib/runtimeHealthService.js'
+import { collectReleaseEvidence, collectReconciliationEvidence } from './lib/releaseEvidenceService.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
 import { getExtensionOpenApiDocument } from './lib/extensionOpenApi.js'
 import { listExtensionHooks, registerExtensionHook } from './lib/extensionHookService.js'
@@ -2116,6 +2117,28 @@ app.get('/api/v2/ops/verifier-observability', authenticateToken, requireScopes('
   }
 })
 
+app.get('/api/v2/ops/release-evidence', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'release evidence requires a ready PostgreSQL database')
+    }
+    const bundle = await transaction((client) => collectReleaseEvidence({ client, config }))
+    res.status(bundle.evidenceComplete ? 200 : 503).json({ success: bundle.evidenceComplete, bundle })
+  } catch (error) {
+    next(error)
+  }
+})
+app.get('/api/v2/ops/reconciliation/evidence', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'reconciliation evidence requires a ready PostgreSQL database')
+    }
+    const evidence = await transaction((client) => collectReconciliationEvidence({ client, config }))
+    res.status(evidence.status === 'verified' ? 200 : 503).json({ success: evidence.status === 'verified', evidence })
+  } catch (error) {
+    next(error)
+  }
+})
 app.get('/api/v2/ops/release-approval', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
   try {
     if (getDatabaseStatus() !== 'ready') {

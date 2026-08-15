@@ -1,3 +1,14 @@
+import { readFile } from 'node:fs/promises'
+import { parseTokenRegistry } from './payments/tokenRegistry.js'
+import { buildTargetOperationsPreflight } from './targetOperationsPreflight.js'
+import { getReleaseReadiness } from './releaseReadiness.js'
+import { buildVerifierOperationsEvidence } from './verifierOperationsEvidence.js'
+import { getOutboxHealth } from './outboxDeliveryService.js'
+import { getWebhookInboxHealth } from './webhookInboxService.js'
+import { listShadowRuns } from './shadowReviewService.js'
+import { buildDurableReconciliationReport } from './payments/reconciliationService.js'
+import { buildReconciliationEvidence } from './reconciliationEvidenceService.js'
+
 function check(name, ready, reason, evidence = null) {
   return { name, ready: Boolean(ready), reason, evidence }
 }
@@ -12,6 +23,54 @@ function summarizeSignoffs(signoffs = []) {
     complete: approved.length >= 4,
     identitiesIncluded: false
   }
+}
+
+export async function loadReleaseSignoffs(filePath = process.env.RELEASE_SIGNOFFS_FILE) {
+  if (!filePath) return []
+  const value = JSON.parse(await readFile(filePath, 'utf8'))
+  if (!Array.isArray(value)) throw new Error('RELEASE_SIGNOFFS_FILE must contain a JSON array')
+  return value
+}
+
+export async function collectReleaseEvidence({ client, config, targetOperations = null, signoffs = null, signingKeyEvidencePresent = Boolean(process.env.RELEASE_SIGNING_KEY_PEM) } = {}) {
+  if (!client) throw new Error('release evidence collection requires a PostgreSQL client')
+  const target = targetOperations || buildTargetOperationsPreflight({ config })
+  const resolvedSignoffs = signoffs || await loadReleaseSignoffs()
+  const tokenRegistry = parseTokenRegistry(config.payments.tokenRegistry)
+  const verifierOperations = await buildVerifierOperationsEvidence({ client, config })
+  const readiness = await getReleaseReadiness({
+    client,
+    config,
+    databaseStatus: 'ready',
+    enabledTokenCount: tokenRegistry.list({ chainId: config.payments.settlementChainId, enabledOnly: true }).length,
+    verifierWorkerStatus: config.verifierWorker?.enabled ? 'configured' : 'not_configured'
+  })
+  const outboxHealth = await getOutboxHealth({ client, maxAttempts: config.webhooks.maxAttempts })
+  const webhookInboxHealth = await getWebhookInboxHealth({ client })
+  const shadowQueue = await listShadowRuns({ client, reviewerDecision: 'pending', limit: 100 })
+  const rollbackResult = await client.query('SELECT COUNT(*)::int AS count FROM ai_evaluation_runs WHERE rollback_target IS NOT NULL')
+  return buildReleaseEvidenceBundle({
+    targetOperations: target,
+    deploymentPreflight: target.deployment,
+    readiness,
+    verifierOperations,
+    reconciliation: verifierOperations.reconciliation,
+    outboxHealth,
+    webhookInboxHealth,
+    pendingShadowReviews: shadowQueue.count,
+    rollbackTargets: rollbackResult.rows[0]?.count || 0,
+    signoffs: resolvedSignoffs,
+    signingKeyEvidencePresent
+  })
+}
+
+export async function collectReconciliationEvidence({ client, config, gitCommit = process.env.RELEASE_GIT_COMMIT || null } = {}) {
+  if (!client) throw new Error('reconciliation evidence collection requires a PostgreSQL client')
+  const report = await buildDurableReconciliationReport({
+    client,
+    maxProjectionLagMs: config.payments.reconciliationLagThresholdMs
+  })
+  return buildReconciliationEvidence({ report, gitCommit })
 }
 
 export function buildReleaseEvidenceBundle({

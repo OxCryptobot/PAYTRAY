@@ -192,6 +192,11 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Initialize source database schema
+        run: npm run backend:migrations:check
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
       - name: Create isolated restore database
         run: createdb -h 127.0.0.1 -U paytray_ci paytray_recovery_ci
         env:

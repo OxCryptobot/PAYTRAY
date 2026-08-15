@@ -51,6 +51,24 @@ jobs:
           VERIFIER_WORKER_ENABLED: 'true'
           VERIFIER_WORKER_ID: ci-verifier
 
+  operations-quality:
+    name: Operations quality matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run operations-quality matrix
+        run: npm run backend:operations:quality:check
+        env:
+          OPERATIONS_QUALITY_STRICT: 'false'
+
   postgres-contract:
     name: Isolated PostgreSQL route contract
     runs-on: ubuntu-latest

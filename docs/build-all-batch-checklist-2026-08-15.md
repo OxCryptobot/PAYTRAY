@@ -23,7 +23,8 @@
 | CD | Authenticated operator evidence APIs | Pushed | `661af74`; release and reconciliation evidence endpoints pass ready-PostgreSQL safety checks and preserve structured `503` responses when evidence is incomplete. |
 | CE | Immutable evidence fingerprint utility | Validated locally | Canonical SHA-256 fingerprints for release, reconciliation, and unified operator evidence; no secrets or signing-key material included. |
 | CF | Unified operator evidence surface | Pushed | `42fb774`; `/api/v2/ops/evidence` combines release and reconciliation evidence, returns expected `503` while target/verifier/reviewer gates are incomplete, and remains read-only. |
-| CG | Operations-quality matrix | Validated locally | `backend:operations:quality:check` runs existing read-only checks, classifies missing operator evidence as `operator_blocked` in normal mode, and supports strict release-environment failure semantics. |
+| CG | Operations-quality matrix | Pushed | `d4e65f0`; `backend:operations:quality:check` runs existing read-only checks, classifies missing operator evidence as `operator_blocked` in normal mode, and supports strict release-environment failure semantics. |
+| CH | CI operations-quality enforcement | Validated locally | Added a separate GitHub Actions `operations-quality` job using Node 22 and locked dependencies; normal mode exits `0` with expected `operator_blocked` evidence and fails on unexpected check failures. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work
@@ -52,14 +53,14 @@ These gates cannot be completed by code changes alone and must remain pending un
 
 ## Latest validation evidence
 
-The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG tranche passed **63 test files and 261 tests**, ESLint, the shared quality gate, migration validation through migration 017, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
+The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH tranche passed **63 test files and 261 tests**, ESLint, the shared quality gate, migration validation through migration 017, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
 
 ## Standard execution order
 
 1. Implement one or more code batches behind explicit authority and failure-mode contracts.
 2. Run focused tests for the changed domain.
 3. Run `npm run backend:quality:check`.
-4. Run migration, extension, verifier-worker, target-operations, and ready-PostgreSQL checks appropriate to the batch.
+4. Run migration, extension, verifier-worker, target-operations, operations-quality, and ready-PostgreSQL checks appropriate to the batch.
 5. Update this checklist and the canonical remaining-build checklist with exact evidence.
 6. Commit and push only validated code and documentation.
 7. Re-run the release-gate inspection without treating a blocked result as a defect to bypass.

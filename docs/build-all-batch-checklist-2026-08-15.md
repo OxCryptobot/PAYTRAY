@@ -10,10 +10,10 @@
 
 | Batch | Scope | State | Exit evidence |
 |---|---|---|---|
-| BS | Production Base Sepolia verifier-worker entrypoint and configuration contract | Implemented locally | Explicit worker opt-in, HTTPS RPC, token/protocol consistency, transactional bounded polling, durable cursor projection, graceful shutdown, and read-only configuration verification. |
-| BT | Reproducible CI and local quality gate | Implemented locally | Shared `backend:quality:check`, locked dependency installation, Node 22 workflow, full tests, lint, extension contract, migration, and isolated PostgreSQL route checks. |
-| BU | Unified target-operations readiness integration | Implemented locally | Target preflight now includes verifier-worker readiness and remains `releaseEligible: false` until real target evidence is present. |
-| BV | Security and performance hardening | Implemented locally | Bounded rate-limit state, explicit proxy trust, bounded JSON/urlencoded bodies, and regression coverage for memory and IP-source behavior. |
+| BS | Production Base Sepolia verifier-worker entrypoint and configuration contract | Pushed | `6e857f2`; explicit worker opt-in, HTTPS RPC, token/protocol consistency, transactional bounded polling, durable cursor projection, graceful shutdown, and read-only configuration verification. |
+| BT | Reproducible CI and local quality gate | Pushed | `6e857f2`; shared `backend:quality:check`, locked dependency installation, Node 22 workflow, full tests, lint, extension contract, migration, and isolated PostgreSQL route checks. |
+| BU | Unified target-operations readiness integration | Pushed | `6e857f2`; target preflight includes verifier-worker readiness and remains `releaseEligible: false` until real target evidence is present. |
+| BV | Security and performance hardening | Pushed | `6e857f2`; bounded rate-limit state, explicit proxy trust, bounded JSON/urlencoded bodies, and regression coverage for memory and IP-source behavior. |
 | BW | API/SDK and developer-experience optimization | Planned | Contract drift checks, generated/typed consumer examples, stable error envelopes, and release documentation synchronization. |
 | BX | Release-evidence automation | Planned | Read-only evidence bundle generation that aggregates target, recovery, verifier, reconciliation, AI, and human-review blockers without clearing them. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |

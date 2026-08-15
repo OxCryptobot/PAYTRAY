@@ -48,6 +48,10 @@ This read-only command runs the durable reconciliation report against PostgreSQL
 
 `GET /api/v2/ops/evidence` is the consolidated read-only surface. It combines both reports into one response, includes a SHA-256 `evidenceFingerprint` over the safe evidence references, and returns `complete_pending_release_gate` only when the evidence is complete; it never changes `releaseEligible: false`, `settlementAuthority: false`, or `mutation: 'read_only'`. The shared `evidenceFingerprint.js` utility canonicalizes object keys before hashing so equivalent evidence ordering produces the same fingerprint.
 
+## `backend:operations:quality:check`
+
+This command runs the existing read-only quality, migration, extension, SDK, verifier-worker, target-operations, release-evidence, and reconciliation-evidence checks and emits one machine-readable matrix. A successful check is classified as `passed`; missing target infrastructure or genuine operator evidence is classified as `operator_blocked` in normal mode rather than hidden or misreported as a code failure. Set `OPERATIONS_QUALITY_STRICT=true` in a fully configured release environment to treat every remaining blocker as a failure. The matrix never deploys, submits transactions, mutates settlement or ledger state, approves shadow reviews, promotes AI ranking, or marks a release eligible.
+
 ## `GET /api/v2/ops/audit/events`
 
 Returns durable financial audit events from `financial_audit_events`. The route is paginated, filterable, and read-only. Sensitive metadata keys such as private keys, signatures, authorization headers, JWTs, passwords, and secrets are recursively redacted.

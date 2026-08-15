@@ -20,6 +20,7 @@
     "backend:idempotency:cleanup:run": "node packages/backend/scripts/run-idempotency-cleanup.mjs",
     "backend:idempotency:cleanup:check": "node packages/backend/scripts/verify-idempotency-cleanup-config.mjs",
     "backend:target:operations:check": "node packages/backend/scripts/verify-target-operations.mjs",
+    "backend:operations:quality:check": "node packages/backend/scripts/verify-operations-quality.mjs",
     "backend:verifier:worker": "node packages/backend/scripts/run-verifier-worker.mjs",
     "backend:verifier:worker:check": "node packages/backend/scripts/verify-verifier-worker-config.mjs",
     "backend:outbox:worker": "node packages/backend/scripts/run-outbox-worker.mjs",

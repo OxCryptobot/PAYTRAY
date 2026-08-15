@@ -14,11 +14,11 @@
 | BT | Reproducible CI and local quality gate | Pushed | `6e857f2`; shared `backend:quality:check`, locked dependency installation, Node 22 workflow, full tests, lint, extension contract, migration, and isolated PostgreSQL route checks. |
 | BU | Unified target-operations readiness integration | Pushed | `6e857f2`; target preflight includes verifier-worker readiness and remains `releaseEligible: false` until real target evidence is present. |
 | BV | Security and performance hardening | Pushed | `6e857f2`; bounded rate-limit state, explicit proxy trust, bounded JSON/urlencoded bodies, and regression coverage for memory and IP-source behavior. |
-| BW | API/SDK and developer-experience optimization | Implemented locally | Read-only SDK/OpenAPI runtime/type drift verifier, documented SDK paths, operation IDs, safety metadata, registration defaults, and TypeScript declarations. |
-| BX | Release-evidence automation | Implemented locally | Read-only evidence bundle and CLI aggregate target, verifier, reconciliation, delivery, shadow-review, rollback, sign-off, and signing-key blockers; always `releaseEligible: false`. |
+| BW | API/SDK and developer-experience optimization | Pushed | `a8c90bb`; read-only SDK/OpenAPI runtime/type drift verifier, documented SDK paths, operation IDs, safety metadata, registration defaults, and TypeScript declarations. |
+| BX | Release-evidence automation | Pushed | `a8c90bb`; read-only evidence bundle and CLI aggregate target, verifier, reconciliation, delivery, shadow-review, rollback, sign-off, and signing-key blockers; always `releaseEligible: false`. |
 | BZ | Composite runtime health and API SLOs | Implemented locally | Authenticated operator endpoint with bounded availability/latency samples, dependency health, named blockers, and immutable payment/release authority metadata. |
 | CA | Ready-PostgreSQL runtime-health contract | Pushed | `35550cc`; isolated verifier confirms runtime-health route safety and accepts expected `503` while verifier freshness is absent; overall `status: verified`. |
-| CB | Canonical hashed reconciliation evidence | Implemented locally | Deterministic SHA-256 evidence hash, current Git boundary, issue count, and immutable read-only metadata; local disposable report returned `status: verified` with zero issues. |
+| CB | Canonical hashed reconciliation evidence | Pushed | `918d115`; deterministic SHA-256 evidence hash, current Git boundary, issue count, and immutable read-only metadata; local disposable report returned `status: verified` with zero issues. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work

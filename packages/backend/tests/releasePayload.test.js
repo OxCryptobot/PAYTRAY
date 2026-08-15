@@ -29,7 +29,15 @@ describe('signed release payload', () => {
     const payload = buildSignedReleasePayload({ ...base, railway: { status: 'unavailable' }, recovery: { status: 'schema_catalog_only' }, signer: { privateKeyPem } })
     expect(payload.status).toBe('blocked')
     expect(payload.signature).toBeTruthy()
-    expect(verifySignedReleasePayload(payload)).toBe(true)
+    expect(verifySignedReleasePayload(payload)).toBe(false)
+  })
+
+  it('rejects a signed payload when the evidence envelope is changed after signing', () => {
+    const pair = keyPair()
+    const privateKeyPem = pair.privateKey.export({ type: 'pkcs8', format: 'pem' })
+    const payload = buildSignedReleasePayload({ ...base, signer: { privateKeyPem } })
+    payload.evidence.approval.reviewerId = 'tampered'
+    expect(verifySignedReleasePayload(payload)).toBe(false)
   })
 
   it('remains blocked without a signing key', () => {

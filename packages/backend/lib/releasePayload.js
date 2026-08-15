@@ -40,6 +40,14 @@ export function buildSignedReleasePayload({ manifest, approval, railway, migrati
 }
 
 export function verifySignedReleasePayload(payload) {
-  if (!payload?.signature || !payload?.publicKeyPem || !payload?.canonicalPayload) return false
+  if (!payload?.signature || !payload?.publicKeyPem || !payload?.canonicalPayload || payload.algorithm !== 'ed25519' || !payload.evidence) return false
+  const canonicalEvidence = canonicalize(payload.evidence)
+  if (canonicalEvidence !== payload.canonicalPayload) return false
+  const approvalReady = payload.evidence.approval?.status === 'approved' && payload.evidence.approval?.eligible === true
+  const manifestReady = payload.evidence.manifest?.status === 'ready'
+  const migrationReady = payload.evidence.migration?.status === 'passed'
+  const recoveryReady = payload.evidence.recovery?.status === 'verified'
+  const railwayReady = payload.evidence.railway?.status === 'matched'
+  if (!approvalReady || !manifestReady || !migrationReady || !recoveryReady || !railwayReady) return false
   return crypto.verify(null, Buffer.from(payload.canonicalPayload), payload.publicKeyPem, Buffer.from(payload.signature, 'base64'))
 }

@@ -18,6 +18,7 @@
     "backend:release:approval:check": "node packages/backend/scripts/inspect-release-approval.mjs",
     "backend:release:manifest:check": "node packages/backend/scripts/inspect-release-manifest.mjs",
     "backend:release:payload:check": "node packages/backend/scripts/inspect-release-payload.mjs",
+    "backend:release:payload:verify": "node packages/backend/scripts/verify-release-payload.mjs",
     "start": "npm run backend:start",
     "test": "npm run backend:test",
     "lint": "npm run backend:lint"

@@ -1,5 +1,62 @@
+import { createHash } from 'node:crypto'
 import { ConflictError, NotFoundError, ValidationError } from './errors.js'
+import { enqueueOutboxEvent } from './outboxDeliveryService.js'
 import { evaluateShadowQuality } from './shadowQualityGate.js'
+
+function reviewNotesEvidence(notes) {
+  if (notes == null) return { notesHash: null, notesLength: 0 }
+  const normalized = String(notes)
+  return {
+    notesHash: createHash('sha256').update(normalized, 'utf8').digest('hex'),
+    notesLength: normalized.length
+  }
+}
+
+async function recordReviewAudit({ client, run, reviewerId, decision, notes, action, idempotentReplay }) {
+  const notesEvidence = reviewNotesEvidence(notes)
+  const auditMetadata = {
+    decision,
+    reviewerId: String(reviewerId),
+    modelName: run.model_name || null,
+    modelVersion: run.model_version || null,
+    baselineVersion: run.baseline_version || null,
+    rollbackTarget: run.rollback_target || null,
+    reviewerNotesHash: notesEvidence.notesHash,
+    reviewerNotesLength: notesEvidence.notesLength,
+    idempotentReplay,
+    applied: false,
+    promotionStatus: 'shadow_only',
+    authority: 'human_review_required',
+    mutation: 'read_only'
+  }
+  const result = await client.query(
+    `INSERT INTO financial_audit_events (actor_type, actor_id, action, entity_type, entity_id, metadata)
+     VALUES ('operator', $1, $2, 'ai_evaluation_run', $3, $4::jsonb)
+     RETURNING id`,
+    [String(reviewerId), action, run.id, JSON.stringify(auditMetadata)]
+  )
+  const auditEventId = result.rows[0]?.id || null
+  await enqueueOutboxEvent({
+    client,
+    aggregateType: 'ai_evaluation_run',
+    aggregateId: run.id,
+    eventType: idempotentReplay ? 'ai.shadow_review_replayed' : 'ai.shadow_review_recorded',
+    payload: {
+      auditEventId,
+      runId: run.id,
+      decision,
+      reviewerId: String(reviewerId),
+      reviewerNotesHash: notesEvidence.notesHash,
+      reviewerNotesLength: notesEvidence.notesLength,
+      idempotentReplay,
+      applied: false,
+      promotionStatus: 'shadow_only',
+      authority: 'human_review_required',
+      deliveryAuthority: 'durable_outbox_only'
+    }
+  })
+  return auditEventId
+}
 
 export async function reviewShadowRun({ client, runId, reviewerId, decision, notes = null }) {
   if (!runId) throw new ValidationError('runId is required')
@@ -12,7 +69,18 @@ export async function reviewShadowRun({ client, runId, reviewerId, decision, not
   const run = current.rows[0]
   if (run.status !== 'shadow') throw new ConflictError('Only shadow evaluation runs can be reviewed')
   if (run.reviewer_decision !== 'pending') {
-    if (run.reviewer_decision === decision) return { run, idempotentReplay: true, applied: false }
+    if (run.reviewer_decision === decision) {
+      const auditEventId = await recordReviewAudit({
+        client,
+        run,
+        reviewerId,
+        decision,
+        notes,
+        action: 'shadow_review_replayed',
+        idempotentReplay: true
+      })
+      return { run, idempotentReplay: true, auditEventId, applied: false, promotionStatus: 'shadow_only', authority: 'human_review_required' }
+    }
     throw new ConflictError('Shadow evaluation run already has a different review decision')
   }
 
@@ -27,7 +95,16 @@ export async function reviewShadowRun({ client, runId, reviewerId, decision, not
     [decision, String(reviewerId), notes, runId]
   )
   if (!reviewed.rows[0]) throw new ConflictError('Shadow evaluation review raced with another reviewer')
-  return { run: reviewed.rows[0], idempotentReplay: false, applied: false }
+  const auditEventId = await recordReviewAudit({
+    client,
+    run: reviewed.rows[0],
+    reviewerId,
+    decision,
+    notes,
+    action: 'shadow_review_recorded',
+    idempotentReplay: false
+  })
+  return { run: reviewed.rows[0], idempotentReplay: false, auditEventId, applied: false, promotionStatus: 'shadow_only', authority: 'human_review_required' }
 }
 
 export async function getShadowRunDetails({ client, runId }) {

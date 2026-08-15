@@ -12,6 +12,8 @@ Every `/api/v2/ops/*` route requires a valid PayTray access token with the `ops:
 
 Returns durable financial audit events from `financial_audit_events`. The route is paginated, filterable, and read-only. Sensitive metadata keys such as private keys, signatures, authorization headers, JWTs, passwords, and secrets are recursively redacted.
 
+Shadow-review decisions are also durable financial audit evidence. A first decision emits `action: shadow_review_recorded` with `actorType: operator`, `entityType: ai_evaluation_run`, and a metadata envelope containing the decision, reviewer identifier, model/baseline context, a SHA-256 hash and length for reviewer notes, `applied: false`, `promotionStatus: shadow_only`, `authority: human_review_required`, and `mutation: read_only`. The same transaction enqueues a bounded outbox event (`ai.shadow_review_recorded`) carrying only redacted identifiers and decision evidence. Repeating the same terminal decision emits `action: shadow_review_replayed` and `ai.shadow_review_replayed`; conflicting decisions remain rejected. Reviewer note text is never copied into the financial audit event or outbox payload.
+
 ### Query parameters
 
 | Parameter | Type | Range | Meaning |
@@ -277,3 +279,4 @@ The controlled smoke harness is `backend:smoke:phase2:check`. It refuses to run 
 [6]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/advisoryAiBoundary.js Advisory-AI boundary
 [7]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/collaborationHealth.js Collaboration health boundary
 [8]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/extensionContracts.js Public extension contracts
+[9]: https://github.com/OxCryptobot/PAYTRAY/blob/ef79f40d29b9d6c46124da13ebb7cb381b9fafb5/packages/backend/lib/shadowReviewService.js Durable shadow-review audit evidence

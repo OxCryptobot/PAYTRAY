@@ -29,6 +29,7 @@ The latest multi-phase tranche is validated and pushed to the remote branch. It 
 | AY | Durable outbox and operator delivery health | Pushed | `packages/backend/lib/outboxDeliveryService.js`; `GET /api/v2/ops/outbox/health` |
 | BA | Bounded advisory-AI provider and retrieval boundary | Pushed | `packages/backend/lib/advisoryAiBoundary.js`; `POST /api/v2/intelligence/advisory` |
 | BB | Collaboration degraded-state health | Pushed | `packages/backend/lib/collaborationHealth.js`; `GET /api/v2/collaboration/health` |
+| BF | Durable reviewer-decision audit records | Implemented locally | `packages/backend/lib/shadowReviewService.js`; `shadow_review_recorded` and `shadow_review_replayed` financial audit events |
 
 The BB/AW/BD tranche passed **45 test files and 199 tests**, ESLint, migrations through 013, isolated ready-PostgreSQL route verification with `status: verified`, intentional no-isolation blocking before database access, release-manifest validation, and `git diff --check`. The release manifest is read-only; production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
 
@@ -138,7 +139,7 @@ Use the detailed YAML/JSON form in `docs/secure-release-key-and-reviewer-signoff
 }
 ```
 
-## 5. Remaining engineering backlog after AT
+## 5. Remaining engineering backlog after BD/BB
 
 The items below are the next build sequence. They are deliberately separated from environment-controlled release blockers; code can be implemented, but production readiness still depends on real target evidence.
 
@@ -154,9 +155,13 @@ The items below are the next build sequence. They are deliberately separated fro
 | BB | Collaboration provider health/degraded-state surface | Completed locally | `/api/v2/collaboration/health` separates collaboration availability from payment/verifier/indexer degradation; core store/auth failures block while payment degradation does not. |
 | BC | Controlled Base Sepolia smoke harness with zero-live-funds guardrails | Completed locally | Harness refuses non-isolated databases, non-Base-Sepolia policy, missing enabled token registry, and chain mutations; disposable target execution remains operator-run. |
 | BD | Public API and extension contract documentation with versioning and scope matrix | Completed locally | v2 operations, lineage, verifier, recovery, token metadata, smoke, and public extension schemas are documented; broader external SDK work remains. |
+| BF | Durable reviewer-decision audit records | Implemented locally | New and replayed human shadow-review decisions are written as operator audit evidence in the same transaction; notes are hashed rather than copied, and responses remain `shadow_only`. |
+| BG | Engagement payment-state surface | Planned next | Add a verifier-owned payment-state endpoint with explicit stale/degraded semantics while collaboration remains responsive. |
+| BH | Outbox delivery processor | Planned next | Add an operator-scoped, dry-run-capable processor with bounded retry and extension-hook delivery; delivery cannot establish settlement. |
 | BE | Multi-chain expansion | Deferred | Only consider after single-chain reliability targets, reconciliation SLOs, and incident rollback evidence are met. |
 
-The safest remaining engineering order is **target evidence for AU/AV/AX/BC/AY/BA → BB collaboration health → ready-PostgreSQL AW fixtures → broader BD extension/SDK work**, while **BE remains intentionally deferred**. The user-visible product can advance through discovery, collaboration, and Base Sepolia time-to-money flows without pretending that multi-chain or autonomous AI promotion is production-ready.
+The safest remaining engineering order is **target evidence for AU/AV/AX/BC/AY/BA → durable reviewer-decision evidence (BF) → engagement payment-state surface (BG) → bounded outbox delivery processing (BH) → ready-PostgreSQL AW fixtures → broader BD extension/SDK work**, while **BE remains intentionally deferred**.
+ The user-visible product can advance through discovery, collaboration, and Base Sepolia time-to-money flows without pretending that multi-chain or autonomous AI promotion is production-ready.
 
 ## 6. Current release commands
 

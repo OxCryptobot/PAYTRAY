@@ -64,6 +64,10 @@ This authenticated operator endpoint returns bounded summaries of durable operat
 
 `GET /api/v2/ops/operations-quality/runs/:runId` returns one valid-UUID run and its stored redacted report, including the canonical `report_hash` and per-check classification. It returns `404` when no durable run exists and rejects malformed run identifiers before database lookup. The detail response retains `authority: 'operations_quality_audit'`, `mutation: 'read_only'`, `releaseEligible: false`, and `settlementAuthority: false`.
 
+## `backend:release:gates:check`
+
+This read-only CLI executes 19 release and validation checks, including migration, recovery, Railway, verifier, outbox, idempotency, target operations, approval, release evidence, reconciliation, manifest, payload, advisory-AI, token metadata, smoke, SDK, and extension contracts. In normal mode, absent target evidence, pending human approval, and unavailable protected recovery artifacts are classified as `operator_blocked`; unexpected implementation failures remain fatal. It emits `releaseEligible: false`, `settlementAuthority: false`, `mutation: 'read_only'`, `executedWithoutDeployment: true`, and `executedWithoutSettlementMutation: true`. The CI job stores only the redacted JSON matrix and its SHA-256 sidecar for operator inspection.
+
 ## `GET /api/v2/ops/audit/events`
 
 Returns durable financial audit events from `financial_audit_events`. The route is paginated, filterable, and read-only. Sensitive metadata keys such as private keys, signatures, authorization headers, JWTs, passwords, and secrets are recursively redacted.

@@ -33,6 +33,7 @@
 | CO | Detached evidence-bundle integrity verification | Pushed | `52255ae`; added `backend:ops:evidence:bundle:verify`, canonical SHA-256 recomputation, PostgreSQL timestamp normalization, tamper detection, and immutable safety-field rejection; a blocked bundle verifies internally while remaining non-releaseable. |
 | CP | CI operations-quality artifact retention | Pushed | `7c91fbc`; the standalone CI matrix writes a redacted machine-readable JSON artifact and uploads it for seven-day operator inspection; the job remains non-strict and fails only on unexpected check failures. |
 | CQ | CI operations-quality artifact fingerprint | Validated locally | The retained JSON report now receives a SHA-256 sidecar fingerprint before upload, allowing operators to verify artifact integrity without exposing secrets or granting release authority. |
+| CR | Automated release-gate matrix | Validated locally | Added `backend:release:gates:check` and a standalone CI job that executes 19 read-only gate checks, retains redacted JSON plus SHA-256 evidence, and classifies missing target/human evidence as `operator_blocked` with zero unexpected failures. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work
@@ -61,7 +62,7 @@ These gates cannot be completed by code changes alone and must remain pending un
 
 ## Latest validation evidence
 
-The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL/CM tranche passed **65 test files and 270 tests**, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
+The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL/CM/CP/CQ/CR tranche passed **66 test files and 271 tests**, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
 
 ## Standard execution order
 

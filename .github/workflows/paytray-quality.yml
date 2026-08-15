@@ -25,7 +25,7 @@ env:
   SETTLEMENT_CHAIN_ID: '84532'
   PAYMENT_MAINNET_ENABLED: 'false'
   PAYMENT_RPC_URL: https://sepolia.base.org
-  PAYMENT_STREAM_PROTOCOL_CONTRACT: 0xc1ba5a41936aaab0ff920446db556efe17fc1c5d
+  PAYMENT_STREAM_PROTOCOL_CONTRACT: '0xc1ba5a41936aaab0ff920446db556efe17fc1c5d'
   PAYMENT_TOKEN_REGISTRY: '[{"symbol":"USDC","chainId":84532,"address":"0x1111111111111111111111111111111111111111","decimals":6,"protocolContractAddress":"0xc1ba5a41936aaab0ff920446db556efe17fc1c5d","enabled":true}]'
 
 jobs:
@@ -86,6 +86,46 @@ jobs:
           path: |
             artifacts/operations-quality.json
             artifacts/operations-quality.json.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  release-gates:
+    name: Read-only release-gate inspection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run release-gate matrix
+        run: |
+          mkdir -p artifacts
+          set +e
+          node packages/backend/scripts/verify-release-gates.mjs > artifacts/release-gates.json
+          status=$?
+          cat artifacts/release-gates.json
+          exit $status
+        env:
+          DATABASE_URL: ''
+          RELEASE_GATES_STRICT: 'false'
+          PAYMENT_MAINNET_ENABLED: 'false'
+          SETTLEMENT_CHAIN_ID: '84532'
+      - name: Fingerprint release-gate evidence
+        if: always()
+        run: sha256sum artifacts/release-gates.json | tee artifacts/release-gates.json.sha256
+      - name: Upload release-gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-gates-${{ github.run_id }}
+          path: |
+            artifacts/release-gates.json
+            artifacts/release-gates.json.sha256
           if-no-files-found: error
           retention-days: 7
 

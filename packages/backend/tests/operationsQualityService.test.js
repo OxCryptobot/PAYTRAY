@@ -20,8 +20,32 @@ describe('operations quality service', () => {
     })
     expect(blocked.state).toBe('operator_blocked')
     expect(blocked.expectedBlocked).toBe(true)
+    const manifestBlocked = classifyOperationsCheck({
+      name: 'release-manifest',
+      exitCode: 1,
+      output: JSON.stringify({ status: 'ok', manifest: { status: 'blocked' } })
+    })
+    const payloadBlocked = classifyOperationsCheck({
+      name: 'release-payload',
+      exitCode: 1,
+      output: JSON.stringify({ status: 'ok', payload: { status: 'blocked' } })
+    })
+    const outboxBlocked = classifyOperationsCheck({
+      name: 'outbox-health',
+      exitCode: 1,
+      output: JSON.stringify({ status: 'blocked' })
+    })
+    const approvalBlocked = classifyOperationsCheck({
+      name: 'release-approval',
+      exitCode: 1,
+      output: JSON.stringify({ status: 'ok', artifact: { status: 'blocked' } })
+    })
     expect(bundleBlocked.state).toBe('operator_blocked')
     expect(bundleBlocked.expectedBlocked).toBe(true)
+    expect(manifestBlocked.state).toBe('operator_blocked')
+    expect(payloadBlocked.state).toBe('operator_blocked')
+    expect(outboxBlocked.state).toBe('operator_blocked')
+    expect(approvalBlocked.state).toBe('operator_blocked')
     expect(failed.state).toBe('failed')
     expect(failed.expectedBlocked).toBe(false)
   })

@@ -18,11 +18,21 @@ export function buildDeploymentPreflight({ config, deploymentTarget = 'unspecifi
   let enabledTokenCount = 0
   let tokenRegistryError = null
   try {
-    enabledTokenCount = parseTokenRegistry(config.payments.tokenRegistry).list({ chainId: config.payments.settlementChainId, enabledOnly: true }).length
+    const registry = parseTokenRegistry(config.payments.tokenRegistry)
+    if (production) {
+      const settlement = registry.validateSettlementConfiguration({
+        chainId: config.payments.settlementChainId,
+        protocolContractAddress: config.payments.protocolContractAddress,
+        protocol: config.payments.protocol
+      })
+      enabledTokenCount = settlement.enabledTokens.length
+    } else {
+      enabledTokenCount = registry.list({ chainId: config.payments.settlementChainId, enabledOnly: true }).length
+    }
   } catch (error) {
     tokenRegistryError = error.message
   }
-  checks.push(check('tokenRegistry', !production || (!tokenRegistryError && enabledTokenCount > 0), tokenRegistryError || `${enabledTokenCount} enabled token(s) for settlement chain`))
+  checks.push(check('tokenRegistry', !production || !tokenRegistryError, tokenRegistryError || `${enabledTokenCount} enabled token(s) passed settlement consistency checks`))
   checks.push(check('mainnetGate', !production || config.payments.settlementChainId !== 8453 || config.payments.mainnetEnabled, 'Base mainnet requires PAYMENT_MAINNET_ENABLED=true'))
 
   return {

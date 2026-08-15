@@ -8,7 +8,7 @@ const base = {
   payments: {
     rpcUrl: 'https://rpc.example',
     protocolContractAddress: '0xc1ba5a41936aaab0ff920446db556efe17fc1c5d',
-    tokenRegistry: JSON.stringify([{ chainId: 84532, address: '0x1111111111111111111111111111111111111111', decimals: 6, symbol: 'USDC', enabled: true }]),
+    tokenRegistry: JSON.stringify([{ chainId: 84532, address: '0x1111111111111111111111111111111111111111', decimals: 6, symbol: 'USDC', protocolContractAddress: '0xc1ba5a41936aaab0ff920446db556efe17fc1c5d', enabled: true }]),
     settlementChainId: 84532,
     protocol: 'sablier-flow-v3',
     mainnetEnabled: false,

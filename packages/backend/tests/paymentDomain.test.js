@@ -42,6 +42,26 @@ describe('Paytray payment domain foundations', () => {
     expect(() => parseTokenRegistry('{invalid json}')).toThrow('Token registry must be valid JSON')
   })
 
+  it('requires enabled settlement tokens to match the configured chain and protocol contract', () => {
+    const registry = createTokenRegistry([token])
+    expect(registry.validateSettlementConfiguration({
+      chainId: 84532,
+      protocolContractAddress: token.protocolContractAddress
+    })).toMatchObject({
+      chainId: 84532,
+      protocol: 'sablier-flow-v3',
+      enabledTokens: [{ symbol: 'USDC', decimals: 6 }]
+    })
+    expect(() => registry.validateSettlementConfiguration({
+      chainId: 84532,
+      protocolContractAddress: '0x2222222222222222222222222222222222222222'
+    })).toThrow('protocol contract does not match')
+    expect(() => createTokenRegistry([{ ...token, protocolContractAddress: null }]).validateSettlementConfiguration({
+      chainId: 84532,
+      protocolContractAddress: token.protocolContractAddress
+    })).toThrow('missing its sablier-flow-v3 protocol contract address')
+  })
+
   it('limits chain-finalized and ledger-reflected states to verifier-owned sources', () => {
     expect(() => assertPaymentTransition({ from: 'chain_included', to: 'chain_finalized', source: 'api' }))
       .toThrow('is not owned by api')

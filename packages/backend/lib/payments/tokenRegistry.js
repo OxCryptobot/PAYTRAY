@@ -87,6 +87,45 @@ export function createTokenRegistry(tokens = []) {
         if (chainId != null && token.chainId !== Number(chainId)) return false
         return !enabledOnly || token.enabled
       })
+    },
+    validateSettlementConfiguration({ chainId, protocolContractAddress, protocol = 'sablier-flow-v3' } = {}) {
+      const normalizedChainId = requireInteger(chainId, 'settlement chainId', 1, Number.MAX_SAFE_INTEGER)
+      if (!protocolContractAddress || !isAddress(protocolContractAddress)) {
+        throw new TokenRegistryError('Settlement protocol contract address must be a valid EVM address')
+      }
+      const normalizedContract = getAddress(protocolContractAddress)
+      const enabledTokens = this.list({ chainId: normalizedChainId, enabledOnly: true })
+      if (enabledTokens.length === 0) {
+        throw new TokenRegistryError(`No enabled token is configured for settlement chain ${normalizedChainId}`)
+      }
+
+      const symbols = new Set()
+      for (const token of enabledTokens) {
+        if (!Number.isInteger(token.decimals) || token.decimals < 0 || token.decimals > 255) {
+          throw new TokenRegistryError(`Token ${token.symbol} has invalid decimals for settlement`)
+        }
+        if (symbols.has(token.symbol.toUpperCase())) {
+          throw new TokenRegistryError(`Duplicate enabled token symbol on settlement chain: ${token.symbol}`)
+        }
+        symbols.add(token.symbol.toUpperCase())
+        if (!token.protocolContractAddress) {
+          throw new TokenRegistryError(`Token ${token.symbol} is missing its ${protocol} protocol contract address`)
+        }
+        if (token.protocolContractAddress !== normalizedContract) {
+          throw new TokenRegistryError(`Token ${token.symbol} protocol contract does not match the configured settlement contract`)
+        }
+      }
+
+      return Object.freeze({
+        chainId: normalizedChainId,
+        protocol,
+        protocolContractAddress: normalizedContract,
+        enabledTokens: enabledTokens.map((token) => ({
+          address: token.address,
+          symbol: token.symbol,
+          decimals: token.decimals
+        }))
+      })
     }
   })
 }

@@ -47,6 +47,8 @@ import { buildDurableReconciliationReport } from './lib/payments/reconciliationS
 import { createConfiguredBaseSepoliaVerifierWorker } from './lib/payments/verifierWorkerService.js'
 import { assertSafeWebhookUrl, validateWebhookUrl } from './lib/webhookSecurity.js'
 import { getFinancialSummary, getVerifierObservability } from './lib/verifierObservability.js'
+import { listFinancialAuditEvents } from './lib/auditLogService.js'
+import { listDiscoveryOutcomeLineage } from './lib/discoveryLineageService.js'
 import { assertLegacyPaymentMutationAllowed } from './lib/payments/legacyPaymentPolicy.js'
 import {
   generateServiceToken,
@@ -1936,6 +1938,30 @@ app.get('/api/v2/ops/financial/summary', authenticateToken, requireScopes('ops:*
     }
     const summary = await transaction((client) => getFinancialSummary({ client, config }))
     res.json({ success: true, summary })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/discovery/lineage', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'discovery lineage requires a ready PostgreSQL database')
+    }
+    const lineage = await transaction((client) => listDiscoveryOutcomeLineage({ client, ...req.query }))
+    res.json({ success: true, lineage })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/audit/events', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'financial audit events require a ready PostgreSQL database')
+    }
+    const audit = await transaction((client) => listFinancialAuditEvents({ client, ...req.query }))
+    res.json({ success: true, audit })
   } catch (error) {
     next(error)
   }

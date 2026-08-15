@@ -38,6 +38,10 @@ This read-only CLI aggregates target-operations configuration, deployment prefli
 
 This authenticated operator endpoint composes request availability and p95 latency observations with database readiness, collaboration availability, verifier operations, durable outbox health, webhook-inbox health, telemetry status, and configured SLO thresholds. It requires a ready PostgreSQL database, returns `200` only when all observed checks are ready, and may return `503` with named degraded checks while still returning a structured report. Insufficient request samples are explicitly `not ready` rather than being treated as a healthy zero-data result. The report always states `paymentStateAuthority: 'verifier_and_ledger_only'`, `settlementAuthority: false`, `releaseEligible: false`, and `mutation: 'read_only'`. Payment/verifier degradation does not authorize settlement and must not block the collaboration surface itself.
 
+## `backend:reconciliation:evidence:check`
+
+This read-only command runs the durable reconciliation report against PostgreSQL and wraps the canonicalized report in a SHA-256 evidence hash plus the current Git commit boundary and issue count. It returns `status: verified` only when reconciliation reports `ok`; unresolved projection, lifecycle, ledger-linkage, or transaction-evidence issues produce `status: attention` and a nonzero exit. The command never changes streams, ledger entries, verifier cursors, settlement state, or release eligibility, and its output never includes secrets.
+
 ## `GET /api/v2/ops/audit/events`
 
 Returns durable financial audit events from `financial_audit_events`. The route is paginated, filterable, and read-only. Sensitive metadata keys such as private keys, signatures, authorization headers, JWTs, passwords, and secrets are recursively redacted.

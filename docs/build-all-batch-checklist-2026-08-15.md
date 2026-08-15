@@ -17,7 +17,8 @@
 | BW | API/SDK and developer-experience optimization | Implemented locally | Read-only SDK/OpenAPI runtime/type drift verifier, documented SDK paths, operation IDs, safety metadata, registration defaults, and TypeScript declarations. |
 | BX | Release-evidence automation | Implemented locally | Read-only evidence bundle and CLI aggregate target, verifier, reconciliation, delivery, shadow-review, rollback, sign-off, and signing-key blockers; always `releaseEligible: false`. |
 | BZ | Composite runtime health and API SLOs | Implemented locally | Authenticated operator endpoint with bounded availability/latency samples, dependency health, named blockers, and immutable payment/release authority metadata. |
-| CA | Ready-PostgreSQL runtime-health contract | Implemented locally | Isolated verifier confirms runtime-health route safety and accepts expected `503` while verifier freshness is absent; overall `status: verified`. |
+| CA | Ready-PostgreSQL runtime-health contract | Pushed | `35550cc`; isolated verifier confirms runtime-health route safety and accepts expected `503` while verifier freshness is absent; overall `status: verified`. |
+| CB | Canonical hashed reconciliation evidence | Implemented locally | Deterministic SHA-256 evidence hash, current Git boundary, issue count, and immutable read-only metadata; local disposable report returned `status: verified` with zero issues. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work
@@ -46,7 +47,7 @@ These gates cannot be completed by code changes alone and must remain pending un
 
 ## Latest validation evidence
 
-The BS–BU/BW/BX/BZ/CA tranche passed **61 test files and 255 tests**, ESLint, the shared quality gate, migration validation through migration 017, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
+The BS–BU/BW/BX/BZ/CA/CB tranche passed **62 test files and 257 tests**, ESLint, the shared quality gate, migration validation through migration 017, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
 
 ## Standard execution order
 

@@ -49,6 +49,7 @@ import { assertSafeWebhookUrl, validateWebhookUrl } from './lib/webhookSecurity.
 import { getFinancialSummary, getVerifierObservability } from './lib/verifierObservability.js'
 import { listFinancialAuditEvents } from './lib/auditLogService.js'
 import { listDiscoveryOutcomeLineage } from './lib/discoveryLineageService.js'
+import { buildVerifierOperationsEvidence } from './lib/verifierOperationsEvidence.js'
 import { assertLegacyPaymentMutationAllowed } from './lib/payments/legacyPaymentPolicy.js'
 import {
   generateServiceToken,
@@ -1974,6 +1975,18 @@ app.get('/api/v2/ops/verifier/status', authenticateToken, requireScopes('ops:*')
     }
     const status = await transaction((client) => getVerifierObservability({ client, config }))
     res.json({ success: true, status })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/verifier/operations', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'verifier operations evidence requires a ready PostgreSQL database')
+    }
+    const evidence = await transaction((client) => buildVerifierOperationsEvidence({ client, config }))
+    res.status(evidence.status === 'ready' ? 200 : 503).json({ success: evidence.status === 'ready', evidence })
   } catch (error) {
     next(error)
   }

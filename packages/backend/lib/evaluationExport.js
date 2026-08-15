@@ -53,7 +53,17 @@ export function buildEvaluationExample(row, { datasetVersion, trainBefore, valid
       rankingVersion: row.ranking_version,
       impressionId: row.impression_id,
       baselineScore: row.baseline_score,
-      verifiedEvidenceOnly: label.labelVerificationStatus === 'verified'
+      rankPosition: row.rank_position == null ? null : Number(row.rank_position),
+      selected: row.selected === true,
+      verifiedEvidenceOnly: label.labelVerificationStatus === 'verified',
+      lineage: {
+        status: row.lineage_status || (row.engagement_id ? 'engaged_no_outcome' : 'unlinked'),
+        engagementId: row.engagement_id,
+        outcomeEventCount: Array.isArray(row.outcome_events) ? row.outcome_events.length : 0,
+        verifiedOutcomeCount: Array.isArray(row.verified_events) ? row.verified_events.length : 0,
+        sourceOutcomeIds: (Array.isArray(row.outcome_events) ? row.outcome_events : []).map((event) => event.id).filter(Boolean)
+      },
+      rawContentIncluded: false
     }
   })
 }
@@ -65,9 +75,25 @@ export async function exportRankingEvaluation({ client, datasetVersion = 'phase3
       di.query_id,
       di.candidate_profile_id,
       di.engagement_id,
+      di.rank_position,
+      di.selected,
       di.observed_at,
       di.baseline_score,
       di.ranking_version,
+      CASE
+        WHEN di.engagement_id IS NULL THEN 'unlinked'
+        WHEN COUNT(o.id) FILTER (WHERE o.verification_status = 'verified') > 0 THEN 'verified_outcome'
+        WHEN COUNT(o.id) FILTER (WHERE o.verification_status = 'unverified') > 0 THEN 'unverified_outcome'
+        WHEN COUNT(o.id) FILTER (WHERE o.verification_status = 'rejected') > 0 THEN 'rejected_outcome'
+        ELSE 'engaged_no_outcome'
+      END AS lineage_status,
+      COALESCE(
+        jsonb_agg(
+          jsonb_build_object('id', o.id, 'event_type', o.event_type, 'verification_status', o.verification_status)
+          ORDER BY o.occurred_at
+        ) FILTER (WHERE o.id IS NOT NULL),
+        '[]'::jsonb
+      ) AS outcome_events,
       COALESCE(
         jsonb_agg(
           jsonb_build_object('id', o.id, 'event_type', o.event_type)
@@ -97,6 +123,15 @@ export async function exportRankingEvaluation({ client, datasetVersion = 'phase3
     exampleCount: examples.length,
     verifiedExampleCount: examples.filter((example) => example.labelVerificationStatus === 'verified').length,
     shadowExampleCount: examples.filter((example) => example.split === 'shadow').length,
+    lineageCoverage: {
+      verifiedOutcomeCount: examples.filter((example) => example.provenance.lineage.status === 'verified_outcome').length,
+      unverifiedOutcomeCount: examples.filter((example) => example.provenance.lineage.status === 'unverified_outcome').length,
+      rejectedOutcomeCount: examples.filter((example) => example.provenance.lineage.status === 'rejected_outcome').length,
+      unlinkedImpressionCount: examples.filter((example) => example.provenance.lineage.status === 'unlinked').length,
+      rawContentIncluded: false
+    },
+    authority: 'verified_outcome_lineage',
+    mutation: 'durable_evaluation_export',
     examples
   }
 }

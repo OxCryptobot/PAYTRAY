@@ -169,6 +169,20 @@ describe('PayTray backend skeleton', () => {
     expect(response.body.error).toContain('Missing required scopes')
   })
 
+  it('fails closed when an operator requests audit or discovery-lineage evidence without a database', async () => {
+    const wallet = new Wallet('0x8cc2cd804c6eea453f0f79fd4e276ca5a69481cf6be1dd3ee0835d3088c9f612')
+    const token = await loginWallet(wallet)
+
+    for (const path of ['/api/v2/ops/audit/events', '/api/v2/ops/discovery/lineage', '/api/v2/ops/verifier/operations']) {
+      const response = await request(app)
+        .get(path)
+        .set('Authorization', `Bearer ${token}`)
+
+      expect(response.status).toBe(502)
+      expect(response.body.error).toContain('Database service error')
+    }
+  })
+
   it('allows intelligence-scoped tokens for intelligence routes and blocks ops routes', async () => {
     const wallet = new Wallet('0x8bb2cd804c6eea453f0f79fd4e276ca5a69481cf6be1dd3ee0835d3088c9f612')
     const challenge = await createChallenge(wallet.address)

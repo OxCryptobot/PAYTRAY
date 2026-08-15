@@ -4,11 +4,12 @@ import { Wallet } from 'ethers'
 import app from '../server.js'
 import config from '../lib/config.js'
 import { closeDatabase, initializeDatabase, transaction } from '../lib/database.js'
+import { parseTokenRegistry } from '../lib/payments/tokenRegistry.js'
 
-const client = new Wallet('0x59c6995e998f97a5a0044966f094538e4c7c9c5a1c1e8f2a4d4e0f3f1f3a7c5d')
-const provider = new Wallet('0x8b3a350cf5c34c9194ca3a545d79f8d8b8d3d1e8e8d0b6d2e6a0d3d4c2d1e9f3')
-const operator = new Wallet('0xc5c45e7048ea387ee2eb7a9cef381fd27a7da3f3ebf4f11fbc87ba66dcf6b31f')
-const tokenAddress = '0x1111111111111111111111111111111111111111'
+const client = Wallet.createRandom()
+const provider = Wallet.createRandom()
+const operator = Wallet.createRandom()
+let tokenAddress = null
 
 async function login(wallet) {
   const challenge = await request(app).post('/api/auth/challenge').send({ wallet: wallet.address, chainId: 84532 })
@@ -23,6 +24,27 @@ async function login(wallet) {
   })
   assert.equal(response.status, 200)
   return response.body.tokens.accessToken
+}
+
+async function cleanupSmokeData() {
+  const wallets = [client.address.toLowerCase(), provider.address.toLowerCase(), operator.address.toLowerCase()]
+  await transaction(async (db) => {
+    const users = await db.query('SELECT id FROM users WHERE wallet_address = ANY($1::varchar[])', [wallets])
+    const userIds = users.rows.map((row) => row.id)
+    if (userIds.length === 0) return
+    await db.query(`DELETE FROM ledger_entries
+      WHERE source_chain_event_id IN (SELECT id FROM payment_chain_events WHERE intent_id IN (SELECT id FROM payment_intents WHERE sender_id = ANY($1::uuid[]) OR recipient_id = ANY($1::uuid[])))
+         OR source_intent_id IN (SELECT id FROM payment_intents WHERE sender_id = ANY($1::uuid[]) OR recipient_id = ANY($1::uuid[]))`, [userIds])
+    await db.query('DELETE FROM payment_chain_events WHERE intent_id IN (SELECT id FROM payment_intents WHERE sender_id = ANY($1::uuid[]) OR recipient_id = ANY($1::uuid[]))', [userIds])
+    await db.query('DELETE FROM payment_streams WHERE sender_id = ANY($1::uuid[]) OR recipient_id = ANY($1::uuid[])', [userIds])
+    await db.query('DELETE FROM payment_intents WHERE sender_id = ANY($1::uuid[]) OR recipient_id = ANY($1::uuid[])', [userIds])
+    await db.query('DELETE FROM engagement_outcome_events WHERE engagement_id IN (SELECT id FROM engagements WHERE client_id = ANY($1::uuid[]) OR provider_id = ANY($1::uuid[]))', [userIds])
+    await db.query('DELETE FROM discovery_impressions WHERE client_id = ANY($1::uuid[]) OR candidate_profile_id IN (SELECT id FROM profiles WHERE user_id = ANY($1::uuid[]))', [userIds])
+    await db.query('DELETE FROM engagements WHERE client_id = ANY($1::uuid[]) OR provider_id = ANY($1::uuid[])', [userIds])
+    await db.query('DELETE FROM profiles WHERE user_id = ANY($1::uuid[])', [userIds])
+    await db.query('DELETE FROM wallet_connections WHERE user_id = ANY($1::uuid[])', [userIds])
+    await db.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds])
+  })
 }
 
 async function ensureProfile() {
@@ -54,8 +76,22 @@ async function ensureProfile() {
   })
 }
 
+let databaseReady = false
 try {
+  if (process.env.SMOKE_DATABASE_ISOLATED !== 'true') {
+    throw new Error('SMOKE_DATABASE_ISOLATED=true is required; the smoke harness refuses non-isolated databases')
+  }
+  if (config.isProd || config.payments.mainnetEnabled || config.payments.settlementChainId !== 84532) {
+    throw new Error('controlled smoke harness requires non-production Base Sepolia with mainnet settlement disabled')
+  }
+  const registry = parseTokenRegistry(config.payments.tokenRegistry)
+  const smokeToken = registry.resolve(84532, process.env.SMOKE_TOKEN_ADDRESS || registry.list({ chainId: 84532, enabledOnly: true })[0]?.address)
+  if (!smokeToken || !smokeToken.enabled) {
+    throw new Error('SMOKE_TOKEN_ADDRESS must resolve to an enabled Base Sepolia token registry entry')
+  }
+  tokenAddress = smokeToken.address
   await initializeDatabase()
+  databaseReady = true
   await ensureProfile()
   const clientToken = await login(client)
   const providerToken = await login(provider)
@@ -180,8 +216,29 @@ try {
     threadId: engagement.body.engagement.thread_id,
     paymentIntentId: intent.body.intent.id,
     verifierResult,
-    outcomeReplay: outcomeReplay.body.idempotentReplay
+    outcomeReplay: outcomeReplay.body.idempotentReplay,
+    smokeBoundary: {
+      isolatedDatabase: true,
+      chainId: config.payments.settlementChainId,
+      mainnetEnabled: config.payments.mainnetEnabled,
+      tokenAddress,
+      chainTransactionSubmitted: false,
+      settlementMutationPerformed: false
+    }
   }, null, 2))
+} catch (error) {
+  console.error(JSON.stringify({
+    status: 'blocked',
+    reason: error.message,
+    authority: 'controlled_smoke_evidence',
+    mutation: 'none',
+    chainTransactionSubmitted: false,
+    settlementMutationPerformed: false
+  }, null, 2))
+  process.exitCode = 1
 } finally {
+  if (databaseReady) {
+    await cleanupSmokeData().catch((error) => console.error(JSON.stringify({ status: 'cleanup_failed', reason: error.message })))
+  }
   await closeDatabase()
 }

@@ -17,7 +17,12 @@ describe('Paytray versioned evaluation export', () => {
       observed_at: '2026-07-15T00:00:00.000Z',
       baseline_score: '91.2',
       ranking_version: 'weighted-explainable-v1',
-      verified_events: [{ id: 'outcome-1', event_type: 'meeting_completed' }]
+              rank_position: 1,
+        selected: true,
+        lineage_status: 'verified_outcome',
+        outcome_events: [{ id: 'outcome-1', event_type: 'meeting_completed', verification_status: 'verified' }],
+        verified_events: [{ id: 'outcome-1', event_type: 'meeting_completed' }]
+
     }, {
       datasetVersion: 'phase3-ranking-v1',
       trainBefore: '2026-07-01',
@@ -30,6 +35,10 @@ describe('Paytray versioned evaluation export', () => {
     expect(example.split).toBe('validation')
     expect(example.sourceEventIds).toEqual(['outcome-1'])
     expect(example.provenance.baselineScore).toBe('91.2')
+    expect(example.provenance.rankPosition).toBe(1)
+    expect(example.provenance.selected).toBe(true)
+    expect(example.provenance.lineage).toMatchObject({ status: 'verified_outcome', engagementId: 'engagement-1', outcomeEventCount: 1, verifiedOutcomeCount: 1, sourceOutcomeIds: ['outcome-1'] })
+    expect(example.provenance.rawContentIncluded).toBe(false)
   })
 
   it('keeps missing verified evidence in shadow instead of inventing a negative label', () => {
@@ -41,6 +50,8 @@ describe('Paytray versioned evaluation export', () => {
       observed_at: '2026-07-15T00:00:00.000Z',
       baseline_score: '80.1',
       ranking_version: 'weighted-explainable-v1',
+      lineage_status: 'unlinked',
+      outcome_events: [],
       verified_events: []
     }, {
       datasetVersion: 'phase3-ranking-v1',

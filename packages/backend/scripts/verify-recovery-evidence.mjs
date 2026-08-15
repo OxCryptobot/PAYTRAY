@@ -27,7 +27,8 @@ const EXPECTED_TABLES = [
   'ai_shadow_decisions',
   'discovery_impressions',
   'production_telemetry_events',
-  'payment_verifier_cursors'
+  'payment_verifier_cursors',
+  'webhook_replay_claims'
 ]
 
 function safeDatabaseLabel(value) {
@@ -89,8 +90,8 @@ async function verifyRestoredDatabase(connectionString) {
     if (missingTables.length > 0) {
       throw new Error(`isolated restore is missing tables: ${missingTables.join(', ')}`)
     }
-    if (actualMigrations.length !== 13) {
-      throw new Error(`isolated restore has ${actualMigrations.length} migrations; expected 13`)
+    if (actualMigrations.length !== 14) {
+      throw new Error(`isolated restore has ${actualMigrations.length} migrations; expected 14`)
     }
     return {
       status: 'verified',

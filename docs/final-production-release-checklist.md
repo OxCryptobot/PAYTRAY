@@ -21,7 +21,7 @@
 | Gate | Required evidence | Owner | Pass condition |
 |---|---|---|---|
 | Railway configuration | Authenticated, redacted environment comparison for database, JWT, HTTPS RPC, protocol contract, token registry, webhook signing, verifier threshold, and mainnet flag | Operator | Target values match the approved release configuration; secrets are never copied into reports. |
-| Database | Migration check through migration 013 plus backup/restore evidence | Database operator | Migrations complete successfully and restoration is verified. |
+| Database | Migration check through migration 014 plus backup/restore evidence | Database operator | Migrations complete successfully and restoration is verified. |
 | Settlement policy | Chain ID, protocol address, token registry, decimals, sender/receiver rules, and confirmation policy | Protocol operator | Base Sepolia remains selected unless a separately approved mainnet change exists. |
 | Verifier | Fresh durable cursor, configured RPC, bounded polling, cursor persistence, and chain-event audit evidence | Protocol operator | Verifier classification is `fresh`; `missing`, `stale`, or `not_configured` blocks release. |
 | Reconciliation | Durable reconciliation report with no unresolved finalized-without-ledger, transaction-evidence, unlinked-event, or projection-lag issues | Finance/operator team | Report status is `ok`; any attention state blocks release until reviewed. |

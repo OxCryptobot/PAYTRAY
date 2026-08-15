@@ -39,31 +39,34 @@ The store must expose claim success, duplicate rejection, store errors, expiry c
 
 ## PostgreSQL pattern
 
-A PostgreSQL consumer can use a dedicated table with a primary key on the replay key:
+PayTray now provides the `webhook_replay_claims` table in migration `014_webhook_replay_claims.sql` and a PostgreSQL adapter in `packages/backend/lib/durableWebhookReplayStore.js`. The table uses a primary key on the replay key and an expiry index:
 
 ```sql
-CREATE TABLE webhook_replay_keys (
-  replay_key TEXT PRIMARY KEY,
-  expires_at TIMESTAMPTZ NOT NULL,
-  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE webhook_replay_claims (
+  replay_key VARCHAR(512) PRIMARY KEY,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX webhook_replay_keys_expiry_index
-  ON webhook_replay_keys (expires_at);
+CREATE INDEX webhook_replay_claims_expiry_index
+  ON webhook_replay_claims (expires_at);
 ```
 
-The claim should use one transaction and database time. The insert must use `ON CONFLICT DO NOTHING RETURNING replay_key`; a returned row means the event was claimed, while no row means it is a duplicate. Expired rows may be deleted in a bounded maintenance job or opportunistically before the insert. The cleanup must never delete an unexpired key.
+The delivered adapter claims a key with an atomic insert-or-expired-row-update. A returned row means the event was claimed; an empty result means another consumer already holds an unexpired claim. The query also prunes expired rows opportunistically. The separate `backend:idempotency:cleanup` command removes expired payment idempotency records in bounded `FOR UPDATE SKIP LOCKED` batches; it does not delete unexpired records or mutate settlement state.
 
 ```sql
-WITH inserted AS (
-  INSERT INTO webhook_replay_keys (replay_key, expires_at)
-  VALUES ($1, CURRENT_TIMESTAMP + ($2::bigint * INTERVAL '1 millisecond'))
-  ON CONFLICT (replay_key) DO NOTHING
+WITH claimed AS (
+  INSERT INTO webhook_replay_claims (replay_key, expires_at)
+  VALUES ($1, $2)
+  ON CONFLICT (replay_key) DO UPDATE
+    SET expires_at = EXCLUDED.expires_at
+    WHERE webhook_replay_claims.expires_at <= $3
   RETURNING replay_key
 )
-SELECT EXISTS (SELECT 1 FROM inserted) AS claimed;
+SELECT replay_key FROM claimed;
 ```
+
+Consumers should call `verifyWebhookSignatureWithReplayClaim` or the concrete `verifyWebhookSignatureWithPostgresReplayStore` adapter so exact-body HMAC and timestamp checks complete before the durable claim. A store error fails closed; no unprotected fallback is permitted.
 
 For high-volume consumers, use a bounded expiry-cleanup job, partitioning, or a retention policy rather than an unbounded table. The unique primary key remains the authoritative duplicate barrier.
 

@@ -16,6 +16,7 @@
     "backend:recovery:check": "node packages/backend/scripts/verify-recovery-evidence.mjs",
     "backend:verifier:operations:check": "node packages/backend/scripts/inspect-verifier-operations.mjs",
     "backend:outbox:health:check": "node packages/backend/scripts/inspect-outbox-health.mjs",
+    "backend:idempotency:cleanup": "node packages/backend/scripts/cleanup-idempotency-records.mjs",
     "backend:advisory:ai:check": "node packages/backend/scripts/inspect-advisory-ai.mjs",
     "backend:ready:postgres:check": "node packages/backend/scripts/verify-ready-postgres-contracts.mjs",
     "backend:token:metadata:check": "node packages/backend/scripts/verify-token-registry-metadata.mjs",

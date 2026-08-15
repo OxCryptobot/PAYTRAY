@@ -179,6 +179,12 @@ The response is always explicit about `authority: durable_outbox_delivery`, `set
 
 `WebhookReplayGuard` is a bounded in-process verifier primitive for development and focused tests. It is not a horizontally scaled production replay store. Consumers operating multiple instances must implement the atomic shared claim contract described in [`webhook-replay-store-integration.md`][11], preserve signature-before-claim ordering, fail closed when the store is unavailable, and use a durable inbox/idempotency record for crash-safe processing.
 
+## `backend:idempotency:cleanup`
+
+Runs bounded expiry housekeeping for durable `idempotency_records` in a PostgreSQL transaction. The command deletes only records with `expires_at <= now`, uses `FOR UPDATE SKIP LOCKED`, and caps each batch at 5,000 rows. It reports `authority: idempotency_housekeeping`, `settlementAuthority: false`, and `settlementMutationPerformed: false`; it cannot create, reverse, or infer payment settlement. Set `IDEMPOTENCY_CLEANUP_BATCH_SIZE` for a smaller bounded batch and use `IDEMPOTENCY_CLEANUP_NOW` only for isolated deterministic verification.
+
+For horizontally scaled webhook consumers, migration `014_webhook_replay_claims` provides the durable `webhook_replay_claims` primary-key barrier and expiry index. `verifyWebhookSignatureWithPostgresReplayStore` performs exact-body HMAC and timestamp verification before an atomic insert-or-expired-row-update claim. Store errors fail closed. The process-local `WebhookReplayGuard` remains suitable for focused tests and single-process development only; it is not the production multi-instance replay store.
+
 ## `GET /api/v2/extensions/contracts`
 
 Returns the versioned BD public extension contract for an `extensions:*` token. The v2 contract enumerates supported event names, allowed projections (`identifiers`, `lifecycle`, `provenance`, `timestamps`, and `metrics`), bounded replay windows, signed/retryable delivery, dead-letter observability, forbidden raw-content keys, and `settlementAuthority: false`.

@@ -16,7 +16,8 @@ describe('Paytray database migrations', () => {
       '010_ledger_intent_idempotency.sql',
       '011_payment_stream_verifier_provenance.sql',
       '012_shadow_run_review.sql',
-      '013_verifier_cursors.sql'
+      '013_verifier_cursors.sql',
+      '014_webhook_replay_claims.sql'
     ])
   })
 
@@ -34,9 +35,9 @@ describe('Paytray database migrations', () => {
 
     const executed = await runMigrations(client)
 
-    expect(executed).toEqual(['002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors'])
+    expect(executed).toEqual(['002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims'])
     const inserts = calls.filter((call) => call.sql.includes('INSERT INTO schema_migrations'))
-    expect(inserts).toHaveLength(12)
+    expect(inserts).toHaveLength(13)
     expect(inserts[0].params).toEqual(['002_financial_core'])
     expect(calls.some((call) => call.sql.includes('CREATE TABLE IF NOT EXISTS payment_intents'))).toBe(true)
   })

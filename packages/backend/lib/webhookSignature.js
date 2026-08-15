@@ -77,6 +77,23 @@ export class WebhookReplayGuard {
   }
 }
 
+export async function verifyWebhookSignatureWithReplayClaim({
+  timestamp,
+  body,
+  signatureHeader,
+  secret,
+  toleranceMs = 300000,
+  nowMs = Date.now(),
+  replayKey,
+  claimReplay
+}) {
+  if (typeof claimReplay !== 'function') throw new WebhookSignatureError('Durable replay claim function is required')
+  const verified = verifyWebhookSignature({ timestamp, body, signatureHeader, secret, toleranceMs, nowMs })
+  const claimed = await claimReplay({ replayKey, expiresAt: verified.timestampMs + toleranceMs, nowMs })
+  if (!claimed || claimed.claimed !== true) throw new WebhookSignatureError('Webhook replay detected')
+  return { ...verified, replayProtected: true, replayStore: claimed.store || 'durable', replayClaimAtomic: claimed.atomic !== false }
+}
+
 export function verifyWebhookSignature({ timestamp, body, signatureHeader, secret, toleranceMs = 300000, nowMs = Date.now(), replayGuard = null, replayKey = null }) {
   const timestampMs = parseTimestamp(timestamp)
   const skewMs = assertTimestampFresh(timestampMs, { nowMs, toleranceMs })

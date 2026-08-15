@@ -169,7 +169,7 @@ RECOVERY_TARGET_ISOLATED=true \
 npm run backend:recovery:check
 ```
 
-The script rejects a restore when the source and restore URLs are identical or when `RECOVERY_TARGET_ISOLATED` is not exactly `true`. It restores with `pg_restore --exit-on-error --no-owner --no-privileges`, then checks all expected public tables and requires exactly 13 rows in `schema_migrations`. A successful result has `status: verified`, `restore.status: verified`, `restore.migrationCount: 13`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`.
+The script rejects a restore when the source and restore URLs are identical or when `RECOVERY_TARGET_ISOLATED` is not exactly `true`. It restores with `pg_restore --exit-on-error --no-owner --no-privileges`, then checks all expected public tables and requires exactly 14 rows in `schema_migrations`. A successful result has `status: verified`, `restore.status: verified`, `restore.migrationCount: 14`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`.
 
 The recovery script’s count check should be followed by the stricter migration/schema verifier against the isolated target:
 

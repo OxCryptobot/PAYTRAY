@@ -113,7 +113,8 @@ export const config = {
   },
   observability: {
     availabilityTargetPct: Number.parseInt(process.env.SLO_AVAILABILITY_TARGET || '99', 10),
-    p95LatencyTargetMs: Number.parseInt(process.env.SLO_P95_LATENCY_TARGET_MS || '800', 10)
+    p95LatencyTargetMs: Number.parseInt(process.env.SLO_P95_LATENCY_TARGET_MS || '800', 10),
+    minSamples: Number.parseInt(process.env.SLO_MIN_SAMPLES || '3', 10)
   },
   logging: {
     level: process.env.LOG_LEVEL || 'info',
@@ -222,6 +223,15 @@ export function validateConfig() {
   }
   if (config.isProd && config.advisoryAi.rawContentPersistence) {
     errors.push('ADVISORY_AI_RAW_CONTENT_PERSISTENCE cannot be enabled in production')
+  }
+  if (!Number.isInteger(config.observability.availabilityTargetPct) || config.observability.availabilityTargetPct < 1 || config.observability.availabilityTargetPct > 100) {
+    errors.push('SLO_AVAILABILITY_TARGET must be an integer between 1 and 100')
+  }
+  if (!Number.isInteger(config.observability.p95LatencyTargetMs) || config.observability.p95LatencyTargetMs < 1 || config.observability.p95LatencyTargetMs > 120000) {
+    errors.push('SLO_P95_LATENCY_TARGET_MS must be an integer between 1 and 120000')
+  }
+  if (!Number.isInteger(config.observability.minSamples) || config.observability.minSamples < 1 || config.observability.minSamples > 1000000) {
+    errors.push('SLO_MIN_SAMPLES must be an integer between 1 and 1000000')
   }
 
   if (config.isProd && config.payments.allowLegacyConfirmations) {

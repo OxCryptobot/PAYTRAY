@@ -34,6 +34,10 @@ This read-only verifier cross-checks the dependency-free `@paytray/sdk` runtime 
 
 This read-only CLI aggregates target-operations configuration, deployment preflight, database readiness, verifier freshness/linkage, reconciliation, durable outbox health, webhook-inbox health, pending shadow-review count, rollback-target evidence, human sign-off evidence, and redacted signing-key presence. It produces named blockers and never includes private key material. Its output always contains `releaseEligible: false`, `settlementAuthority: false`, and `mutation: 'read_only'`; a configuration or evidence-complete report is not a release approval and cannot submit a transaction or promote an AI candidate.
 
+## `GET /api/v2/ops/runtime/health`
+
+This authenticated operator endpoint composes request availability and p95 latency observations with database readiness, collaboration availability, verifier operations, durable outbox health, webhook-inbox health, telemetry status, and configured SLO thresholds. It requires a ready PostgreSQL database, returns `200` only when all observed checks are ready, and may return `503` with named degraded checks while still returning a structured report. Insufficient request samples are explicitly `not ready` rather than being treated as a healthy zero-data result. The report always states `paymentStateAuthority: 'verifier_and_ledger_only'`, `settlementAuthority: false`, `releaseEligible: false`, and `mutation: 'read_only'`. Payment/verifier degradation does not authorize settlement and must not block the collaboration surface itself.
+
 ## `GET /api/v2/ops/audit/events`
 
 Returns durable financial audit events from `financial_audit_events`. The route is paginated, filterable, and read-only. Sensitive metadata keys such as private keys, signatures, authorization headers, JWTs, passwords, and secrets are recursively redacted.

@@ -10,6 +10,7 @@ describe('PayTray payment configuration safety', () => {
     expect(config.webhooks.replayCacheMaxEntries).toBe(10000)
     expect(config.server.trustProxy).toBe(false)
     expect(config.server.requestBodyLimit).toBe('1mb')
+    expect(config.observability.minSamples).toBe(3)
     expect(config.outboxWorker.enabled).toBe(false)
     expect(config.outboxWorker.pollIntervalMs).toBe(5000)
     expect(config.outboxWorker.batchSize).toBe(25)

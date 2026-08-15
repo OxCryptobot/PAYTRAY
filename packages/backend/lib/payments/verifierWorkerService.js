@@ -2,6 +2,7 @@ import { createChainVerifierWorker } from './chainVerifierWorker.js'
 import { createFinancialRepository } from './financialRepository.js'
 import { createProtocolAdapter } from './protocolAdapter.js'
 import { createBaseSepoliaFlowVerifier } from './sablierFlowV3.js'
+import { enqueueOutboxEvent } from '../outboxDeliveryService.js'
 
 export function createDatabaseVerifierWorker({ client, provider, adapter, tokenRegistry, decodeLog, maxBlockRange = 2_000, finalityConfirmations = 10, verifierId = 'verifier-worker' }) {
   if (!client || typeof client.query !== 'function') throw new Error('Database client with query method is required')
@@ -63,11 +64,25 @@ export function createDatabaseVerifierWorker({ client, provider, adapter, tokenR
       JSON.stringify({ verifierId, chainEventId: metadata.chainEvent.id, recovery: metadata.recovery === true, observedAt: metadata.observedAt }),
       stream.id
     ])
-    await client.query(
+    const auditResult = await client.query(
       `INSERT INTO financial_audit_events (actor_type, actor_id, action, entity_type, entity_id, metadata)
-       VALUES ('verifier', $1, 'payment_chain_event_projected', 'payment_stream', $2, $3::jsonb)`,
+       VALUES ('verifier', $1, 'payment_chain_event_projected', 'payment_stream', $2, $3::jsonb)
+       RETURNING id`,
       [verifierId, stream.id, JSON.stringify({ chainEventId: metadata.chainEvent.id, recovery: metadata.recovery === true })]
     )
+    await enqueueOutboxEvent({
+      client,
+      aggregateType: 'payment_stream',
+      aggregateId: stream.id,
+      eventType: 'payment.chain_event.projected',
+      payload: {
+        auditEventId: auditResult.rows[0]?.id || null,
+        chainEventId: metadata.chainEvent.id,
+        streamId: stream.id,
+        recovery: metadata.recovery === true,
+        deliveryAuthority: 'durable_outbox_only'
+      }
+    })
   }
 
   return createChainVerifierWorker({

@@ -76,6 +76,16 @@ export const config = {
     retryBaseDelayMs: Number.parseInt(process.env.WEBHOOK_RETRY_BASE_DELAY_MS || '1000', 10),
     signingSecret: process.env.WEBHOOK_SIGNING_SECRET || null
   },
+  advisoryAi: {
+    enabled: process.env.ADVISORY_AI_ENABLED === 'true',
+    providerName: process.env.ADVISORY_AI_PROVIDER || null,
+    modelName: process.env.ADVISORY_AI_MODEL || null,
+    maxLatencyMs: Number.parseInt(process.env.ADVISORY_AI_MAX_LATENCY_MS || '15000', 10),
+    maxCostMicrounits: Number.parseInt(process.env.ADVISORY_AI_MAX_COST_MICROUNITS || '100000', 10),
+    maxRetrievalItems: Number.parseInt(process.env.ADVISORY_AI_MAX_RETRIEVAL_ITEMS || '20', 10),
+    retentionDays: Number.parseInt(process.env.ADVISORY_AI_RETENTION_DAYS || '30', 10),
+    rawContentPersistence: process.env.ADVISORY_AI_RAW_CONTENT_PERSISTENCE === 'true'
+  },
   observability: {
     availabilityTargetPct: Number.parseInt(process.env.SLO_AVAILABILITY_TARGET || '99', 10),
     p95LatencyTargetMs: Number.parseInt(process.env.SLO_P95_LATENCY_TARGET_MS || '800', 10)
@@ -111,6 +121,22 @@ export function validateConfig() {
 
   if (!Number.isInteger(config.payments.reconciliationLagThresholdMs) || config.payments.reconciliationLagThresholdMs < 1000) {
     errors.push('RECONCILIATION_LAG_THRESHOLD_MS must be an integer of at least 1000 milliseconds')
+  }
+
+  if (!Number.isInteger(config.advisoryAi.maxLatencyMs) || config.advisoryAi.maxLatencyMs < 1 || config.advisoryAi.maxLatencyMs > 60000) {
+    errors.push('ADVISORY_AI_MAX_LATENCY_MS must be an integer between 1 and 60000')
+  }
+  if (!Number.isInteger(config.advisoryAi.maxCostMicrounits) || config.advisoryAi.maxCostMicrounits < 0) {
+    errors.push('ADVISORY_AI_MAX_COST_MICROUNITS must be a non-negative integer')
+  }
+  if (!Number.isInteger(config.advisoryAi.maxRetrievalItems) || config.advisoryAi.maxRetrievalItems < 1 || config.advisoryAi.maxRetrievalItems > 100) {
+    errors.push('ADVISORY_AI_MAX_RETRIEVAL_ITEMS must be an integer between 1 and 100')
+  }
+  if (!Number.isInteger(config.advisoryAi.retentionDays) || config.advisoryAi.retentionDays < 1 || config.advisoryAi.retentionDays > 3650) {
+    errors.push('ADVISORY_AI_RETENTION_DAYS must be an integer between 1 and 3650')
+  }
+  if (config.isProd && config.advisoryAi.rawContentPersistence) {
+    errors.push('ADVISORY_AI_RAW_CONTENT_PERSISTENCE cannot be enabled in production')
   }
 
   if (config.isProd && config.payments.allowLegacyConfirmations) {

@@ -10,7 +10,7 @@
 
 ## 1. Current delivery state
 
-The latest multi-phase tranche is validated and pushed to the remote branch. It adds reproducible recovery evidence, verifier-operations evidence, route-level degraded-database contracts, read-only ERC-20 metadata validation, lineage-backed evaluation export, controlled Base Sepolia smoke guardrails, and versioned API documentation on top of the pushed AR–AT capabilities.
+The latest multi-phase tranche is validated and pushed to the remote branch. It adds reproducible recovery evidence, verifier-operations evidence, route-level degraded-database contracts, read-only ERC-20 metadata validation, lineage-backed evaluation export, controlled Base Sepolia smoke guardrails, versioned API documentation, durable outbox delivery health, and bounded advisory-AI provider/retrieval boundaries on top of the pushed AR–AT capabilities.
 
 | Batch | Capability | State | Evidence |
 |---|---|---|---|
@@ -26,8 +26,10 @@ The latest multi-phase tranche is validated and pushed to the remote branch. It 
 | AZ | Lineage-backed evaluation export coverage | Pushed | `packages/backend/lib/evaluationExport.js` |
 | BC | Controlled Base Sepolia smoke harness with disposable-data and no-chain-mutation guards | Pushed | `packages/backend/scripts/verify-phase2-loop.mjs` |
 | BD | Versioned v2 operations and lineage API documentation | Pushed | `docs/api/v2-operations-and-lineage-contracts.md` |
+| AY | Durable outbox and operator delivery health | Local validated | `packages/backend/lib/outboxDeliveryService.js`; `GET /api/v2/ops/outbox/health` |
+| BA | Bounded advisory-AI provider and retrieval boundary | Local validated | `packages/backend/lib/advisoryAiBoundary.js`; `POST /api/v2/intelligence/advisory` |
 
-The latest validation passed **41 test files and 181 tests**, including AU–BD focused coverage, ESLint, migrations through 013, a disposable isolated PostgreSQL backup/restore returning `verified`, and `git diff --check`. The release manifest is ready and read-only. The production release approval and signed payload remain blocked by genuine environment and human-evidence requirements.
+The latest full validation passed **43 test files and 190 tests**, ESLint, migrations through 013, the disposable isolated recovery check, the read-only outbox health check, the intentionally blocked advisory-AI capability check, and `git diff --check`. The release manifest is ready and read-only. Production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
 
 ## 2. Mandatory release blockers
 
@@ -56,6 +58,8 @@ The sequence below is the master operator checklist. Each step must be completed
 - [ ] Confirm every enabled token has the correct chain, checksum address, protocol contract, symbol, and decimals.
 - [ ] Confirm `PAYMENT_RPC_URL` is HTTPS and points to the approved Base Sepolia provider.
 - [ ] Confirm webhook signing, verifier threshold, JWT, database, and operator scopes.
+- [ ] Confirm durable outbox health reports `status: ok`, with no dead-letter events and bounded retry backlog.
+- [ ] Run `npm run backend:outbox:health:check` and preserve its read-only evidence.
 - [ ] Run `npm run backend:railway:trial:check` and obtain a matched settings result.
 
 ### Database and verifier evidence
@@ -80,6 +84,8 @@ The sequence below is the master operator checklist. Each step must be completed
 - [ ] Verify discovery lineage from impression to engagement to verified outcome using `GET /api/v2/ops/discovery/lineage`.
 - [ ] Verify collaboration-AI provenance, retention, latency, cost, raw-content exclusion, and human override.
 - [ ] Confirm no AI output can mutate payment, ledger, outcome, reputation, or settlement state.
+- [ ] Run `npm run backend:advisory:ai:check` and confirm provider/model budgets, retrieval cap, retention, raw-content exclusion, and `shadow_only` status.
+- [ ] Confirm every advisory-AI provider response is provenance-bound, cost/latency-bounded, human-reviewable, and non-authoritative.
 
 ### Security, platform, and smoke evidence
 
@@ -138,15 +144,15 @@ The items below are the next build sequence. They are deliberately separated fro
 | AV | Verifier operations evidence bundle: cursor freshness, worker health, bounded scan, replay/reorg counters, and operator export | Completed locally | CLI and endpoint are implemented; current local result is blocked `not_configured` until the target RPC worker and fresh cursor exist. |
 | AW | Integration contract tests for `/api/v2/ops/audit/events`, `/api/v2/ops/discovery/lineage`, release approval, and verifier status with a ready PostgreSQL fixture | Completed locally | Scope and degraded-database contracts are covered; ready-PostgreSQL route fixtures remain a follow-up test-environment task. |
 | AX | Read-only on-chain token metadata probe for configured ERC-20 `decimals`, symbol, chain, and contract consistency | Completed locally | Probe and mismatch tests pass; target RPC evidence remains pending. |
-| AY | Durable outbox and operator delivery health for audit/lineage/reconciliation evidence | P1 | Operational events are retry-safe, observable, and dead-lettered without affecting financial authority. |
+| AY | Durable outbox and operator delivery health for audit/lineage/reconciliation evidence | Completed locally | Verifier API and worker projections enqueue durable events; health/event endpoints expose retry, lease, failure, and dead-letter states without financial mutation. |
 | AZ | Discovery evaluation export extension using the new lineage endpoint and verified outcome labels | Completed locally | Export now includes lineage status, ranking position, outcome IDs, coverage counts, and `rawContentIncluded: false`. |
-| BA | Advisory AI provider/retrieval boundary with provenance, cost, latency, and human override | P1 | AI assistance is measurable and bounded; no model output has settlement authority. |
+| BA | Advisory AI provider/retrieval boundary with provenance, cost, latency, and human override | Completed locally | Provider contract, content-free retrieval references, source-event provenance, retention, latency/cost budgets, human review, and no-settlement authority are enforced. |
 | BB | Collaboration provider health/degraded-state surface | P1 | Chat/call UX remains responsive when payment RPC, verifier, or indexer is degraded. |
 | BC | Controlled Base Sepolia smoke harness with zero-live-funds guardrails | Completed locally | Harness refuses non-isolated databases, non-Base-Sepolia policy, missing enabled token registry, and chain mutations; disposable target execution remains operator-run. |
 | BD | Public API and extension contract documentation with versioning and scope matrix | Completed locally | v2 operations, lineage, verifier, recovery, token metadata, and smoke contracts are documented; broader public extension schema work remains. |
 | BE | Multi-chain expansion | Deferred | Only consider after single-chain reliability targets, reconciliation SLOs, and incident rollback evidence are met. |
 
-The safest remaining engineering order is **ready-target evidence for AU/AV/AX/BC → ready-PostgreSQL AW fixtures → AY outbox health → BA provider/retrieval boundaries → BB collaboration health → broader BD public extension schemas**, while **BE remains intentionally deferred**. The user-visible product can advance through discovery, collaboration, and Base Sepolia time-to-money flows without pretending that multi-chain or autonomous AI promotion is production-ready.
+The safest remaining engineering order is **ready-target evidence for AU/AV/AX/BC/AY/BA → ready-PostgreSQL AW fixtures → BB collaboration health → broader BD public extension schemas**, while **BE remains intentionally deferred**. The user-visible product can advance through discovery, collaboration, and Base Sepolia time-to-money flows without pretending that multi-chain or autonomous AI promotion is production-ready.
 
 ## 6. Current release commands
 
@@ -161,6 +167,8 @@ DATABASE_URL="$DATABASE_URL" npm run backend:migrations:check
 npm run backend:deployment:check
 npm run backend:recovery:check
 npm run backend:verifier:operations:check
+npm run backend:outbox:health:check
+npm run backend:advisory:ai:check
 npm run backend:token:metadata:check
 npm run backend:smoke:phase2:check
 npm run backend:railway:trial:check

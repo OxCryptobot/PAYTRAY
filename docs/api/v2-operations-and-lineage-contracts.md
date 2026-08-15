@@ -125,6 +125,38 @@ Returns ranking provenance from discovery impression to engagement and outcome e
 
 `lineageStatus` is one of `unlinked`, `engaged_no_outcome`, `verified_outcome`, `unverified_outcome`, or `rejected_outcome`. A verified outcome is a label candidate for evaluation; it is not an instruction to promote a model or mutate payment state.
 
+## `GET /api/v2/ops/outbox/health`
+
+Returns durable `outbox_events` delivery health and is protected by `ops:*`. The response is `200` with `status: ok` when no dead-letter events exist, or `503` with `status: attention` when the dead count is nonzero. It is read-only and never changes payment, ledger, or settlement state.
+
+```json
+{
+  "success": false,
+  "health": {
+    "status": "attention",
+    "total": 12,
+    "processed": 8,
+    "pending": 1,
+    "leased": 1,
+    "failed": 1,
+    "dead": 1,
+    "due": 2,
+    "deliverySuccessRate": 0.666667,
+    "retryableCount": 3,
+    "authority": "durable_outbox_delivery_health",
+    "mutation": "read_only",
+    "deploymentPerformed": false,
+    "settlementMutationPerformed": false
+  }
+}
+```
+
+## `GET /api/v2/ops/outbox/events`
+
+Returns bounded, paginated, filterable outbox evidence. Supported status filters are `processed`, `pending`, `leased`, `failed`, and `dead`. Payload bodies are not returned; the response contains payload SHA-256 fingerprints and top-level payload keys to prevent sensitive event content from becoming an operator export.
+
+The durable outbox is written in the same transaction as verifier-owned financial audit projection for API-ingested and worker-ingested chain events. Delivery failure is retryable with bounded backoff; reaching the configured attempt limit classifies an event as dead-letter attention. A delivery attempt cannot establish settlement.
+
 ## `GET /api/v2/ops/verifier/operations`
 
 Returns the same composed verifier-operations evidence as the CLI, protected by `ops:*`. It responds `200` only when the verifier is fresh, reconciliation is clean, and all chain evidence is linked. It responds `503` with a structured blocked evidence object for stale, missing, not-configured, or reconciliation-attention states.
@@ -143,6 +175,20 @@ The AV command composes verifier observability, durable reconciliation, and veri
   "settlementMutationPerformed": false
 }
 ```
+
+## `GET /api/v2/intelligence/advisory/capabilities`
+
+Returns the BA advisory-AI boundary configuration for an `intelligence:*` token. It reports provider/model configuration, maximum latency, maximum cost, retrieval cap, retention period, raw-content policy, human-review requirement, and authority flags. It never returns a prompt, message, transcript, raw retrieval content, or secret.
+
+## `POST /api/v2/intelligence/advisory`
+
+Accepts only structured, content-free subject features, bounded retrieval references, and explicit source event IDs. The provider adapter must implement `complete(input)` and return `{ output, costMicrounits }`. The route returns `503` when AI is disabled, the provider/model is not configured, the provider times out, or its cost exceeds the configured budget. Input boundary violations return `400`.
+
+Every successful result has `promotionStatus: shadow_only`, `humanOverrideRequired: true`, `applied: false`, `settlementAuthority: false`, `rawContentPersisted: false`, and `mutation: read_only`. The result is advisory evidence and cannot change ranking, payment state, ledger state, reputation, dispute state, or settlement.
+
+## `backend:advisory:ai:check`
+
+The BA capability check exits `0` only when advisory AI is enabled, a provider and model are configured, and raw-content persistence is disabled. The safe default is `blocked` because no provider is configured in development.
 
 ## `backend:token:metadata:check`
 
@@ -184,10 +230,12 @@ The controlled smoke harness is `backend:smoke:phase2:check`. It refuses to run 
 
 ## References
 
-[1]: https://github.com/OxCryptobot/PAYTRAY/blob/cb4e0ac46e75a8f7e9fa702d7181256a996b75fd/packages/backend/lib/auditLogService.js Financial audit service
+[1]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/auditLogService.js Financial audit service
 
-[2]: https://github.com/OxCryptobot/PAYTRAY/blob/cb4e0ac46e75a8f7e9fa702d7181256a996b75fd/packages/backend/lib/discoveryLineageService.js Discovery lineage service
+[2]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/discoveryLineageService.js Discovery lineage service
 
-[3]: https://github.com/OxCryptobot/PAYTRAY/blob/cb4e0ac46e75a8f7e9fa702d7181256a996b75fd/packages/backend/scripts/verify-phase2-loop.mjs Controlled no-live-funds smoke harness
+[3]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/scripts/verify-phase2-loop.mjs Controlled no-live-funds smoke harness
 
-[4]: https://github.com/OxCryptobot/PAYTRAY/blob/cb4e0ac46e75a8f7e9fa702d7181256a996b75fd/packages/backend/lib/payments/paymentApiService.js Durable payment-intent contract
+[4]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/payments/paymentApiService.js Durable payment-intent contract
+[5]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/outboxDeliveryService.js Durable outbox delivery service
+[6]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/advisoryAiBoundary.js Advisory-AI boundary

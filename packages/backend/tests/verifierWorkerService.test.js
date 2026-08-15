@@ -39,6 +39,7 @@ describe('database verifier worker service', () => {
         if (sql.includes('INSERT INTO payment_chain_events')) return { rows: [{ id: 'event-1', finality_status: 'included' }] }
         if (sql.includes('UPDATE payment_streams')) return { rows: [{ id: stream.id }] }
         if (sql.includes('INSERT INTO financial_audit_events')) return { rows: [{ id: 'audit-1' }] }
+        if (sql.includes('INSERT INTO outbox_events')) return { rows: [{ id: 'outbox-1', aggregate_type: 'payment_stream', aggregate_id: stream.id, event_type: 'payment.chain_event.projected', payload: {}, correlation_id: null, occurred_at: new Date().toISOString(), available_at: new Date().toISOString(), processed_at: null, attempts: 0, last_error: null }] }
         if (sql.includes('INSERT INTO payment_verifier_cursors')) return { rows: [{ chain_id: 84532, last_scanned_block: 101 }] }
         throw new Error(`Unexpected query: ${sql}`)
       }

@@ -50,6 +50,8 @@ import { getFinancialSummary, getVerifierObservability } from './lib/verifierObs
 import { listFinancialAuditEvents } from './lib/auditLogService.js'
 import { listDiscoveryOutcomeLineage } from './lib/discoveryLineageService.js'
 import { buildVerifierOperationsEvidence } from './lib/verifierOperationsEvidence.js'
+import { getOutboxHealth, listOutboxEvents } from './lib/outboxDeliveryService.js'
+import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory } from './lib/advisoryAiBoundary.js'
 import { assertLegacyPaymentMutationAllowed } from './lib/payments/legacyPaymentPolicy.js'
 import {
   generateServiceToken,
@@ -64,6 +66,7 @@ dotenv.config({ path: '.env.local' })
 
 const logger = getLogger('Server')
 const app = express()
+app.locals.advisoryAiProvider = null
 const profiles = new Map()
 const paymentStreams = new Map()
 const calls = new Map()
@@ -1975,6 +1978,57 @@ app.get('/api/v2/ops/verifier/status', authenticateToken, requireScopes('ops:*')
     }
     const status = await transaction((client) => getVerifierObservability({ client, config }))
     res.json({ success: true, status })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/intelligence/advisory/capabilities', authenticateToken, requireScopes('intelligence:*'), (req, res) => {
+  res.json({ success: true, capabilities: getAdvisoryAiCapabilities({ config }) })
+})
+
+app.post('/api/v2/intelligence/advisory', authenticateToken, requireScopes('intelligence:*'), async (req, res, next) => {
+  try {
+    const request = createAdvisoryAiRequest({
+      taskType: req.body.taskType,
+      subject: req.body.subject,
+      retrievalItems: req.body.retrievalItems,
+      provenance: req.body.provenance,
+      config
+    })
+    const result = await runBoundedAdvisory({ provider: app.locals.advisoryAiProvider, request, config })
+    res.status(result.status === 'advisory' ? 200 : 503).json({ success: result.status === 'advisory', result })
+  } catch (error) {
+    if (error?.name === 'AdvisoryAiBoundaryError') return next(new ValidationError(error.message))
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/outbox/health', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'outbox health requires a ready PostgreSQL database')
+    }
+    const health = await transaction((client) => getOutboxHealth({ client, maxAttempts: config.webhooks.maxAttempts }))
+    res.status(health.status === 'ok' ? 200 : 503).json({ success: health.status === 'ok', health })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/v2/ops/outbox/events', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'outbox event inspection requires a ready PostgreSQL database')
+    }
+    const events = await transaction((client) => listOutboxEvents({
+      client,
+      limit: req.query.limit,
+      offset: req.query.offset,
+      status: req.query.status || null,
+      maxAttempts: config.webhooks.maxAttempts
+    }))
+    res.json({ success: true, authority: 'durable_outbox_delivery_health', mutation: 'read_only', events })
   } catch (error) {
     next(error)
   }

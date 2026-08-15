@@ -173,7 +173,7 @@ describe('PayTray backend skeleton', () => {
     const wallet = new Wallet('0x8cc2cd804c6eea453f0f79fd4e276ca5a69481cf6be1dd3ee0835d3088c9f612')
     const token = await loginWallet(wallet)
 
-    for (const path of ['/api/v2/ops/audit/events', '/api/v2/ops/discovery/lineage', '/api/v2/ops/verifier/operations']) {
+    for (const path of ['/api/v2/ops/audit/events', '/api/v2/ops/discovery/lineage', '/api/v2/ops/verifier/operations', '/api/v2/ops/outbox/health', '/api/v2/ops/outbox/events']) {
       const response = await request(app)
         .get(path)
         .set('Authorization', `Bearer ${token}`)
@@ -181,6 +181,39 @@ describe('PayTray backend skeleton', () => {
       expect(response.status).toBe(502)
       expect(response.body.error).toContain('Database service error')
     }
+  })
+
+  it('exposes bounded advisory-AI capabilities and blocks invocation without a configured provider', async () => {
+    const wallet = new Wallet('0x7bb2cd804c6eea453f0f79fd4e276ca5a69481cf6be1dd3ee0835d3088c9f612')
+    const token = await loginWallet(wallet, { scopes: ['intelligence:*'] })
+
+    const capabilities = await request(app)
+      .get('/api/v2/intelligence/advisory/capabilities')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(capabilities.status).toBe(200)
+    expect(capabilities.body.capabilities).toMatchObject({ humanReviewRequired: true, promotionStatus: 'shadow_only', settlementAuthority: false, rawContentPersistence: false, mutation: 'read_only' })
+
+    const blocked = await request(app)
+      .post('/api/v2/intelligence/advisory')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        taskType: 'conversation_assistance',
+        subject: { engagementId: 'engagement-1', features: { urgency: 0.5 } },
+        retrievalItems: [{ id: 'evidence-1', sourceType: 'verified_outcome', sourceId: 'outcome-1', score: 0.9 }],
+        provenance: { sourceEventIds: ['outcome-1'] }
+      })
+
+    expect(blocked.status).toBe(503)
+    expect(blocked.body.result.promotionStatus).toBe('shadow_only')
+    expect(blocked.body.result.settlementAuthority).toBe(false)
+
+    const rawContent = await request(app)
+      .post('/api/v2/intelligence/advisory')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ taskType: 'conversation_assistance', subject: { message: 'raw content' }, provenance: { sourceEventIds: ['event-1'] } })
+
+    expect(rawContent.status).toBe(400)
   })
 
   it('allows intelligence-scoped tokens for intelligence routes and blocks ops routes', async () => {

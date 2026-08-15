@@ -2,6 +2,7 @@ import { createChainEventProcessor } from './chainEventProcessor.js'
 import { createFinancialRepository } from './financialRepository.js'
 import { createProtocolAdapter } from './protocolAdapter.js'
 import { NotFoundError, ValidationError } from '../errors.js'
+import { enqueueOutboxEvent } from '../outboxDeliveryService.js'
 
 function toStream(row) {
   return {
@@ -134,10 +135,26 @@ export async function processVerifiedChainEvent({ client, config, tokenRegistry,
   })
 
   const result = await processor.process({ stream, event, intentId, correlationId: null })
-  await client.query(
+  const auditResult = await client.query(
     `INSERT INTO financial_audit_events (actor_type, actor_id, action, entity_type, entity_id, metadata)
-     VALUES ('verifier', $1, $2, 'payment_stream', $3, $4::jsonb)`,
+     VALUES ('verifier', $1, $2, 'payment_stream', $3, $4::jsonb)
+     RETURNING id`,
     [String(verifierId), result.idempotentReplay ? 'payment_chain_event_replayed' : 'payment_chain_event_projected', stream.id, JSON.stringify({ chainEventId: result.chainEvent?.id || null, projected: result.projected, finalityStatus: event.finalityStatus })]
   )
+  await enqueueOutboxEvent({
+    client,
+    aggregateType: 'payment_stream',
+    aggregateId: stream.id,
+    eventType: result.idempotentReplay ? 'payment.chain_event.replayed' : 'payment.chain_event.projected',
+    correlationId: result.chainEvent?.correlation_id || null,
+    payload: {
+      auditEventId: auditResult.rows[0]?.id || null,
+      chainEventId: result.chainEvent?.id || null,
+      streamId: stream.id,
+      finalityStatus: event.finalityStatus,
+      projected: result.projected === true,
+      deliveryAuthority: 'durable_outbox_only'
+    }
+  })
   return result
 }

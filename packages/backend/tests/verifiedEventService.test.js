@@ -59,6 +59,7 @@ describe('verifier-owned chain event service', () => {
         if (sql.includes('INSERT INTO payment_chain_events')) return { rows: [{ id: 'chain-event-1', finality_status: 'included' }] }
         if (sql.includes('UPDATE payment_streams')) return { rows: [{ id: streamRow().id }] }
         if (sql.includes('INSERT INTO financial_audit_events')) return { rows: [{ id: 'audit-1' }] }
+        if (sql.includes('INSERT INTO outbox_events')) return { rows: [{ id: 'outbox-1', aggregate_type: 'payment_stream', aggregate_id: streamRow().id, event_type: 'payment.chain_event.projected', payload: {}, correlation_id: null, occurred_at: new Date().toISOString(), available_at: new Date().toISOString(), processed_at: null, attempts: 0, last_error: null }] }
         throw new Error(`Unexpected query: ${sql}`)
       }
     }
@@ -87,6 +88,7 @@ describe('verifier-owned chain event service', () => {
         if (sql.includes('INSERT INTO payment_chain_events')) return { rows: [{ id: 'chain-event-2', finality_status: 'included' }] }
         if (sql.includes('UPDATE payment_streams')) return { rows: [{ id: provisionedRow.id }] }
         if (sql.includes('INSERT INTO financial_audit_events')) return { rows: [{ id: 'audit-2' }] }
+        if (sql.includes('INSERT INTO outbox_events')) return { rows: [{ id: 'outbox-2', aggregate_type: 'payment_stream', aggregate_id: provisionedRow.id, event_type: 'payment.chain_event.projected', payload: {}, correlation_id: null, occurred_at: new Date().toISOString(), available_at: new Date().toISOString(), processed_at: null, attempts: 0, last_error: null }] }
         throw new Error(`Unexpected query: ${sql}`)
       }
     }

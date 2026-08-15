@@ -65,10 +65,24 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
       - name: Run operations-quality matrix
-        run: npm run backend:operations:quality:check
+        run: |
+          mkdir -p artifacts
+          set +e
+          node packages/backend/scripts/verify-operations-quality.mjs > artifacts/operations-quality.json
+          status=$?
+          cat artifacts/operations-quality.json
+          exit $status
         env:
           DATABASE_URL: ''
           OPERATIONS_QUALITY_STRICT: 'false'
+      - name: Upload operations-quality evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operations-quality-${{ github.run_id }}
+          path: artifacts/operations-quality.json
+          if-no-files-found: error
+          retention-days: 7
 
   postgres-contract:
     name: Isolated PostgreSQL route contract

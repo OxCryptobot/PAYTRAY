@@ -86,6 +86,11 @@ export const config = {
     timeoutMs: Number.parseInt(process.env.OUTBOX_WORKER_TIMEOUT_MS || process.env.WEBHOOK_TIMEOUT_MS || '2500', 10),
     maxIdlePolls: Number.parseInt(process.env.OUTBOX_WORKER_MAX_IDLE_POLLS || '0', 10)
   },
+  housekeeping: {
+    idempotencyCleanupEnabled: process.env.IDEMPOTENCY_CLEANUP_ENABLED === 'true',
+    idempotencyCleanupBatchSize: Number.parseInt(process.env.IDEMPOTENCY_CLEANUP_BATCH_SIZE || '500', 10),
+    idempotencyCleanupIntervalMs: Number.parseInt(process.env.IDEMPOTENCY_CLEANUP_INTERVAL_MS || '900000', 10)
+  },
   advisoryAi: {
     enabled: process.env.ADVISORY_AI_ENABLED === 'true',
     providerName: process.env.ADVISORY_AI_PROVIDER || null,
@@ -145,6 +150,16 @@ export function validateConfig() {
   }
   if (config.isProd && config.outboxWorker.enabled && !config.webhooks.signingSecret) {
     errors.push('WEBHOOK_SIGNING_SECRET is required when OUTBOX_WORKER_ENABLED=true in production')
+  }
+
+  if (!Number.isInteger(config.housekeeping.idempotencyCleanupBatchSize) || config.housekeeping.idempotencyCleanupBatchSize < 1 || config.housekeeping.idempotencyCleanupBatchSize > 5000) {
+    errors.push('IDEMPOTENCY_CLEANUP_BATCH_SIZE must be an integer between 1 and 5000')
+  }
+  if (!Number.isInteger(config.housekeeping.idempotencyCleanupIntervalMs) || config.housekeeping.idempotencyCleanupIntervalMs < 60000 || config.housekeeping.idempotencyCleanupIntervalMs > 86400000) {
+    errors.push('IDEMPOTENCY_CLEANUP_INTERVAL_MS must be an integer between 60000 and 86400000 milliseconds')
+  }
+  if (config.isProd && config.housekeeping.idempotencyCleanupEnabled && !config.database.url) {
+    errors.push('DATABASE_URL is required when IDEMPOTENCY_CLEANUP_ENABLED=true in production')
   }
 
   if (!Number.isInteger(config.payments.finalityConfirmations) || config.payments.finalityConfirmations < 1) {

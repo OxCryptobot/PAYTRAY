@@ -17,6 +17,8 @@
     "backend:verifier:operations:check": "node packages/backend/scripts/inspect-verifier-operations.mjs",
     "backend:outbox:health:check": "node packages/backend/scripts/inspect-outbox-health.mjs",
     "backend:idempotency:cleanup": "node packages/backend/scripts/cleanup-idempotency-records.mjs",
+    "backend:idempotency:cleanup:run": "node packages/backend/scripts/run-idempotency-cleanup.mjs",
+    "backend:idempotency:cleanup:check": "node packages/backend/scripts/verify-idempotency-cleanup-config.mjs",
     "backend:outbox:worker": "node packages/backend/scripts/run-outbox-worker.mjs",
     "backend:outbox:worker:check": "node packages/backend/scripts/verify-outbox-worker-config.mjs",
     "backend:extension:contract:check": "node packages/backend/scripts/verify-extension-contract.mjs",

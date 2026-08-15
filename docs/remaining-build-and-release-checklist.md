@@ -4,7 +4,7 @@
 
 **Branch:** `paytray/batch-delivery`
 
-**Current pushed commit:** `5470dc1ab2ec6fd4506bb5afa4e701e953194b9e`
+**Current pushed commit:** `6465f31086e37263208ca2ec6f3794c8c958f8a4`
 
 **Safety boundary:** Base Sepolia (`84532`) remains the safe settlement default. The verifier and ledger remain the economic authority. AI remains `shadow_only`. No live funds, mainnet transaction, production deployment, real user-data migration, fabricated approval, or fabricated signing key is authorized by this checklist.
 
@@ -26,8 +26,8 @@ The latest multi-phase tranche is validated and pushed to the remote branch. It 
 | AZ | Lineage-backed evaluation export coverage | Pushed | `packages/backend/lib/evaluationExport.js` |
 | BC | Controlled Base Sepolia smoke harness with disposable-data and no-chain-mutation guards | Pushed | `packages/backend/scripts/verify-phase2-loop.mjs` |
 | BD | Versioned v2 operations and lineage API documentation | Pushed | `docs/api/v2-operations-and-lineage-contracts.md` |
-| AY | Durable outbox and operator delivery health | Local validated | `packages/backend/lib/outboxDeliveryService.js`; `GET /api/v2/ops/outbox/health` |
-| BA | Bounded advisory-AI provider and retrieval boundary | Local validated | `packages/backend/lib/advisoryAiBoundary.js`; `POST /api/v2/intelligence/advisory` |
+| AY | Durable outbox and operator delivery health | Pushed | `packages/backend/lib/outboxDeliveryService.js`; `GET /api/v2/ops/outbox/health` |
+| BA | Bounded advisory-AI provider and retrieval boundary | Pushed | `packages/backend/lib/advisoryAiBoundary.js`; `POST /api/v2/intelligence/advisory` |
 
 The latest full validation passed **43 test files and 190 tests**, ESLint, migrations through 013, the disposable isolated recovery check, the read-only outbox health check, the intentionally blocked advisory-AI capability check, and `git diff --check`. The release manifest is ready and read-only. Production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
 

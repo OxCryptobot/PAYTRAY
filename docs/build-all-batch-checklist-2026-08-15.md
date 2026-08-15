@@ -27,7 +27,8 @@
 | CH | CI operations-quality enforcement | Pushed | `5635f81`; added a separate GitHub Actions `operations-quality` job using Node 22 and locked dependencies; normal mode exits `0` with expected `operator_blocked` evidence and fails on unexpected check failures. |
 | CI | Read-only operator health dashboard | Pushed | `df31945`; added authenticated `GET /api/v2/ops/health/dashboard`, aggregating runtime, outbox, webhook inbox, verifier, and unified evidence components; isolated ready-PostgreSQL verification returned `status: verified` with dashboard safety metadata intact. |
 | CK | Durable operations-quality audit trail | Pushed | `d105cf1`; added migration `018_operations_quality_runs`, redacted canonical report hashing, best-effort CLI persistence, bounded read-only `GET /api/v2/ops/operations-quality/runs`, and isolated route/migration coverage. |
-| CL | Detailed operations-quality audit lookup | Validated locally | Added UUID-validated `GET /api/v2/ops/operations-quality/runs/:runId`, persisted redacted report retrieval, 404 behavior for missing runs, and ready-PostgreSQL detail-route coverage. |
+| CL | Detailed operations-quality audit lookup | Pushed | `6c4c64e`; added UUID-validated `GET /api/v2/ops/operations-quality/runs/:runId`, persisted redacted report retrieval, 404 behavior for missing runs, and ready-PostgreSQL detail-route coverage. |
+| CM | Canonical operator evidence-bundle export | Validated locally | Added `GET /api/v2/ops/evidence/bundle` and `backend:ops:evidence:bundle:check`, composing release, reconciliation, and operations-quality history into a deterministic SHA-256 bundle; incomplete evidence remains fail-closed at `503`/exit `1`. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work
@@ -56,7 +57,7 @@ These gates cannot be completed by code changes alone and must remain pending un
 
 ## Latest validation evidence
 
-The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL tranche passed **65 test files and 268 tests**, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
+The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL/CM tranche passed **65 test files and 270 tests**, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
 
 ## Standard execution order
 

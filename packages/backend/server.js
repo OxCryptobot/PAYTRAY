@@ -60,6 +60,7 @@ import { buildCollaborationHealth } from './lib/collaborationHealth.js'
 import { buildRuntimeHealthReport } from './lib/runtimeHealthService.js'
 import { buildOperatorHealthDashboard } from './lib/operatorHealthDashboard.js'
 import { getOperationsQualityRun, listOperationsQualityRuns } from './lib/operationsQualityAuditService.js'
+import { buildOperatorEvidenceBundle } from './lib/operatorEvidenceBundleService.js'
 import { collectReleaseEvidence, collectReconciliationEvidence, buildUnifiedOperatorEvidence } from './lib/releaseEvidenceService.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
 import { getExtensionOpenApiDocument } from './lib/extensionOpenApi.js'
@@ -2301,6 +2302,22 @@ app.get('/api/v2/ops/health/dashboard', authenticateToken, requireScopes('ops:*'
       })
     })
     res.status(dashboard.status === 'ok' ? 200 : 503).json({ success: dashboard.status === 'ok', dashboard })
+  } catch (error) {
+    next(error)
+  }
+})
+app.get('/api/v2/ops/evidence/bundle', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'operator evidence bundle requires a ready PostgreSQL database')
+    }
+    const bundle = await transaction(async (client) => {
+      const releaseEvidence = await collectReleaseEvidence({ client, config })
+      const reconciliationEvidence = await collectReconciliationEvidence({ client, config })
+      const operationsQualityRuns = await listOperationsQualityRuns({ client, limit: 20 })
+      return buildOperatorEvidenceBundle({ releaseEvidence, reconciliationEvidence, operationsQualityRuns })
+    })
+    res.status(bundle.status === 'complete_pending_release_gate' ? 200 : 503).json({ success: bundle.status === 'complete_pending_release_gate', bundle })
   } catch (error) {
     next(error)
   }

@@ -37,9 +37,9 @@
 | CS | CI unit-job database isolation | Validated locally | The unit quality job now runs with `DATABASE_URL: ''`, matching the no-database test contract and preventing CI’s global PostgreSQL service variable from forcing collaboration-health tests into the wrong failure mode. |
 | CT | Automated backup and isolated recovery validation | Validated locally | Added a PostgreSQL 16 CI job that creates a disposable custom-format backup, restores into a separate database, requires migration 018, verifies ready-PostgreSQL contracts, and uploads only redacted summaries plus SHA-256 evidence. |
 | CU | CI recovery source-schema initialization | Pushed | `38e0a8b`; the recovery job initializes the migration-018 source schema before backup, preventing empty-service-database failures while keeping restore evidence isolated and non-deploying. |
-| CV | Release-gate operations-quality integration | Validated locally | `backend:operations:quality:check` now includes `backend:release:gates:check` as an expected operator-blocked check; normal mode reports 10 checks, 7 expected blockers, and 0 unexpected failures. |
-| CX | Latest durable release-gate operator endpoint | Validated locally | Added authenticated read-only `GET /api/v2/ops/release-gates/latest`, selecting only `reportKind: release_gates` audit rows and returning structured `503` when no durable run exists. |
-| CY | Release-gate and evidence workflow documentation | Validated locally | Updated the v2 operations contract and batch documentation with durable release-gate provenance, endpoint semantics, and the non-releaseable operator evidence boundary. |
+| CV | Release-gate operations-quality integration | Pushed | `5ae2a26`; `backend:operations:quality:check` now includes `backend:release:gates:check` as an expected operator-blocked check; normal mode reports 10 checks, 7 expected blockers, and 0 unexpected failures. |
+| CX | Latest durable release-gate operator endpoint | Pushed | `5ae2a26`; added authenticated read-only `GET /api/v2/ops/release-gates/latest`, selecting only `reportKind: release_gates` audit rows and returning structured `503` when no durable run exists. |
+| CY | Release-gate and evidence workflow documentation | Pushed | `5ae2a26`; updated the v2 operations contract and batch documentation with durable release-gate provenance, endpoint semantics, and the non-releaseable operator evidence boundary. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work
@@ -68,7 +68,7 @@ These gates cannot be completed by code changes alone and must remain pending un
 
 ## Latest validation evidence
 
-The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL/CM/CP/CQ/CR/CS/CT/CU/CV/CX/CY tranche passed **66 test files and 272 tests**, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
+The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL/CM/CP/CQ/CR/CS/CT/CU/CV/CX/CY tranche passed **66 test files and 272 tests**, and remote workflow `31895570832` completed with all five jobs successful, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
 
 ## Standard execution order
 

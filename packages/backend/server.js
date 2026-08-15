@@ -58,6 +58,7 @@ import { processDurableOutbox } from './lib/outboxProcessorService.js'
 import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory } from './lib/advisoryAiBoundary.js'
 import { buildCollaborationHealth } from './lib/collaborationHealth.js'
 import { buildRuntimeHealthReport } from './lib/runtimeHealthService.js'
+import { buildOperatorHealthDashboard } from './lib/operatorHealthDashboard.js'
 import { collectReleaseEvidence, collectReconciliationEvidence, buildUnifiedOperatorEvidence } from './lib/releaseEvidenceService.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
 import { getExtensionOpenApiDocument } from './lib/extensionOpenApi.js'
@@ -2245,6 +2246,60 @@ app.get('/api/v2/ops/runtime/health', authenticateToken, requireScopes('ops:*'),
       })
     })
     res.status(report.status === 'ok' ? 200 : 503).json({ success: report.status === 'ok', report })
+  } catch (error) {
+    next(error)
+  }
+})
+app.get('/api/v2/ops/health/dashboard', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'operator health dashboard requires a ready PostgreSQL database')
+    }
+    const dashboard = await transaction(async (client) => {
+      const readiness = buildReadinessReport({
+        env: config.env,
+        databaseStatus: getDatabaseStatus(),
+        protocol: config.payments.protocol,
+        protocolContractAddress: config.payments.protocolContractAddress,
+        enabledTokenCount: paymentTokenRegistry.list({ enabledOnly: true }).length,
+        verifierWorkerStatus: config.verifierWorker.enabled ? 'configured' : 'not_configured'
+      })
+      const verifierOperations = await buildVerifierOperationsEvidence({ client, config })
+      const outboxHealth = await getOutboxHealth({ client, maxAttempts: config.webhooks.maxAttempts })
+      const webhookInboxHealth = await getWebhookInboxHealth({ client })
+      const telemetryHealth = await getTelemetryHealth({ client })
+      const collaboration = buildCollaborationHealth({
+        env: config.env,
+        databaseStatus: getDatabaseStatus(),
+        livekitStatus: config.livekit.apiKey && config.livekit.apiSecret ? 'ready' : 'not_configured',
+        sessionAuthStatus: config.jwt.secret ? 'ready' : 'error',
+        paymentRpcStatus: config.payments.rpcUrl ? 'ready' : 'not_configured',
+        verifierStatus: verifierOperations.verifier?.verifierStatus?.status || 'not_configured',
+        indexerStatus: 'not_configured'
+      })
+      const runtimeHealth = buildRuntimeHealthReport({
+        requestMetrics,
+        readiness,
+        collaboration,
+        verifierOperations,
+        outboxHealth,
+        webhookInboxHealth,
+        telemetryHealth,
+        databaseStatus: getDatabaseStatus(),
+        observability: config.observability
+      })
+      const releaseEvidence = await collectReleaseEvidence({ client, config })
+      const reconciliationEvidence = await collectReconciliationEvidence({ client, config })
+      const unifiedEvidence = buildUnifiedOperatorEvidence({ releaseEvidence, reconciliationEvidence })
+      return buildOperatorHealthDashboard({
+        runtimeHealth,
+        outboxHealth,
+        webhookInboxHealth,
+        verifierOperations,
+        unifiedEvidence
+      })
+    })
+    res.status(dashboard.status === 'ok' ? 200 : 503).json({ success: dashboard.status === 'ok', dashboard })
   } catch (error) {
     next(error)
   }

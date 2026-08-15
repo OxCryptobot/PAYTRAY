@@ -2,6 +2,19 @@ function check(name, ready, reason, evidence = null) {
   return { name, ready: Boolean(ready), reason, evidence }
 }
 
+function validateHumanApproval(humanApproval) {
+  const validTimestamp = typeof humanApproval?.approvedAt === 'string' && !Number.isNaN(Date.parse(humanApproval.approvedAt))
+  const validReviewer = typeof humanApproval?.reviewerId === 'string' && humanApproval.reviewerId.trim().length > 0
+  const validScope = humanApproval?.scope === 'production_release'
+  const validRollbackAcknowledgement = humanApproval?.rollbackAcknowledged === true
+  const ready = humanApproval?.approved === true && validReviewer && validTimestamp && validScope && validRollbackAcknowledgement
+  return {
+    ready,
+    reason: ready ? 'complete explicit human release approval recorded' : 'approval requires reviewer, timestamp, production-release scope, and rollback acknowledgement',
+    evidence: humanApproval || null
+  }
+}
+
 export function buildReleaseApprovalArtifact({ deploymentPreflight, readiness, reconciliation, verifierStatus, pendingShadowReviews = 0, rollbackTargets = 0, humanApproval = null }) {
   const checks = [
     check('deploymentPreflight', deploymentPreflight?.ready, deploymentPreflight?.ready ? 'deployment configuration preflight passed' : 'deployment configuration preflight requires attention', deploymentPreflight?.checks || null),
@@ -11,7 +24,7 @@ export function buildReleaseApprovalArtifact({ deploymentPreflight, readiness, r
     check('shadowReview', Number(pendingShadowReviews) === 0, Number(pendingShadowReviews) === 0 ? 'no pending shadow reviews' : 'pending shadow reviews remain', { pendingShadowReviews: Number(pendingShadowReviews) }),
     check('rollbackTarget', Number(rollbackTargets) > 0, Number(rollbackTargets) > 0 ? 'rollback target evidence present' : 'rollback target evidence missing', { rollbackTargets: Number(rollbackTargets) }),
     check('mainnetPolicy', deploymentPreflight?.settlement?.chainId !== 8453 || deploymentPreflight?.settlement?.mainnetEnabled === true, 'mainnet policy must be explicit when Base mainnet is selected', deploymentPreflight?.settlement || null),
-    check('humanApproval', humanApproval?.approved === true, humanApproval?.approved === true ? 'explicit human approval recorded' : 'explicit human approval is required', humanApproval || null)
+    (() => { const approval = validateHumanApproval(humanApproval); return check('humanApproval', approval.ready, approval.reason, approval.evidence) })()
   ]
   const eligible = checks.every((item) => item.ready)
   return {

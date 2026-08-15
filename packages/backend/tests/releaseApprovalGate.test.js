@@ -18,10 +18,16 @@ describe('release approval gate', () => {
   })
 
   it('approves only when all operational evidence and explicit human approval are present', () => {
-    const artifact = buildReleaseApprovalArtifact({ ...base, humanApproval: { approved: true, reviewerId: 'operator-1', approvedAt: '2026-08-14T22:00:00.000Z' } })
+    const artifact = buildReleaseApprovalArtifact({ ...base, humanApproval: { approved: true, reviewerId: 'operator-1', approvedAt: '2026-08-14T22:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true } })
     expect(artifact.status).toBe('approved')
     expect(artifact.eligible).toBe(true)
     expect(artifact.checks.every((check) => check.ready)).toBe(true)
+  })
+
+  it('blocks incomplete human approval evidence', () => {
+    const artifact = buildReleaseApprovalArtifact({ ...base, humanApproval: { approved: true, reviewerId: 'operator-1' } })
+    expect(artifact.status).toBe('blocked')
+    expect(artifact.checks.find((check) => check.name === 'humanApproval')).toMatchObject({ ready: false })
   })
 
   it('blocks stale verifier or unresolved reconciliation evidence', () => {

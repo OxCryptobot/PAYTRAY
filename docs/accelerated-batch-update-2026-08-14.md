@@ -3,7 +3,7 @@
 **Date:** 2026-08-14  
 **Branch:** `paytray/batch-delivery`  
 **Remote baseline:** `8498c8643e32691abb12aaa320862dd829e2e3a8`  
-**Current state:** Batch AP is pushed at `19a78e0a5bf53ea9e63f70af74b470a8e330d06e`. Batch AQ is validated locally with a read-only detached Ed25519 payload verifier and remains uncommitted. The canonical release payload remains fail-closed pending real approval, authenticated Railway settings, and full isolated-database restore evidence.
+**Current state:** Batches AP–AQ and AR–AT are pushed, and the AU–BD phased tranche is pushed at `5470dc1ab2ec6fd4506bb5afa4e701e953194b9e`. The canonical release payload remains fail-closed pending real approval, authenticated Railway settings, target-environment verifier/recovery evidence, and the operator signing key.
 
 ## Delivered in this update
 
@@ -84,23 +84,7 @@ Before any Railway deployment, the project still requires explicit deployment ap
 
 ## Commit and push boundary
 
-Only the following Batch AU–BD files are modified locally and have not been committed or pushed:
+The AU–BD implementation tranche is pushed at commit `5470dc1ab2ec6fd4506bb5afa4e701e953194b9e`; no AU–BD implementation files remain uncommitted.
 
-- `package.json`
-- `packages/backend/lib/evaluationExport.js`
-- `packages/backend/lib/payments/tokenMetadataProbe.js`
-- `packages/backend/lib/verifierOperationsEvidence.js`
-- `packages/backend/scripts/inspect-verifier-operations.mjs`
-- `packages/backend/scripts/verify-recovery-evidence.mjs`
-- `packages/backend/scripts/verify-token-registry-metadata.mjs`
-- `packages/backend/scripts/verify-phase2-loop.mjs`
-- `packages/backend/server.js`
-- `packages/backend/tests/api.test.js`
-- `packages/backend/tests/evaluationExport.test.js`
-- `packages/backend/tests/tokenMetadataProbe.test.js`
-- `packages/backend/tests/verifierOperationsEvidence.test.js`
-- `docs/api/v2-operations-and-lineage-contracts.md`
-- `docs/remaining-build-and-release-checklist.md`
-- `docs/accelerated-batch-update-2026-08-14.md`
 
-No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, Batch AG is pushed at `f9b5f842837c593d72d971f12781b9488c623ab6`, Batch AH is pushed at `c44703bbfb1e52ff806e2006f08f919da704c23e`, Batch AI is pushed at `405f11eb800e0b7ac5155c9255a34a83e9d1faae`, Batch AJ is pushed at `de91f5b41bc662d69ef515ac1b64e15d787448d5`, Batch AK is pushed at `e1749c3e1b6f673f8580fab962b0aba77ffcdb5a`, Batch AL is pushed at `65ee66dc084a01d8c62c64935a2cd7d976295f75`, Batch AM is pushed at `17f77b17f5c551c04ab57c32ca6d9e90d37be1b0`, Batch AN is pushed at `9d6f17fb601e9ec2909500f1c4a43b3378e71ad5`, Batch AO is pushed at `f8fe980d2b67ca8ea3a8693b3658f21775199b22`, Batch AP is pushed at `19a78e0a5bf53ea9e63f70af74b470a8e330d06e`, Batch AQ is pushed at `c447a5218bb221deac08df4b490ac56dbe27ff8e`, and Batch AR–AT are pushed at `16165d61b5f1192fb747b31ea3783b65e1e6326f`, and Batch AU–BD are the current local uncommitted tranche.
+No deployment, mainnet transaction, live funds, or real user data was used. The W–Z tranche is pushed at commit `3a44dbf0034945f84e5c0e8b885e3cd88a32db5b`, Batch AA is pushed at `b513aabe4a4043210dc9278d83c3c5b7be836735`, Batch AB is pushed at `787c77ef39c2a704cc51a831e83e6abebde22c6c`, Batch AC is pushed at `23194e876656d8b3b05be24774498d3cc635eee2`, Batch AD is pushed at `f42feecb38ff2f8b3761648f7a3ca38648af8595`, Batch AE is pushed at `64a6094822e6770355f7ea157b9ad84411df883f`, Batch AF is pushed at `ada79e64da37d20a3035984f8cf9799e217ce9e0`, Batch AG is pushed at `f9b5f842837c593d72d971f12781b9488c623ab6`, Batch AH is pushed at `c44703bbfb1e52ff806e2006f08f919da704c23e`, Batch AI is pushed at `405f11eb800e0b7ac5155c9255a34a83e9d1faae`, Batch AJ is pushed at `de91f5b41bc662d69ef515ac1b64e15d787448d5`, Batch AK is pushed at `e1749c3e1b6f673f8580fab962b0aba77ffcdb5a`, Batch AL is pushed at `65ee66dc084a01d8c62c64935a2cd7d976295f75`, Batch AM is pushed at `17f77b17f5c551c04ab57c32ca6d9e90d37be1b0`, Batch AN is pushed at `9d6f17fb601e9ec2909500f1c4a43b3378e71ad5`, Batch AO is pushed at `f8fe980d2b67ca8ea3a8693b3658f21775199b22`, Batch AP is pushed at `19a78e0a5bf53ea9e63f70af74b470a8e330d06e`, Batch AQ is pushed at `c447a5218bb221deac08df4b490ac56dbe27ff8e`, and Batch AR–AT are pushed at `16165d61b5f1192fb747b31ea3783b65e1e6326f`, and Batch AU–BD are pushed at `5470dc1ab2ec6fd4506bb5afa4e701e953194b9e`.

@@ -4,13 +4,13 @@
 
 **Branch:** `paytray/batch-delivery`
 
-**Current pushed commit:** `cb4e0ac46e75a8f7e9fa702d7181256a996b75fd`
+**Current pushed commit:** `5470dc1ab2ec6fd4506bb5afa4e701e953194b9e`
 
 **Safety boundary:** Base Sepolia (`84532`) remains the safe settlement default. The verifier and ledger remain the economic authority. AI remains `shadow_only`. No live funds, mainnet transaction, production deployment, real user-data migration, fabricated approval, or fabricated signing key is authorized by this checklist.
 
 ## 1. Current delivery state
 
-The latest multi-phase tranche is locally validated and ready for the next push. It adds reproducible recovery evidence, verifier-operations evidence, route-level degraded-database contracts, read-only ERC-20 metadata validation, lineage-backed evaluation export, controlled Base Sepolia smoke guardrails, and versioned API documentation on top of the pushed AR–AT capabilities.
+The latest multi-phase tranche is validated and pushed to the remote branch. It adds reproducible recovery evidence, verifier-operations evidence, route-level degraded-database contracts, read-only ERC-20 metadata validation, lineage-backed evaluation export, controlled Base Sepolia smoke guardrails, and versioned API documentation on top of the pushed AR–AT capabilities.
 
 | Batch | Capability | State | Evidence |
 |---|---|---|---|
@@ -19,13 +19,13 @@ The latest multi-phase tranche is locally validated and ready for the next push.
 | AR | Read-only paginated/filterable financial audit events with metadata redaction | Pushed | `packages/backend/lib/auditLogService.js`; `GET /api/v2/ops/audit/events` |
 | AS | Production chain/protocol/token-registry consistency validation | Pushed | `packages/backend/lib/payments/tokenRegistry.js`; deployment preflight |
 | AT | Discovery impression → engagement → outcome lineage | Pushed | `packages/backend/lib/discoveryLineageService.js`; `GET /api/v2/ops/discovery/lineage` |
-| AU | Isolated PostgreSQL recovery evidence with backup fingerprint and restore verification | Local validated | `packages/backend/scripts/verify-recovery-evidence.mjs`; disposable restore returned `verified` |
-| AV | Verifier operations evidence CLI and scoped operator endpoint | Local validated | `packages/backend/lib/verifierOperationsEvidence.js`; `GET /api/v2/ops/verifier/operations` |
-| AW | Route-level degraded-database and scope integration contracts | Local validated | `packages/backend/tests/api.test.js`; 3 operator evidence routes fail closed |
-| AX | Read-only ERC-20 symbol/decimals/chain metadata probe | Local validated | `packages/backend/lib/payments/tokenMetadataProbe.js` |
-| AZ | Lineage-backed evaluation export coverage | Local validated | `packages/backend/lib/evaluationExport.js` |
-| BC | Controlled Base Sepolia smoke harness with disposable-data and no-chain-mutation guards | Local validated | `packages/backend/scripts/verify-phase2-loop.mjs` |
-| BD | Versioned v2 operations and lineage API documentation | Local validated | `docs/api/v2-operations-and-lineage-contracts.md` |
+| AU | Isolated PostgreSQL recovery evidence with backup fingerprint and restore verification | Pushed | `packages/backend/scripts/verify-recovery-evidence.mjs`; disposable restore returned `verified` |
+| AV | Verifier operations evidence CLI and scoped operator endpoint | Pushed | `packages/backend/lib/verifierOperationsEvidence.js`; `GET /api/v2/ops/verifier/operations` |
+| AW | Route-level degraded-database and scope integration contracts | Pushed | `packages/backend/tests/api.test.js`; 3 operator evidence routes fail closed |
+| AX | Read-only ERC-20 symbol/decimals/chain metadata probe | Pushed | `packages/backend/lib/payments/tokenMetadataProbe.js` |
+| AZ | Lineage-backed evaluation export coverage | Pushed | `packages/backend/lib/evaluationExport.js` |
+| BC | Controlled Base Sepolia smoke harness with disposable-data and no-chain-mutation guards | Pushed | `packages/backend/scripts/verify-phase2-loop.mjs` |
+| BD | Versioned v2 operations and lineage API documentation | Pushed | `docs/api/v2-operations-and-lineage-contracts.md` |
 
 The latest validation passed **41 test files and 181 tests**, including AU–BD focused coverage, ESLint, migrations through 013, a disposable isolated PostgreSQL backup/restore returning `verified`, and `git diff --check`. The release manifest is ready and read-only. The production release approval and signed payload remain blocked by genuine environment and human-evidence requirements.
 

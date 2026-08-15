@@ -3,7 +3,8 @@ const EXPECTED_BLOCKED_CHECKS = new Set([
   'target-operations',
   'release-evidence',
   'reconciliation-evidence',
-  'unified-evidence'
+  'unified-evidence',
+  'evidence-bundle'
 ])
 
 export function classifyOperationsCheck({ name, exitCode, output = '', strict = false } = {}) {

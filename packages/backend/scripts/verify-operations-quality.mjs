@@ -16,7 +16,8 @@ const checks = [
   { name: 'verifier-worker-config', script: 'backend:verifier:worker:check' },
   { name: 'target-operations', script: 'backend:target:operations:check' },
   { name: 'release-evidence', script: 'backend:release:evidence:check' },
-  { name: 'reconciliation-evidence', script: 'backend:reconciliation:evidence:check' }
+  { name: 'reconciliation-evidence', script: 'backend:reconciliation:evidence:check' },
+  { name: 'evidence-bundle', script: 'backend:ops:evidence:bundle:check' }
 ]
 
 function extractJson(output) {

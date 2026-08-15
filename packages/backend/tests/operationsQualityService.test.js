@@ -13,8 +13,15 @@ describe('operations quality service', () => {
       exitCode: 1,
       output: JSON.stringify({ status: 'failed', reason: 'contract drift' })
     })
+    const bundleBlocked = classifyOperationsCheck({
+      name: 'evidence-bundle',
+      exitCode: 1,
+      output: JSON.stringify({ status: 'blocked', authority: 'operator_evidence_bundle_export_only', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    })
     expect(blocked.state).toBe('operator_blocked')
     expect(blocked.expectedBlocked).toBe(true)
+    expect(bundleBlocked.state).toBe('operator_blocked')
+    expect(bundleBlocked.expectedBlocked).toBe(true)
     expect(failed.state).toBe('failed')
     expect(failed.expectedBlocked).toBe(false)
   })

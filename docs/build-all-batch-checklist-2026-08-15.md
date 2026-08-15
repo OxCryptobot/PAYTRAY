@@ -40,6 +40,7 @@
 | CV | Release-gate operations-quality integration | Pushed | `5ae2a26`; `backend:operations:quality:check` now includes `backend:release:gates:check` as an expected operator-blocked check; normal mode reports 10 checks, 7 expected blockers, and 0 unexpected failures. |
 | CX | Latest durable release-gate operator endpoint | Pushed | `5ae2a26`; added authenticated read-only `GET /api/v2/ops/release-gates/latest`, selecting only `reportKind: release_gates` audit rows and returning structured `503` when no durable run exists. |
 | CY | Release-gate and evidence workflow documentation | Pushed | `5ae2a26`; updated the v2 operations contract and batch documentation with durable release-gate provenance, endpoint semantics, and the non-releaseable operator evidence boundary. |
+| CW | Railway non-secret project/service metadata observability | Validated locally | The Railway trial report now accepts only operator-supplied project, environment, and allowlisted web/worker service-status metadata; incomplete metadata remains `metadata_unavailable`, settings are never inferred, and safety fields remain read-only/non-releaseable. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work
@@ -68,7 +69,7 @@ These gates cannot be completed by code changes alone and must remain pending un
 
 ## Latest validation evidence
 
-The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL/CM/CP/CQ/CR/CS/CT/CU/CV/CX/CY tranche passed **66 test files and 272 tests**, and remote workflow `31895570832` completed with all five jobs successful, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
+The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL/CM/CP/CQ/CR/CS/CT/CU/CV/CX/CY/CW tranche passed **66 test files and 274 tests**, and remote workflow `31895570832` completed with all five jobs successful, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
 
 ## Standard execution order
 

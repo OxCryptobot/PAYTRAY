@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareRailwayTrialSettings, validateRailwayTrialUrl } from '../lib/railwayTrialGate.js'
+import { compareRailwayTrialSettings, parseRailwayMetadataFromEnv, validateRailwayTrialUrl } from '../lib/railwayTrialGate.js'
 
 describe('Railway trial gate', () => {
   it('accepts an HTTPS trial URL and rejects credentials or non-HTTPS URLs', () => {
@@ -14,6 +14,29 @@ describe('Railway trial gate', () => {
     const unavailable = compareRailwayTrialSettings({ preflight, settings: {} })
     expect(match).toMatchObject({ status: 'match', readOnly: true, deploymentPerformed: false })
     expect(unavailable.status).toBe('settings_unavailable')
+  })
+
+  it('normalizes complete non-secret project and service metadata', () => {
+    const metadata = parseRailwayMetadataFromEnv({
+      RAILWAY_PROJECT_NAME: 'heartfelt-liberation',
+      RAILWAY_ENVIRONMENT_NAME: 'production',
+      RAILWAY_WEB_SERVICE_STATUS: 'Offline',
+      RAILWAY_WORKER_SERVICE_STATUS: 'running'
+    })
+    expect(metadata).toMatchObject({
+      status: 'observed',
+      source: 'operator_supplied_non_secret_metadata',
+      projectName: 'heartfelt-liberation',
+      environmentName: 'production',
+      services: { web: 'offline', worker: 'running' },
+      readOnly: true,
+      deploymentPerformed: false
+    })
+  })
+
+  it('keeps incomplete metadata unavailable and rejects unallowlisted service states', () => {
+    expect(parseRailwayMetadataFromEnv({ RAILWAY_PROJECT_NAME: 'heartfelt-liberation' })).toMatchObject({ status: 'metadata_unavailable', source: 'not_supplied', services: { web: null, worker: null } })
+    expect(() => parseRailwayMetadataFromEnv({ RAILWAY_PROJECT_NAME: 'heartfelt-liberation', RAILWAY_ENVIRONMENT_NAME: 'production', RAILWAY_WEB_SERVICE_STATUS: 'secret', RAILWAY_WORKER_SERVICE_STATUS: 'offline' })).toThrow('recognized non-secret service status')
   })
 
   it('reports a configuration mismatch explicitly', () => {

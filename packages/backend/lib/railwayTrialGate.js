@@ -1,3 +1,20 @@
+const RAILWAY_SERVICE_STATUSES = new Set(['running', 'offline', 'deploying', 'failed', 'crashed', 'sleeping', 'unknown'])
+
+function parseOptionalName(value, label) {
+  if (value == null || value === '') return null
+  const normalized = String(value).trim()
+  if (!normalized) return null
+  if (normalized.length > 128) throw new Error(`${label} must be 128 characters or fewer`)
+  return normalized
+}
+
+function parseOptionalServiceStatus(value, label) {
+  if (value == null || value === '') return null
+  const normalized = String(value).trim().toLowerCase()
+  if (!RAILWAY_SERVICE_STATUSES.has(normalized)) throw new Error(`${label} must be a recognized non-secret service status`)
+  return normalized
+}
+
 function parseOptionalBoolean(value) {
   if (value == null || value === '') return null
   if (value === 'true') return true
@@ -41,5 +58,24 @@ export function parseRailwaySettingsFromEnv(env = process.env) {
     environment: env.RAILWAY_TRIAL_ENVIRONMENT || null,
     settlementChainId: env.RAILWAY_TRIAL_SETTLEMENT_CHAIN_ID || null,
     mainnetEnabled: env.RAILWAY_TRIAL_PAYMENT_MAINNET_ENABLED || null
+  }
+}
+
+export function parseRailwayMetadataFromEnv(env = process.env) {
+  const projectName = parseOptionalName(env.RAILWAY_PROJECT_NAME, 'RAILWAY_PROJECT_NAME')
+  const environmentName = parseOptionalName(env.RAILWAY_ENVIRONMENT_NAME, 'RAILWAY_ENVIRONMENT_NAME')
+  const services = {
+    web: parseOptionalServiceStatus(env.RAILWAY_WEB_SERVICE_STATUS, 'RAILWAY_WEB_SERVICE_STATUS'),
+    worker: parseOptionalServiceStatus(env.RAILWAY_WORKER_SERVICE_STATUS, 'RAILWAY_WORKER_SERVICE_STATUS')
+  }
+  const observed = Boolean(projectName && environmentName && services.web && services.worker)
+  return {
+    status: observed ? 'observed' : 'metadata_unavailable',
+    source: observed ? 'operator_supplied_non_secret_metadata' : 'not_supplied',
+    projectName,
+    environmentName,
+    services,
+    readOnly: true,
+    deploymentPerformed: false
   }
 }

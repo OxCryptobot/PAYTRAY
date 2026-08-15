@@ -45,8 +45,10 @@ The latest multi-phase tranche is validated and pushed to the remote branch. It 
 | BS | Production Base Sepolia verifier-worker entrypoint | Pushed | `6e857f2`; explicit `VERIFIER_WORKER_ENABLED=true` gate, HTTPS RPC/protocol/token consistency, transactional bounded polling, durable cursor projection, and graceful shutdown. |
 | BT | Reproducible CI and shared quality gate | Pushed | `6e857f2`; `.github/workflows/paytray-quality.yml`, `backend:quality:check`, locked npm install, Node 22, full tests/lint/extension contract, migrations, and isolated PostgreSQL route checks. |
 | BU | HTTP and rate-limit hardening | Pushed | `6e857f2`; explicit proxy trust, bounded JSON/urlencoded request body size, expired-key eviction, and configurable rate-limit key budget. |
+| BW | SDK/OpenAPI runtime and type contract drift verification | Implemented locally | Read-only `backend:sdk:contract:check` captures SDK request paths, OpenAPI operation IDs, runtime safety metadata, registration defaults, and TypeScript declaration parity without network access. |
+| BX | Read-only release-evidence aggregation | Implemented locally | `backend:release:evidence:check` composes target, verifier, reconciliation, delivery, shadow-review, rollback, sign-off, and signing-key evidence while always emitting `releaseEligible: false`. |
 
-The BB/AW/BD/BF/BG/BH/BI/BJ/BL/BM/BN/BO/BP/BQ/BR/BS/BT/BU tranche now includes durable trust-signal, webhook inbox, durable-hook, worker, OpenAPI, SDK, housekeeping-schedule, target-operations-preflight, verifier-worker, CI, and HTTP hardening coverage; the latest validation passed **58 test files and 250 tests**, ESLint, migration code validation through migration 017, the runtime-to-OpenAPI contract verifier, a 100-event simulated webhook delivery/replay-load test, exact outbound HMAC digest tests, malformed/tampered signature rejection, timestamp skew rejection, replay detection and expiry coverage, durable idempotency cleanup tests, PostgreSQL replay-claim tests, focused verifier-owned payment-state tests, durable outbox processor tests, extension-event contract tests, degraded-database API coverage, and isolated ready-PostgreSQL verification with `engagementPaymentState: true`, `extensionOpenApi: true`, `trustSignals: true`, `webhookInbox: true`, `outboxDryRun: true`, and worker configuration status `ready`. The release manifest is read-only; production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
+The BB/AW/BD/BF/BG/BH/BI/BJ/BL/BM/BN/BO/BP/BQ/BR/BS/BT/BU/BW/BX tranche now includes durable trust-signal, webhook inbox, durable-hook, worker, OpenAPI, SDK, housekeeping-schedule, target-operations-preflight, verifier-worker, CI, and HTTP hardening coverage; the latest validation passed **60 test files and 253 tests**, ESLint, migration code validation through migration 017, the runtime-to-OpenAPI contract verifier, a 100-event simulated webhook delivery/replay-load test, exact outbound HMAC digest tests, malformed/tampered signature rejection, timestamp skew rejection, replay detection and expiry coverage, durable idempotency cleanup tests, PostgreSQL replay-claim tests, focused verifier-owned payment-state tests, durable outbox processor tests, extension-event contract tests, degraded-database API coverage, and isolated ready-PostgreSQL verification with `engagementPaymentState: true`, `extensionOpenApi: true`, `trustSignals: true`, `webhookInbox: true`, `outboxDryRun: true`, and worker configuration status `ready`. The release manifest is read-only; production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
 
 ## 2. Mandatory release blockers
 
@@ -179,7 +181,7 @@ The items below are the next build sequence. They are deliberately separated fro
 | BH | Outbox delivery processor | Pushed | Operators can dry-run or process due durable events to matching v2 hooks with SSRF-safe signed delivery, bounded retry, dead-letter evidence, and no settlement authority. |
 | BE | Multi-chain expansion | Deferred | Only consider after single-chain reliability targets, reconciliation SLOs, and incident rollback evidence are met. |
 
-The safest remaining engineering order is **target evidence for AU/AV/AX/BC/AY/BA/BI/BL/BM/BN/BO/BP/BQ/BR/BS/BT/BU → authenticated Railway target verification → verifier, outbox, and housekeeping activation**, while **BE remains intentionally deferred**.
+The safest remaining engineering order is **target evidence for AU/AV/AX/BC/AY/BA/BI/BL/BM/BN/BO/BP/BQ/BR/BS/BT/BU/BW/BX → authenticated Railway target verification → verifier, outbox, and housekeeping activation**, while **BE remains intentionally deferred**.
  The user-visible product can advance through discovery, collaboration, and Base Sepolia time-to-money flows without pretending that multi-chain or autonomous AI promotion is production-ready.
 
 ## 6. Current release commands
@@ -200,6 +202,8 @@ npm run backend:outbox:health:check
 npm run backend:idempotency:cleanup:check
 npm run backend:target:operations:check
 npm run backend:verifier:worker:check
+npm run backend:sdk:contract:check
+npm run backend:release:evidence:check
 npm run backend:advisory:ai:check
 READY_POSTGRES_DATABASE_ISOLATED=true npm run backend:ready:postgres:check
 npm run backend:token:metadata:check

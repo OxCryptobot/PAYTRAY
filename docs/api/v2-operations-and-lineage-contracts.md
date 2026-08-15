@@ -26,6 +26,14 @@ This explicit production entrypoint is the only supported continuous chain-verif
 
 The server applies a configurable bounded body limit to JSON and URL-encoded requests through `REQUEST_BODY_LIMIT` and requires explicit `TRUST_PROXY=true` before Express resolves forwarded client addresses. Rate-limit state evicts expired keys and enforces `RATE_LIMIT_MAX_KEYS`; these controls limit memory growth without changing payment authority, authentication scopes, or financial state transitions.
 
+## `backend:sdk:contract:check`
+
+This read-only verifier cross-checks the dependency-free `@paytray/sdk` runtime against the v2 OpenAPI document and extension capability module. It captures the three documented SDK request paths using a local fetch stub, verifies operation IDs and safety metadata, checks the v2 registration default, and scans the TypeScript declarations for the client and immutable safety properties. It performs no network access, database mutation, deployment, settlement mutation, or approval.
+
+## `backend:release:evidence:check`
+
+This read-only CLI aggregates target-operations configuration, deployment preflight, database readiness, verifier freshness/linkage, reconciliation, durable outbox health, webhook-inbox health, pending shadow-review count, rollback-target evidence, human sign-off evidence, and redacted signing-key presence. It produces named blockers and never includes private key material. Its output always contains `releaseEligible: false`, `settlementAuthority: false`, and `mutation: 'read_only'`; a configuration or evidence-complete report is not a release approval and cannot submit a transaction or promote an AI candidate.
+
 ## `GET /api/v2/ops/audit/events`
 
 Returns durable financial audit events from `financial_audit_events`. The route is paginated, filterable, and read-only. Sensitive metadata keys such as private keys, signatures, authorization headers, JWTs, passwords, and secrets are recursively redacted.

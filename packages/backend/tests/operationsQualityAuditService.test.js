@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildOperationsQualityAuditRecord, listOperationsQualityRuns, recordOperationsQualityRun } from '../lib/operationsQualityAuditService.js'
+import { buildOperationsQualityAuditRecord, getOperationsQualityRun, listOperationsQualityRuns, recordOperationsQualityRun } from '../lib/operationsQualityAuditService.js'
 
 const report = {
   status: 'operator_blocked',
@@ -85,6 +85,16 @@ describe('operations quality audit service', () => {
     expect(client.query).toHaveBeenCalledTimes(2)
     expect(client.query.mock.calls[0][0]).toContain('ON CONFLICT (run_id) DO NOTHING')
     expect(client.query.mock.calls[0][1][7]).toContain('"releaseEligible":false')
+  })
+
+  it('retrieves a detailed run only for a valid UUID and keeps the report read-only', async () => {
+    const runId = '11111111-1111-4111-8111-111111111111'
+    const client = { query: vi.fn().mockResolvedValue({ rows: [{ run_id: runId, report: { status: 'operator_blocked', releaseEligible: false }, report_hash: 'b'.repeat(64) }] }) }
+    const result = await getOperationsQualityRun({ client, runId })
+
+    expect(result).toMatchObject({ status: 'ok', authority: 'operations_quality_audit', mutation: 'read_only', releaseEligible: false, settlementAuthority: false })
+    expect(result.run.report).toMatchObject({ status: 'operator_blocked', releaseEligible: false })
+    await expect(getOperationsQualityRun({ client, runId: 'not-a-uuid' })).rejects.toThrow('runId must be a valid UUID')
   })
 
   it('lists bounded summary rows without returning report payloads', async () => {

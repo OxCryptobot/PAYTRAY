@@ -49,6 +49,20 @@ OPERATIONS_QUALITY_STRICT=true npm run backend:operations:quality:check
 
 Strict mode must fail until all required operator evidence is real. Neither mode changes `releaseEligible`, `settlementAuthority`, payment state, ledger state, reviewer decisions, or AI promotion status.
 
+For post-run inspection, first list the bounded audit summaries and then retrieve one valid run by its returned UUID:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  "${PAYTRAY_BASE_URL}/api/v2/ops/operations-quality/runs?limit=20" \
+  -H "Authorization: Bearer ${OPS_ACCESS_TOKEN}"
+
+curl --fail-with-body --silent --show-error \
+  "${PAYTRAY_BASE_URL}/api/v2/ops/operations-quality/runs/<RUN_UUID>" \
+  -H "Authorization: Bearer ${OPS_ACCESS_TOKEN}"
+```
+
+The detail response contains only the persisted redacted report and canonical hash. A missing UUID returns `404`; a malformed identifier must be rejected before database lookup. Neither endpoint changes payment state, reviewer decisions, AI promotion, release eligibility, or settlement authority.
+
 List pending runs before reviewing them:
 
 ```bash

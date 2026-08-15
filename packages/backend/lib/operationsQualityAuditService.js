@@ -103,6 +103,33 @@ export async function recordOperationsQualityRun({ client, report, runId, starte
   }
 }
 
+export async function getOperationsQualityRun({ client, runId } = {}) {
+  if (!client || typeof client.query !== 'function') throw new TypeError('client is required')
+  const normalizedRunId = String(runId || '')
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalizedRunId)) {
+    throw new TypeError('runId must be a valid UUID')
+  }
+  const result = await client.query(
+    `SELECT id, run_id, strict_mode, status, check_count, passed_count,
+            operator_blocker_count, unexpected_failure_count, report,
+            report_hash, started_at, completed_at, created_at
+     FROM operations_quality_runs
+     WHERE run_id = $1`,
+    [normalizedRunId]
+  )
+  if (!result.rows[0]) return null
+  return {
+    status: 'ok',
+    run: result.rows[0],
+    authority: 'operations_quality_audit',
+    mutation: 'read_only',
+    releaseEligible: false,
+    settlementAuthority: false,
+    deploymentPerformed: false,
+    settlementMutationPerformed: false
+  }
+}
+
 export async function listOperationsQualityRuns({ client, limit = 50, status = null } = {}) {
   if (!client || typeof client.query !== 'function') throw new TypeError('client is required')
   const boundedLimit = Math.min(Math.max(Number(limit) || 50, 1), 100)

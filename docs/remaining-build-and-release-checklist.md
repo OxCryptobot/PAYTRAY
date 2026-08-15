@@ -10,7 +10,7 @@
 
 ## 1. Current delivery state
 
-The latest multi-phase tranche is validated and pushed to the remote branch. The current local tranche adds collaboration degraded-state health, a real ready-PostgreSQL route-contract verifier, versioned public extension schemas, and failure-mode coverage on top of the pushed AY/BA capabilities.
+The latest multi-phase tranche is validated and pushed to the remote branch. It adds collaboration degraded-state health, a real ready-PostgreSQL route-contract verifier, versioned public extension schemas, and failure-mode coverage on top of the pushed AY/BA capabilities.
 
 | Batch | Capability | State | Evidence |
 |---|---|---|---|
@@ -21,14 +21,14 @@ The latest multi-phase tranche is validated and pushed to the remote branch. The
 | AT | Discovery impression → engagement → outcome lineage | Pushed | `packages/backend/lib/discoveryLineageService.js`; `GET /api/v2/ops/discovery/lineage` |
 | AU | Isolated PostgreSQL recovery evidence with backup fingerprint and restore verification | Pushed | `packages/backend/scripts/verify-recovery-evidence.mjs`; disposable restore returned `verified` |
 | AV | Verifier operations evidence CLI and scoped operator endpoint | Pushed | `packages/backend/lib/verifierOperationsEvidence.js`; `GET /api/v2/ops/verifier/operations` |
-| AW | Route-level contracts plus ready-PostgreSQL integration fixture | Local validated | `packages/backend/scripts/verify-ready-postgres-contracts.mjs`; isolated CI target returned `status: verified` |
+| AW | Route-level contracts plus ready-PostgreSQL integration fixture | Pushed | `packages/backend/scripts/verify-ready-postgres-contracts.mjs`; isolated CI target returned `status: verified` |
 | AX | Read-only ERC-20 symbol/decimals/chain metadata probe | Pushed | `packages/backend/lib/payments/tokenMetadataProbe.js` |
 | AZ | Lineage-backed evaluation export coverage | Pushed | `packages/backend/lib/evaluationExport.js` |
 | BC | Controlled Base Sepolia smoke harness with disposable-data and no-chain-mutation guards | Pushed | `packages/backend/scripts/verify-phase2-loop.mjs` |
-| BD | Versioned v2 operations, lineage, and public extension schemas | Local validated | `packages/backend/lib/extensionContracts.js`; `/api/v2/extensions/contracts`; updated API documentation |
+| BD | Versioned v2 operations, lineage, and public extension schemas | Pushed | `packages/backend/lib/extensionContracts.js`; `/api/v2/extensions/contracts`; updated API documentation |
 | AY | Durable outbox and operator delivery health | Pushed | `packages/backend/lib/outboxDeliveryService.js`; `GET /api/v2/ops/outbox/health` |
 | BA | Bounded advisory-AI provider and retrieval boundary | Pushed | `packages/backend/lib/advisoryAiBoundary.js`; `POST /api/v2/intelligence/advisory` |
-| BB | Collaboration degraded-state health | Local validated | `packages/backend/lib/collaborationHealth.js`; `GET /api/v2/collaboration/health` |
+| BB | Collaboration degraded-state health | Pushed | `packages/backend/lib/collaborationHealth.js`; `GET /api/v2/collaboration/health` |
 
 The BB/AW/BD tranche passed **45 test files and 199 tests**, ESLint, migrations through 013, isolated ready-PostgreSQL route verification with `status: verified`, intentional no-isolation blocking before database access, release-manifest validation, and `git diff --check`. The release manifest is read-only; production approval and signed-payload generation remain blocked by genuine environment and human-evidence requirements.
 

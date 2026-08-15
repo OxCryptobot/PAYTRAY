@@ -313,4 +313,4 @@ The controlled smoke harness is `backend:smoke:phase2:check`. It refuses to run 
 [8]: https://github.com/OxCryptobot/PAYTRAY/blob/cce1e882fd0db74252365a9df41e2bb93071a843/packages/backend/lib/extensionContracts.js Public extension contracts
 [9]: https://github.com/OxCryptobot/PAYTRAY/blob/ef79f40d29b9d6c46124da13ebb7cb381b9fafb5/packages/backend/lib/shadowReviewService.js Durable shadow-review audit evidence
 [10]: https://github.com/OxCryptobot/PAYTRAY/blob/124701ba78d79d96f2abd51ccd59580e9db86a49/packages/backend/lib/webhookSignature.js Webhook HMAC, timestamp, and replay verification
-[11]: https://github.com/OxCryptobot/PAYTRAY/blob/124701ba78d79d96f2abd51ccd59580e9db86a49/docs/security/webhook-replay-store-integration.md Shared durable replay-store integration guidelines
+[11]: https://github.com/OxCryptobot/PAYTRAY/blob/210f2573025ef1fe7bbff2965fc63172ac3b68f6/docs/security/webhook-replay-store-integration.md Shared durable replay-store integration guidelines

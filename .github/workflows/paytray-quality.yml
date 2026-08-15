@@ -1,0 +1,86 @@
+name: PayTray quality
+
+on:
+  push:
+    branches:
+      - paytray/batch-delivery
+      - main
+  pull_request:
+    branches:
+      - paytray/batch-delivery
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paytray-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  NODE_ENV: development
+  JWT_SECRET: ci-only-jwt-secret-not-for-deployment
+  DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
+  SETTLEMENT_CHAIN_ID: '84532'
+  PAYMENT_MAINNET_ENABLED: 'false'
+  PAYMENT_RPC_URL: https://sepolia.base.org
+  PAYMENT_STREAM_PROTOCOL_CONTRACT: 0xc1ba5a41936aaab0ff920446db556efe17fc1c5d
+  PAYMENT_TOKEN_REGISTRY: '[{"symbol":"USDC","chainId":84532,"address":"0x1111111111111111111111111111111111111111","decimals":6,"protocolContractAddress":"0xc1ba5a41936aaab0ff920446db556efe17fc1c5d","enabled":true}]'
+
+jobs:
+  unit-and-contract:
+    name: Unit, lint, and contract checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run shared quality gate
+        run: npm run backend:quality:check
+      - name: Verify verifier-worker configuration contract
+        run: npm run backend:verifier:worker:check
+        env:
+          NODE_ENV: production
+          VERIFIER_WORKER_ENABLED: 'true'
+          VERIFIER_WORKER_ID: ci-verifier
+
+  postgres-contract:
+    name: Isolated PostgreSQL route contract
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: paytray_ci
+          POSTGRES_PASSWORD: paytray_ci
+          POSTGRES_DB: paytray_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paytray_ci -d paytray_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Verify migrations and schema contracts
+        run: npm run backend:migrations:check
+      - name: Verify ready-PostgreSQL route contracts
+        run: npm run backend:ready:postgres:check
+        env:
+          READY_POSTGRES_DATABASE_ISOLATED: 'true'

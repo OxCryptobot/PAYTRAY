@@ -1029,8 +1029,8 @@ try {
 
 app.use(helmet())
 app.use(cors(config.cors))
-app.use(express.json({ limit: '1mb' }))
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json({ limit: config.server.requestBodyLimit }))
+app.use(express.urlencoded({ extended: true, limit: config.server.requestBodyLimit }))
 app.use(requestLogger)
 app.use((req, res, next) => {
   const startedAt = Date.now()
@@ -1050,7 +1050,7 @@ app.use((req, res, next) => {
 
   next()
 })
-app.set('trust proxy', 1)
+app.set('trust proxy', config.server.trustProxy ? 1 : false)
 
 function authenticateToken(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1]

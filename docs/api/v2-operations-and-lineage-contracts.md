@@ -10,7 +10,21 @@ Every `/api/v2/ops/*` route requires a valid PayTray access token with the `ops:
 
 ## `backend:target:operations:check`
 
-This read-only CLI composes the deployment preflight, redacted Railway trial settings comparison, Base Sepolia policy, HTTPS payment RPC, durable outbox-worker opt-in, and idempotency-housekeeping schedule configuration. It reports `status: ready` only when those configuration checks match, but it always emits `releaseEligible: false`: configuration is not a substitute for a fresh durable verifier cursor, target backup-restore evidence, reconciliation evidence, human shadow-review decisions, four reviewer sign-offs, or an operator signing key. The command performs no Railway API call, deployment, database migration, chain transaction, settlement mutation, or secret export. Without explicit target settings and operational opt-ins, it exits nonzero with named blockers rather than inferring readiness.
+This read-only CLI composes the deployment preflight, redacted Railway trial settings comparison, Base Sepolia policy, HTTPS payment RPC, explicit verifier-worker and durable outbox-worker opt-ins, and idempotency-housekeeping schedule configuration. It reports `status: ready` only when those configuration checks match, but it always emits `releaseEligible: false`: configuration is not a substitute for a fresh durable verifier cursor, target backup-restore evidence, reconciliation evidence, human shadow-review decisions, four reviewer sign-offs, or an operator signing key. The command performs no Railway API call, deployment, database migration, chain transaction, settlement mutation, or secret export. Without explicit target settings and operational opt-ins, it exits nonzero with named blockers rather than inferring readiness.
+
+## `backend:verifier:worker`
+
+This explicit production entrypoint is the only supported continuous chain-verifier process for the current single-chain deployment. It requires `VERIFIER_WORKER_ENABLED=true`, `DATABASE_URL`, an HTTPS `PAYMENT_RPC_URL`, the configured Sablier Flow v3 Base Sepolia contract, a matching enabled token registry, `SETTLEMENT_CHAIN_ID=84532`, and `PAYMENT_MAINNET_ENABLED=false`. Each bounded poll runs with a dedicated PostgreSQL transaction, persists the verifier cursor only after event processing, emits verifier-owned audit/outbox evidence, and never treats a wallet intent or API response as settlement. SIGTERM and SIGINT stop future polling and close the database cleanly.
+
+`backend:verifier:worker:check` is read-only. It verifies configuration and reports the poll interval, block range, finality threshold, verifier identifier, cursor persistence table, and projection boundary without starting the worker or contacting the chain. The worker is not a release-approval mechanism and cannot approve shadow runs or promote AI ranking.
+
+## `backend:quality:check` and CI
+
+`backend:quality:check` is the shared deterministic developer/CI gate for the full test suite, ESLint, the runtime-to-OpenAPI contract verifier, and whitespace validation. `.github/workflows/paytray-quality.yml` runs it on protected branch pushes and pull requests, then runs migration and ready-PostgreSQL route-contract checks against an isolated PostgreSQL 16 service. CI uses only disposable credentials and no live-chain mutation path.
+
+## HTTP and rate-limit hardening
+
+The server applies a configurable bounded body limit to JSON and URL-encoded requests through `REQUEST_BODY_LIMIT` and requires explicit `TRUST_PROXY=true` before Express resolves forwarded client addresses. Rate-limit state evicts expired keys and enforces `RATE_LIMIT_MAX_KEYS`; these controls limit memory growth without changing payment authority, authentication scopes, or financial state transitions.
 
 ## `GET /api/v2/ops/audit/events`
 

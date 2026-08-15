@@ -16,6 +16,7 @@ export function buildTargetOperationsPreflight({ config, env = process.env } = {
   })
   const databaseConfigured = Boolean(config.database?.url)
   const rpcConfigured = /^https:\/\//i.test(config.payments?.rpcUrl || '')
+  const verifierWorkerReady = Boolean(config.verifierWorker?.enabled && databaseConfigured && rpcConfigured && config.payments?.settlementChainId === 84532 && config.payments?.mainnetEnabled === false && config.payments?.protocolContractAddress)
   const workerReady = Boolean(config.outboxWorker?.enabled && databaseConfigured && config.webhooks?.signingSecret)
   const housekeepingReady = Boolean(config.housekeeping?.idempotencyCleanupEnabled && databaseConfigured)
   const baseSepoliaSafe = config.payments?.settlementChainId === 84532 && config.payments?.mainnetEnabled === false
@@ -26,6 +27,7 @@ export function buildTargetOperationsPreflight({ config, env = process.env } = {
     check('database', databaseConfigured, databaseConfigured ? 'DATABASE_URL is configured' : 'DATABASE_URL is unavailable'),
     check('paymentRpc', rpcConfigured, rpcConfigured ? 'HTTPS payment RPC is configured' : 'HTTPS payment RPC is unavailable'),
     check('baseSepoliaPolicy', baseSepoliaSafe, baseSepoliaSafe ? 'Base Sepolia is selected and mainnet is disabled' : 'target must use Base Sepolia with PAYMENT_MAINNET_ENABLED=false'),
+    check('verifierWorker', verifierWorkerReady, verifierWorkerReady ? 'Base Sepolia verifier worker is explicitly enabled with HTTPS RPC and database' : 'verifier worker requires VERIFIER_WORKER_ENABLED=true, DATABASE_URL, HTTPS PAYMENT_RPC_URL, protocol contract, and Base Sepolia'),
     check('outboxWorker', workerReady, workerReady ? 'durable outbox worker is explicitly enabled with database and signing secret' : 'durable outbox worker requires OUTBOX_WORKER_ENABLED=true, DATABASE_URL, and WEBHOOK_SIGNING_SECRET'),
     check('idempotencyHousekeeping', housekeepingReady, housekeepingReady ? 'idempotency cleanup is explicitly enabled with database' : 'idempotency cleanup requires IDEMPOTENCY_CLEANUP_ENABLED=true and DATABASE_URL')
   ]

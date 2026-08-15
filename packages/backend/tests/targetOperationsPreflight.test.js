@@ -15,6 +15,7 @@ function productionConfig() {
   value.payments.mainnetEnabled = false
   value.payments.tokenRegistry = '[{"symbol":"USDC","chainId":84532,"address":"0x1111111111111111111111111111111111111111","decimals":6,"protocolContractAddress":"0xc1ba5a41936aaab0ff920446db556efe17fc1c5d","enabled":true}]'
   value.webhooks.signingSecret = 'test-webhook-signing-secret'
+  value.verifierWorker.enabled = true
   value.outboxWorker.enabled = true
   value.housekeeping.idempotencyCleanupEnabled = true
   return value
@@ -30,7 +31,7 @@ describe('target operations preflight', () => {
     expect(report.mutation).toBe('read_only')
     expect(report.settlementAuthority).toBe(false)
     expect(report.railwaySettings.status).toBe('settings_unavailable')
-    expect(report.blockers.map((item) => item.name)).toEqual(expect.arrayContaining(['railwayTrialUrl', 'railwaySettings', 'outboxWorker', 'idempotencyHousekeeping']))
+    expect(report.blockers.map((item) => item.name)).toEqual(expect.arrayContaining(['railwayTrialUrl', 'railwaySettings', 'verifierWorker', 'outboxWorker', 'idempotencyHousekeeping']))
   })
 
   it('reports ready only with matched redacted target settings and explicit operations', () => {

@@ -92,8 +92,27 @@ export function generateRandomToken(length = 32) {
 
 export const rateLimitMap = new Map()
 
+function evictExpiredRateLimitKeys(now) {
+  for (const [key, record] of rateLimitMap) {
+    if (now > record.resetAt) rateLimitMap.delete(key)
+  }
+}
+
+function enforceRateLimitKeyBudget() {
+  const maxKeys = config.rateLimit.maxKeys
+  if (rateLimitMap.size <= maxKeys) return
+  const excess = rateLimitMap.size - maxKeys
+  let removed = 0
+  for (const key of rateLimitMap.keys()) {
+    rateLimitMap.delete(key)
+    removed += 1
+    if (removed >= excess) break
+  }
+}
+
 export function checkRateLimit(key, limit = config.rateLimit.max, windowMs = config.rateLimit.windowMs) {
   const now = Date.now()
+  evictExpiredRateLimitKeys(now)
   const record = rateLimitMap.get(key) || { count: 0, resetAt: now + windowMs }
 
   if (now > record.resetAt) {
@@ -103,6 +122,7 @@ export function checkRateLimit(key, limit = config.rateLimit.max, windowMs = con
 
   record.count += 1
   rateLimitMap.set(key, record)
+  enforceRateLimitKeyBudget()
 
   if (record.count > limit) {
     const retryAfter = Math.ceil((record.resetAt - now) / 1000)
@@ -116,13 +136,7 @@ export function checkRateLimit(key, limit = config.rateLimit.max, windowMs = con
 }
 
 export function getClientIP(req) {
-  const forwarded = req.headers['x-forwarded-for']
-  return (
-    (typeof forwarded === 'string' && forwarded.split(',')[0].trim()) ||
-    req.headers['x-client-ip'] ||
-    req.socket?.remoteAddress ||
-    'unknown'
-  )
+  return req.ip || req.socket?.remoteAddress || 'unknown'
 }
 
 export default {

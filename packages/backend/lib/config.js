@@ -4,7 +4,9 @@ export const config = {
   isProd: process.env.NODE_ENV === 'production',
   server: {
     host: process.env.HOST || '0.0.0.0',
-    port: Number.parseInt(process.env.PORT || '3001', 10)
+    port: Number.parseInt(process.env.PORT || '3001', 10),
+    trustProxy: process.env.TRUST_PROXY === 'true',
+    requestBodyLimit: process.env.REQUEST_BODY_LIMIT || '1mb'
   },
   database: {
     url: process.env.DATABASE_URL || null,
@@ -47,7 +49,8 @@ export const config = {
   rateLimit: {
     windowMs: Number.parseInt(process.env.RATE_LIMIT_WINDOW || '60000', 10),
     max: Number.parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
-    tokenGenLimit: Number.parseInt(process.env.TOKEN_GEN_LIMIT || '10', 10)
+    tokenGenLimit: Number.parseInt(process.env.TOKEN_GEN_LIMIT || '10', 10),
+    maxKeys: Number.parseInt(process.env.RATE_LIMIT_MAX_KEYS || '10000', 10)
   },
   payments: {
     settlementChainId: Number.parseInt(process.env.SETTLEMENT_CHAIN_ID || '84532', 10),
@@ -90,6 +93,13 @@ export const config = {
     idempotencyCleanupEnabled: process.env.IDEMPOTENCY_CLEANUP_ENABLED === 'true',
     idempotencyCleanupBatchSize: Number.parseInt(process.env.IDEMPOTENCY_CLEANUP_BATCH_SIZE || '500', 10),
     idempotencyCleanupIntervalMs: Number.parseInt(process.env.IDEMPOTENCY_CLEANUP_INTERVAL_MS || '900000', 10)
+  },
+  verifierWorker: {
+    enabled: process.env.VERIFIER_WORKER_ENABLED === 'true',
+    pollIntervalMs: Number.parseInt(process.env.VERIFIER_WORKER_POLL_INTERVAL_MS || '5000', 10),
+    maxBlockRange: Number.parseInt(process.env.VERIFIER_WORKER_MAX_BLOCK_RANGE || '2000', 10),
+    finalityConfirmations: Number.parseInt(process.env.PAYMENT_FINALITY_CONFIRMATIONS || '10', 10),
+    verifierId: process.env.VERIFIER_WORKER_ID || 'verifier-worker'
   },
   advisoryAi: {
     enabled: process.env.ADVISORY_AI_ENABLED === 'true',
@@ -160,6 +170,30 @@ export function validateConfig() {
   }
   if (config.isProd && config.housekeeping.idempotencyCleanupEnabled && !config.database.url) {
     errors.push('DATABASE_URL is required when IDEMPOTENCY_CLEANUP_ENABLED=true in production')
+  }
+
+  if (!Number.isInteger(config.rateLimit.maxKeys) || config.rateLimit.maxKeys < 100 || config.rateLimit.maxKeys > 1000000) {
+    errors.push('RATE_LIMIT_MAX_KEYS must be an integer between 100 and 1000000')
+  }
+  if (typeof config.server.requestBodyLimit !== 'string' || !/^\d+(?:b|kb|mb|gb)$/i.test(config.server.requestBodyLimit)) {
+    errors.push('REQUEST_BODY_LIMIT must use a bounded byte size such as 1mb')
+  }
+
+  if (!Number.isInteger(config.verifierWorker.pollIntervalMs) || config.verifierWorker.pollIntervalMs < 1000 || config.verifierWorker.pollIntervalMs > 86400000) {
+    errors.push('VERIFIER_WORKER_POLL_INTERVAL_MS must be an integer between 1000 and 86400000 milliseconds')
+  }
+  if (!Number.isInteger(config.verifierWorker.maxBlockRange) || config.verifierWorker.maxBlockRange < 1 || config.verifierWorker.maxBlockRange > 100000) {
+    errors.push('VERIFIER_WORKER_MAX_BLOCK_RANGE must be an integer between 1 and 100000')
+  }
+  if (typeof config.verifierWorker.verifierId !== 'string' || !/^[A-Za-z0-9._:-]{1,128}$/.test(config.verifierWorker.verifierId)) {
+    errors.push('VERIFIER_WORKER_ID must contain 1-128 letters, numbers, dots, underscores, colons, or hyphens')
+  }
+  if (config.isProd && config.verifierWorker.enabled) {
+    if (!config.database.url) errors.push('DATABASE_URL is required when VERIFIER_WORKER_ENABLED=true in production')
+    if (!/^https:\/\//i.test(config.payments.rpcUrl || '')) errors.push('PAYMENT_RPC_URL must use HTTPS when VERIFIER_WORKER_ENABLED=true in production')
+    if (config.payments.settlementChainId !== 84532) errors.push('VERIFIER_WORKER_ENABLED production default requires Base Sepolia chain ID 84532')
+    if (config.payments.mainnetEnabled) errors.push('VERIFIER_WORKER_ENABLED cannot run with PAYMENT_MAINNET_ENABLED=true')
+    if (!config.payments.protocolContractAddress) errors.push('PAYMENT_STREAM_PROTOCOL_CONTRACT is required when VERIFIER_WORKER_ENABLED=true in production')
   }
 
   if (!Number.isInteger(config.payments.finalityConfirmations) || config.payments.finalityConfirmations < 1) {

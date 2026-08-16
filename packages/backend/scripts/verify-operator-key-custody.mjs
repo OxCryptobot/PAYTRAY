@@ -8,14 +8,17 @@ async function readOptionalJson(filePath) {
 
 try {
   const fingerprintAttestation = await readOptionalJson(process.env.RELEASE_SIGNING_FINGERPRINT_ATTESTATION_FILE)
+  const custodyManifest = await readOptionalJson(process.env.RELEASE_SIGNING_CUSTODY_MANIFEST_FILE)
   const evidence = buildOperatorKeyCustodyEvidence({
     privateKeyPem: process.env.RELEASE_SIGNING_KEY_PEM || null,
     publicKeyPem: process.env.RELEASE_SIGNING_PUBLIC_KEY_PEM || null,
     expectedPublicKeyFingerprintSha256: process.env.RELEASE_SIGNING_PUBLIC_KEY_SHA256 || null,
     fingerprintAttestation,
+    custodyManifest,
     releaseCommit: process.env.RELEASE_GIT_COMMIT || null,
     privateKeySource: process.env.RELEASE_SIGNING_KEY_SOURCE || null,
     keyVersion: process.env.RELEASE_SIGNING_KEY_VERSION || null,
+    secretName: process.env.RELEASE_SIGNING_KEY_SECRET_NAME || 'RELEASE_SIGNING_KEY_PEM',
     protectedSecret: process.env.RELEASE_SIGNING_KEY_PROTECTED === 'true',
     independentlyVerifiedFlag: process.env.RELEASE_SIGNING_PUBLIC_KEY_FINGERPRINT_VERIFIED === 'true'
   })
@@ -27,6 +30,8 @@ try {
     reason: error.message,
     privateKeyMaterialIncluded: false,
     publicKeyMaterialIncluded: false,
+    signatureMaterialIncluded: false,
+    custodyManifestMaterialIncluded: false,
     releaseEligible: false,
     settlementAuthority: false,
     mutation: 'read_only',

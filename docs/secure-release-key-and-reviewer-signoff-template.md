@@ -51,7 +51,7 @@ Expected private-key permission is `600` and expected public-key permission is `
 
 ## 3. Environment configuration template
 
-Do not commit a populated `.env` file. Store the private key in the approved secret manager under the exact secret name `RELEASE_SIGNING_KEY_PEM`. A protected release runner may load it for one command as follows:
+Do not commit a populated `.env` file. Store the private key in the approved secret manager under the exact secret name `RELEASE_SIGNING_KEY_PEM`. A protected release runner may load it for one command as follows. The public key may be injected as a non-secret value, while the custody manifest and security attestation are protected evidence files. The attestation must be an EIP-191 signature over the exact message emitted by the checker for the same release commit, fingerprint, secret name, and secret version.
 
 ```bash
 set -eu
@@ -82,13 +82,14 @@ A non-secret configuration template for an approved release runner is:
 ```dotenv
 # Never place the private key value in this file.
 RELEASE_SIGNING_KEY_PEM=<injected-by-approved-secret-manager>
+RELEASE_SIGNING_PUBLIC_KEY_PEM=<approved-public-key-pem>
 RELEASE_SIGNING_PUBLIC_KEY_SHA256=<sha256-of-public-key-pem>
 RELEASE_SIGNING_PUBLIC_KEY_FINGERPRINT_VERIFIED=<independently-confirmed-by-security-reviewer>
-RELEASE_SIGNING_PUBLIC_KEY_PEM=<approved-public-key-pem-or-protected-file-injection>
 RELEASE_SIGNING_KEY_SOURCE=approved-secret-manager
 RELEASE_SIGNING_KEY_VERSION=<immutable-secret-version>
 RELEASE_SIGNING_KEY_PROTECTED=true
 RELEASE_SIGNING_FINGERPRINT_ATTESTATION_FILE=<protected-security-attestation-json>
+RELEASE_SIGNING_CUSTODY_MANIFEST_FILE=<protected-non-secret-custody-manifest-json>
 RELEASE_GIT_COMMIT=<exact-reviewed-git-commit>
 
 RELEASE_DIRTY=false

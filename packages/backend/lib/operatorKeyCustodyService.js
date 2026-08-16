@@ -1,9 +1,20 @@
 import { createHash, createPublicKey, createPrivateKey } from 'node:crypto'
+import { getAddress, verifyMessage } from 'ethers'
+
 const FINGERPRINT = /^[a-f0-9]{64}$/
 const COMMIT = /^[a-f0-9]{40}$/
+const SECRET_NAME = 'RELEASE_SIGNING_KEY_PEM'
 
 function validNonPlaceholder(value) {
   return typeof value === 'string' && value.trim() && !/[<>]/.test(value) && !/placeholder|example|replace[-_ ]?me/i.test(value)
+}
+
+function normalizeCommit(value) {
+  return typeof value === 'string' && COMMIT.test(value.trim().toLowerCase()) ? value.trim().toLowerCase() : null
+}
+
+function normalizeFingerprint(value) {
+  return typeof value === 'string' && FINGERPRINT.test(value.trim().toLowerCase()) ? value.trim().toLowerCase() : null
 }
 
 function fingerprintPublicKeyPem(publicKeyPem) {
@@ -14,22 +25,41 @@ function publicKeyDer(keyObject) {
   return keyObject.export({ type: 'spki', format: 'der' })
 }
 
+export function buildFingerprintAttestationMessage({ releaseCommit, publicKeyFingerprintSha256, secretName = SECRET_NAME, keyVersion } = {}) {
+  return [
+    'PayTray public-key fingerprint verification',
+    `releaseCommit=${releaseCommit || ''}`,
+    `publicKeyFingerprintSha256=${publicKeyFingerprintSha256 || ''}`,
+    `secretName=${secretName || ''}`,
+    `keyVersion=${keyVersion || ''}`
+  ].join('\n')
+}
+
+function recoveredWalletFromAttestation(attestation) {
+  try {
+    if (!attestation?.signature || !attestation?.message || !attestation?.reviewerWallet) return null
+    return getAddress(verifyMessage(attestation.message, attestation.signature))
+  } catch {
+    return null
+  }
+}
+
 export function buildOperatorKeyCustodyEvidence({
   privateKeyPem = null,
   publicKeyPem = null,
   expectedPublicKeyFingerprintSha256 = null,
   fingerprintAttestation = null,
+  custodyManifest = null,
   releaseCommit = null,
   privateKeySource = null,
   keyVersion = null,
+  secretName = SECRET_NAME,
   protectedSecret = false,
   independentlyVerifiedFlag = false
 } = {}) {
   const reasons = []
-  const commit = typeof releaseCommit === 'string' && COMMIT.test(releaseCommit.trim().toLowerCase()) ? releaseCommit.trim().toLowerCase() : null
-  const expectedFingerprint = typeof expectedPublicKeyFingerprintSha256 === 'string' && FINGERPRINT.test(expectedPublicKeyFingerprintSha256.trim().toLowerCase())
-    ? expectedPublicKeyFingerprintSha256.trim().toLowerCase()
-    : null
+  const commit = normalizeCommit(releaseCommit)
+  const expectedFingerprint = normalizeFingerprint(expectedPublicKeyFingerprintSha256)
   const privateKeyPresent = typeof privateKeyPem === 'string' && privateKeyPem.length > 0
   const publicKeyPresent = typeof publicKeyPem === 'string' && publicKeyPem.length > 0
   let privateKey = null
@@ -72,23 +102,58 @@ export function buildOperatorKeyCustodyEvidence({
   const fingerprintMatchesExpected = Boolean(calculatedFingerprint && expectedFingerprint && calculatedFingerprint === expectedFingerprint)
   if (!fingerprintMatchesExpected) reasons.push('public-key fingerprint does not match the operator-supplied expected fingerprint')
 
-  const independentAttestationValid = Boolean(
+  const normalizedSecretName = typeof secretName === 'string' && secretName.trim() ? secretName.trim() : SECRET_NAME
+  const normalizedKeyVersion = validNonPlaceholder(keyVersion) ? keyVersion.trim() : null
+  const custodyManifestVerified = Boolean(
+    custodyManifest &&
+    custodyManifest.provider === 'approved-secret-manager' &&
+    custodyManifest.secretName === normalizedSecretName &&
+    custodyManifest.version === normalizedKeyVersion &&
+    custodyManifest.privateKeyPresent === true &&
+    custodyManifest.privateKeyExported === false &&
+    custodyManifest.accessMode === 'ephemeral' &&
+    custodyManifest.publicKeyFingerprintSha256 === calculatedFingerprint &&
+    custodyManifest.releaseCommit === commit &&
+    typeof custodyManifest.retrievedAt === 'string' &&
+    !Number.isNaN(Date.parse(custodyManifest.retrievedAt))
+  )
+  if (!custodyManifestVerified) reasons.push('secret-manager custody manifest is missing, mismatched, exported, or not ephemeral')
+
+  const expectedAttestationMessage = buildFingerprintAttestationMessage({
+    releaseCommit: commit,
+    publicKeyFingerprintSha256: calculatedFingerprint,
+    secretName: normalizedSecretName,
+    keyVersion: normalizedKeyVersion
+  })
+  const recoveredWallet = recoveredWalletFromAttestation(fingerprintAttestation)
+  let attestedWallet = null
+  try {
+    if (fingerprintAttestation?.reviewerWallet) attestedWallet = getAddress(fingerprintAttestation.reviewerWallet)
+  } catch {
+    attestedWallet = null
+  }
+  const independentAttestationSignatureVerified = Boolean(
     fingerprintAttestation &&
     fingerprintAttestation.role === 'security' &&
-    validNonPlaceholder(fingerprintAttestation.verifiedBy) &&
     validNonPlaceholder(fingerprintAttestation.attestationId) &&
     typeof fingerprintAttestation.verifiedAt === 'string' &&
     !Number.isNaN(Date.parse(fingerprintAttestation.verifiedAt)) &&
+    fingerprintAttestation.releaseCommit === commit &&
     fingerprintAttestation.publicKeyFingerprintSha256 === calculatedFingerprint &&
-    fingerprintAttestation.releaseCommit === commit
+    fingerprintAttestation.secretName === normalizedSecretName &&
+    fingerprintAttestation.keyVersion === normalizedKeyVersion &&
+    fingerprintAttestation.message === expectedAttestationMessage &&
+    recoveredWallet !== null &&
+    attestedWallet !== null &&
+    recoveredWallet === attestedWallet
   )
-  if (!independentAttestationValid) reasons.push('independent security fingerprint attestation is missing or does not match the key and release commit')
+  if (!independentAttestationSignatureVerified) reasons.push('independent security fingerprint signature is missing or does not match the key, custody manifest, or release commit')
 
-  const custodyVerified = privateKeyPresent && privateKeyParseable && privateKeyAlgorithm === 'ed25519' && protectedSecret === true && privateKeySource === 'approved-secret-manager' && validNonPlaceholder(keyVersion)
-  if (!custodyVerified) reasons.push('private-key custody is not verified against the approved secret-manager contract')
+  const custodyVerified = privateKeyPresent && privateKeyParseable && privateKeyAlgorithm === 'ed25519' && protectedSecret === true && privateKeySource === 'approved-secret-manager' && custodyManifestVerified
+  if (!custodyVerified && !reasons.includes('secret-manager custody manifest is missing, mismatched, exported, or not ephemeral')) reasons.push('private-key custody is not verified against the approved secret-manager contract')
 
-  const ready = reasons.length === 0 && independentlyVerifiedFlag === true
   if (independentlyVerifiedFlag !== true) reasons.push('independent fingerprint verification flag is not true')
+  const ready = reasons.length === 0
 
   return {
     status: ready ? 'verified' : 'blocked',
@@ -99,18 +164,23 @@ export function buildOperatorKeyCustodyEvidence({
     privateKeyAlgorithm,
     publicKeyAlgorithm,
     privateKeySource: privateKeySource === 'approved-secret-manager' ? privateKeySource : 'unverified',
-    keyVersion: validNonPlaceholder(keyVersion) ? keyVersion : null,
+    secretName: normalizedSecretName,
+    keyVersion: normalizedKeyVersion,
     custodyVerified,
+    custodyManifestVerified,
     derivedPublicKeyMatches,
     calculatedPublicKeyFingerprintSha256: calculatedFingerprint,
     expectedPublicKeyFingerprintSha256: expectedFingerprint,
     fingerprintMatchesExpected,
-    independentVerification: independentlyVerifiedFlag === true && independentAttestationValid,
-    attestationRole: independentAttestationValid ? 'security' : null,
+    independentAttestationSignatureVerified,
+    independentVerification: independentlyVerifiedFlag === true && independentAttestationSignatureVerified,
+    attestationRole: independentAttestationSignatureVerified ? 'security' : null,
     releaseCommit: commit,
     reasons: [...new Set(reasons)],
     privateKeyMaterialIncluded: false,
     publicKeyMaterialIncluded: false,
+    signatureMaterialIncluded: false,
+    custodyManifestMaterialIncluded: false,
     releaseEligible: false,
     settlementAuthority: false,
     mutation: 'read_only',

@@ -24,6 +24,7 @@ const checks = [
   { name: 'release-manifest', script: 'backend:release:manifest:check' },
   { name: 'release-payload', script: 'backend:release:payload:check' },
   { name: 'operator-key-custody', script: 'backend:release:key:custody:check' },
+  { name: 'secret-manager-custody', script: 'backend:release:key:secret-manager:check' },
   { name: 'advisory-ai', script: 'backend:advisory:ai:check' },
   { name: 'token-metadata', script: 'backend:token:metadata:check' },
   { name: 'smoke-phase2', script: 'backend:smoke:phase2:check' },

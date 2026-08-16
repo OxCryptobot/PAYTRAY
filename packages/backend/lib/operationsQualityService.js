@@ -20,7 +20,8 @@ const EXPECTED_BLOCKED_CHECKS = new Set([
   'idempotency-cleanup',
   'release-manifest',
   'release-payload',
-  'operator-key-custody'
+  'operator-key-custody',
+  'secret-manager-custody'
 ])
 
 export function classifyOperationsCheck({ name, exitCode, output = '', strict = false } = {}) {

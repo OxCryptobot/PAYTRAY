@@ -32,6 +32,24 @@ describe('human evidence worksheet validator', () => {
     })
   })
 
+  it('prepares a draft shape without permitting submission or approval evidence', () => {
+    const draft = {
+      mode: 'draft',
+      signoffs: roles.map((role) => ({ role })),
+      shadowReviews: runIds.map((runId) => ({ runId, status: 'shadow', decision: 'pending', rollbackTarget: 'weighted-explainable-v1' }))
+    }
+    expect(validateHumanEvidenceWorksheet({ content: draft })).toMatchObject({
+      status: 'draft_prepared',
+      mode: 'draft',
+      prepared: false,
+      draftPrepared: true,
+      submissionPermitted: false,
+      submissionPerformed: false,
+      releaseEligible: false,
+      settlementAuthority: false
+    })
+  })
+
   it('blocks missing roles and shadow runs', () => {
     const result = validateHumanEvidenceWorksheet({ content: { signoffs: worksheet().signoffs.slice(0, 3), shadowReviews: worksheet().shadowReviews.slice(0, 5) } })
     expect(result.prepared).toBe(false)

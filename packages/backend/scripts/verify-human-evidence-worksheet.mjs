@@ -51,6 +51,8 @@ export function validateHumanEvidenceWorksheet({ content } = {}) {
   }
   assertSafeTree(worksheet)
   if (!worksheet || typeof worksheet !== 'object' || Array.isArray(worksheet)) fail('human-evidence worksheet must be an object')
+  const mode = worksheet.mode || 'submission'
+  if (!['draft', 'submission'].includes(mode)) fail('human-evidence worksheet mode must be draft or submission')
   const signoffs = Array.isArray(worksheet.signoffs) ? worksheet.signoffs : []
   const shadows = Array.isArray(worksheet.shadowReviews) ? worksheet.shadowReviews : []
   const errors = []
@@ -60,6 +62,10 @@ export function validateHumanEvidenceWorksheet({ content } = {}) {
       if (!REQUIRED_SIGNOFF_ROLES.includes(signoff?.role)) fail(`signoffs[${index}].role is not one of the required roles`)
       if (roles.has(signoff.role)) fail(`duplicate sign-off role: ${signoff.role}`)
       roles.add(signoff.role)
+      if (mode === 'draft') {
+        if (signoff.approved === true || signoff.reviewerId || signoff.approvedAt || signoff.notes) fail(`draft signoffs[${index}] must not contain approval or reviewer evidence`)
+        continue
+      }
       if (signoff.approved !== true) fail(`signoffs[${index}].approved must be true for a release worksheet`)
       requiredString(signoff.reviewerId, `signoffs[${index}].reviewerId`)
       validTimestamp(signoff.approvedAt, `signoffs[${index}].approvedAt`)
@@ -80,6 +86,11 @@ export function validateHumanEvidenceWorksheet({ content } = {}) {
       if (!PENDING_SHADOW_RUN_IDS.includes(review?.runId)) fail(`shadowReviews[${index}].runId is not one of the six pending runs`)
       if (runIds.has(review.runId)) fail(`duplicate shadow run: ${review.runId}`)
       runIds.add(review.runId)
+      if (mode === 'draft') {
+        if (review.decision && review.decision !== 'pending') fail(`draft shadowReviews[${index}] must not contain a terminal decision`)
+        if (review.reviewerId || review.reviewedAt || review.notes) fail(`draft shadowReviews[${index}] must not contain reviewer evidence`)
+        continue
+      }
       if (!['approved_pilot', 'rejected'].includes(review.decision)) fail(`shadowReviews[${index}].decision must be approved_pilot or rejected`)
       requiredString(review.reviewerId, `shadowReviews[${index}].reviewerId`)
       validTimestamp(review.reviewedAt, `shadowReviews[${index}].reviewedAt`)
@@ -92,10 +103,15 @@ export function validateHumanEvidenceWorksheet({ content } = {}) {
   }
   const missingShadowRuns = PENDING_SHADOW_RUN_IDS.filter((runId) => !runIds.has(runId))
   for (const runId of missingShadowRuns) errors.push(`missing shadow review worksheet entry: ${runId}`)
-  const prepared = errors.length === 0 && signoffs.length === REQUIRED_SIGNOFF_ROLES.length && shadows.length === PENDING_SHADOW_RUN_IDS.length
+  const completeShape = errors.length === 0 && signoffs.length === REQUIRED_SIGNOFF_ROLES.length && shadows.length === PENDING_SHADOW_RUN_IDS.length
+  const draftPrepared = mode === 'draft' && completeShape
+  const prepared = mode === 'submission' && completeShape
   return {
-    status: prepared ? 'prepared_for_human_submission' : 'blocked',
+    status: draftPrepared ? 'draft_prepared' : prepared ? 'prepared_for_human_submission' : 'blocked',
+    mode,
     prepared,
+    draftPrepared,
+    submissionPermitted: prepared,
     signoffs: { required: REQUIRED_SIGNOFF_ROLES.length, supplied: signoffs.length, rolesPresent: [...roles], missingRoles: REQUIRED_SIGNOFF_ROLES.filter((role) => !roles.has(role)) },
     shadowReviews: { required: PENDING_SHADOW_RUN_IDS.length, supplied: shadows.length, runIdsPresent: [...runIds], missingRunIds: missingShadowRuns },
     errors,
@@ -114,5 +130,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   if (!worksheetPath) throw new Error('worksheet path or HUMAN_EVIDENCE_WORKSHEET_FILE is required')
   const result = validateHumanEvidenceWorksheet({ content: fs.readFileSync(worksheetPath, 'utf8') })
   console.log(JSON.stringify(result, null, 2))
-  process.exitCode = result.prepared ? 0 : 1
+  process.exitCode = result.prepared || result.draftPrepared ? 0 : 1
 }

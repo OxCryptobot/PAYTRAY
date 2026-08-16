@@ -14,15 +14,35 @@ function check(name, ready, reason, evidence = null) {
   return { name, ready: Boolean(ready), reason, evidence }
 }
 
+const REQUIRED_SIGNOFF_ROLES = ['release_operator', 'protocol_finance', 'ai_data', 'security']
+
 function summarizeSignoffs(signoffs = []) {
   const records = Array.isArray(signoffs) ? signoffs : []
-  const approved = records.filter((record) => record?.approved === true && record?.reviewerId && record?.approvedAt && record?.scope === 'production_release' && record?.rollbackAcknowledged === true)
+  const approved = records.filter((record) => record?.approved === true && record?.reviewerId && record?.approvedAt && !Number.isNaN(Date.parse(record.approvedAt)) && record?.scope === 'production_release' && record?.rollbackAcknowledged === true && REQUIRED_SIGNOFF_ROLES.includes(record?.role))
+  const rolesPresent = [...new Set(approved.map((record) => record.role))]
+  const missingRoles = REQUIRED_SIGNOFF_ROLES.filter((role) => !rolesPresent.includes(role))
   return {
-    required: 4,
+    required: REQUIRED_SIGNOFF_ROLES.length,
+    requiredRoles: REQUIRED_SIGNOFF_ROLES,
     supplied: records.length,
     valid: approved.length,
-    complete: approved.length >= 4,
+    rolesPresent,
+    missingRoles,
+    complete: missingRoles.length === 0,
     identitiesIncluded: false
+  }
+}
+
+function buildSigningKeyEvidence({ present = false, publicKeyFingerprintSha256 = null, independentlyVerified = false } = {}) {
+  const fingerprint = typeof publicKeyFingerprintSha256 === 'string' ? publicKeyFingerprintSha256.trim().toLowerCase() : null
+  const validFingerprint = /^[a-f0-9]{64}$/.test(fingerprint || '')
+  return {
+    present: present === true,
+    publicKeyFingerprintSha256: validFingerprint ? fingerprint : null,
+    fingerprintProvided: validFingerprint,
+    independentlyVerified: independentlyVerified === true,
+    ready: present === true && validFingerprint && independentlyVerified === true,
+    source: 'operator_supplied_non_secret_key_evidence'
   }
 }
 
@@ -33,7 +53,7 @@ export async function loadReleaseSignoffs(filePath = process.env.RELEASE_SIGNOFF
   return value
 }
 
-export async function collectReleaseEvidence({ client, config, targetOperations = null, signoffs = null, signingKeyEvidencePresent = Boolean(process.env.RELEASE_SIGNING_KEY_PEM) } = {}) {
+export async function collectReleaseEvidence({ client, config, targetOperations = null, signoffs = null, signingKeyEvidence = null } = {}) {
   if (!client) throw new Error('release evidence collection requires a PostgreSQL client')
   const target = targetOperations || buildTargetOperationsPreflight({ config })
   const resolvedSignoffs = signoffs || await loadReleaseSignoffs()
@@ -61,7 +81,11 @@ export async function collectReleaseEvidence({ client, config, targetOperations 
     pendingShadowReviews: shadowQueue.count,
     rollbackTargets: rollbackResult.rows[0]?.count || 0,
     signoffs: resolvedSignoffs,
-    signingKeyEvidencePresent
+    signingKeyEvidence: signingKeyEvidence || buildSigningKeyEvidence({
+      present: Boolean(process.env.RELEASE_SIGNING_KEY_PEM),
+      publicKeyFingerprintSha256: process.env.RELEASE_SIGNING_PUBLIC_KEY_SHA256,
+      independentlyVerified: process.env.RELEASE_SIGNING_PUBLIC_KEY_FINGERPRINT_VERIFIED === 'true'
+    })
   })
 }
 
@@ -119,9 +143,10 @@ export function buildReleaseEvidenceBundle({
   pendingShadowReviews = 0,
   rollbackTargets = 0,
   signoffs = [],
-  signingKeyEvidencePresent = false
+  signingKeyEvidence = null
 } = {}) {
   const signoffSummary = summarizeSignoffs(signoffs)
+  const keyEvidence = buildSigningKeyEvidence(signingKeyEvidence || {})
   const checks = [
     check('targetOperations', targetOperations?.status === 'ready', targetOperations?.status === 'ready' ? 'target configuration checks passed' : 'target configuration evidence is blocked or unavailable', { status: targetOperations?.status || 'not_provided', releaseEligible: targetOperations?.releaseEligible === true }),
     check('deploymentPreflight', deploymentPreflight?.ready === true, deploymentPreflight?.ready ? 'deployment configuration preflight passed' : 'deployment configuration requires attention'),
@@ -132,8 +157,8 @@ export function buildReleaseEvidenceBundle({
     check('webhookInbox', webhookInboxHealth?.status === 'ok', webhookInboxHealth?.status === 'ok' ? 'webhook inbox has no quarantine or due attention' : 'webhook inbox evidence is unavailable or requires attention'),
     check('shadowReviews', Number(pendingShadowReviews) === 0, Number(pendingShadowReviews) === 0 ? 'no pending shadow reviews reported' : 'pending shadow reviews remain', { pendingShadowReviews: Number(pendingShadowReviews) }),
     check('rollbackTargets', Number(rollbackTargets) > 0, Number(rollbackTargets) > 0 ? 'rollback target evidence is present' : 'rollback target evidence is missing', { rollbackTargets: Number(rollbackTargets) }),
-    check('humanSignoffs', signoffSummary.complete, signoffSummary.complete ? 'four valid human sign-offs supplied' : 'four valid human sign-offs are required', signoffSummary),
-    check('signingKey', signingKeyEvidencePresent === true, signingKeyEvidencePresent ? 'operator signing-key presence was reported without exposing key material' : 'operator signing-key evidence is not present')
+    check('humanSignoffs', signoffSummary.complete, signoffSummary.complete ? 'four required human sign-off roles supplied' : `required human sign-off roles are missing: ${signoffSummary.missingRoles.join(', ')}`, signoffSummary),
+    check('signingKey', keyEvidence.ready, keyEvidence.ready ? 'operator key presence, public-key fingerprint, and independent fingerprint verification were reported without exposing key material' : 'operator key, public-key fingerprint, and independent fingerprint verification are all required', keyEvidence)
   ]
   const evidenceComplete = checks.every((item) => item.ready)
   const evidenceFingerprint = buildEvidenceFingerprint({
@@ -141,6 +166,7 @@ export function buildReleaseEvidenceBundle({
     content: {
       checks,
       signoffSummary,
+      signingKeyEvidence: { ...keyEvidence, publicKeyFingerprintSha256: keyEvidence.publicKeyFingerprintSha256 },
       signingKeyMaterialIncluded: false,
       authority: 'release_evidence_aggregation_only',
       mutation: 'read_only',
@@ -162,6 +188,7 @@ export function buildReleaseEvidenceBundle({
     checks,
     blockers: checks.filter((item) => !item.ready).map(({ name, reason }) => ({ name, reason })),
     signoffSummary,
+    signingKeyEvidence: { ...keyEvidence, publicKeyFingerprintSha256: keyEvidence.publicKeyFingerprintSha256 },
     signingKeyMaterialIncluded: false,
     evidenceFingerprint,
     generatedAt: new Date().toISOString()

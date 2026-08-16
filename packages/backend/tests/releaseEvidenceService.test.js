@@ -12,12 +12,12 @@ const baseEvidence = {
   pendingShadowReviews: 0,
   rollbackTargets: 1,
   signoffs: [
-    { approved: true, reviewerId: 'release-operator', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true },
-    { approved: true, reviewerId: 'protocol-reviewer', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true },
-    { approved: true, reviewerId: 'ai-reviewer', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true },
-    { approved: true, reviewerId: 'security-reviewer', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true }
+    { role: 'release_operator', approved: true, reviewerId: 'release-operator', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true },
+    { role: 'protocol_finance', approved: true, reviewerId: 'protocol-reviewer', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true },
+    { role: 'ai_data', approved: true, reviewerId: 'ai-reviewer', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true },
+    { role: 'security', approved: true, reviewerId: 'security-reviewer', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true }
   ],
-  signingKeyEvidencePresent: true
+  signingKeyEvidence: { present: true, publicKeyFingerprintSha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', independentlyVerified: true }
 }
 
 describe('release evidence aggregation', () => {
@@ -27,6 +27,8 @@ describe('release evidence aggregation', () => {
     expect(bundle.evidenceComplete).toBe(true)
     expect(bundle.releaseEligible).toBe(false)
     expect(bundle.signingKeyMaterialIncluded).toBe(false)
+    expect(bundle.signoffSummary.missingRoles).toEqual([])
+    expect(bundle.signingKeyEvidence.publicKeyFingerprintSha256).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
     expect(bundle.authority).toBe('release_evidence_aggregation_only')
     expect(bundle.settlementAuthority).toBe(false)
     expect(bundle.evidenceFingerprint.algorithm).toBe('sha256')
@@ -45,6 +47,14 @@ describe('release evidence aggregation', () => {
     expect(unified.releaseEligible).toBe(false)
     expect(unified.settlementAuthority).toBe(false)
     expect(unified.mutation).toBe('read_only')
+  })
+
+  it('requires all distinct reviewer roles and independently verified public-key fingerprint evidence', () => {
+    const bundle = buildReleaseEvidenceBundle({ ...baseEvidence, signoffs: baseEvidence.signoffs.slice(0, 3), signingKeyEvidence: { present: true, publicKeyFingerprintSha256: 'bad', independentlyVerified: false } })
+    expect(bundle.evidenceComplete).toBe(false)
+    expect(bundle.signoffSummary.missingRoles).toEqual(['security'])
+    expect(bundle.checks.find((item) => item.name === 'signingKey').ready).toBe(false)
+    expect(bundle.signingKeyMaterialIncluded).toBe(false)
   })
 
   it('names missing target and human evidence without weakening the gate', () => {

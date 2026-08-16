@@ -12,7 +12,11 @@ try {
     client,
     config,
     targetOperations,
-    signingKeyEvidencePresent: Boolean(process.env.RELEASE_SIGNING_KEY_PEM)
+    signingKeyEvidence: {
+      present: Boolean(process.env.RELEASE_SIGNING_KEY_PEM),
+      publicKeyFingerprintSha256: process.env.RELEASE_SIGNING_PUBLIC_KEY_SHA256 || null,
+      independentlyVerified: process.env.RELEASE_SIGNING_PUBLIC_KEY_FINGERPRINT_VERIFIED === 'true'
+    }
   }))
   console.log(JSON.stringify({ status: 'ok', bundle }, null, 2))
   exitCode = bundle.evidenceComplete ? 0 : 1

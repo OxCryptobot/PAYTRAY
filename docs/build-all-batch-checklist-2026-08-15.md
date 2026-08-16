@@ -42,6 +42,7 @@
 | CY | Release-gate and evidence workflow documentation | Pushed | `5ae2a26`; updated the v2 operations contract and batch documentation with durable release-gate provenance, endpoint semantics, and the non-releaseable operator evidence boundary. |
 | CW | Railway non-secret project/service metadata observability | Pushed | `1461adb`; the Railway trial report accepts only operator-supplied project, environment, and allowlisted web/worker service-status metadata; incomplete metadata remains `metadata_unavailable`, settings are never inferred, and safety fields remain read-only/non-releaseable. |
 | CZ | CI matrix-artifact contract validation | Pushed | `e9150bc`; added `backend:ci:matrix:check` and CI steps that verify report provenance, count reconciliation, recursive sensitive-key absence, immutable safety flags, and read-only authority before SHA-256 fingerprinting/upload. Operations quality verified 10 checks; release gates verified 19 checks; both had 0 unexpected failures. |
+| DA | Human reviewer-role and Ed25519 evidence contract | Validated locally | Release evidence now requires the four distinct roles `release_operator`, `protocol_finance`, `ai_data`, and `security`, plus operator-key presence, a 64-hex public-key fingerprint, and independent fingerprint verification. No private key or reviewer identity is emitted; release authority remains false. |
 | BY | Multi-chain expansion | Deferred | Do not begin until single-chain reliability, reconciliation SLOs, rollback, and target verifier evidence are proven. |
 
 ## Buildable engineering work
@@ -70,7 +71,7 @@ These gates cannot be completed by code changes alone and must remain pending un
 
 ## Latest validation evidence
 
-The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL/CM/CP/CQ/CR/CS/CT/CU/CV/CX/CY/CW/CZ tranche passed **67 test files and 278 tests**, and remote workflow `31896601158` completed with all five jobs successful, and remote workflow `31895743558` completed with all five jobs successful, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
+The BS–BU/BW/BX/BZ/CA/CB/CC/CD/CE/CF/CG/CH/CI/CK/CL/CM/CP/CQ/CR/CS/CT/CU/CV/CX/CY/CW/CZ/DA tranche passed **67 test files and 279 tests**, and remote workflow `31896601158` completed with all five jobs successful, and remote workflow `31895743558` completed with all five jobs successful, ESLint, the shared quality gate, migration validation through migration 018, the runtime-to-OpenAPI contract verifier, the verifier-worker configuration verifier with explicit Base Sepolia settings, a default target-preflight blocked result, a fully configured target-preflight result with `releaseEligible: false`, isolated ready-PostgreSQL verification with `status: verified`, and `git diff --check`. No worker was started against a live RPC, no deployment was performed, and no settlement mutation occurred.
 
 ## Standard execution order
 

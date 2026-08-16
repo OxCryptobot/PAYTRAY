@@ -63,6 +63,8 @@ export PAYTRAY_KEY_DIR="${PAYTRAY_KEY_DIR:-$HOME/.config/paytray/release}"
 # It does not put the key into the repository or into the signed payload.
 env \
   RELEASE_SIGNING_KEY_PEM="$(<"$PAYTRAY_KEY_DIR/release-signing-key.pem")" \
+  RELEASE_SIGNING_PUBLIC_KEY_SHA256="$(cut -d' ' -f1 "$PAYTRAY_KEY_DIR/release-signing-public-key.sha256")" \
+  RELEASE_SIGNING_PUBLIC_KEY_FINGERPRINT_VERIFIED=true \
   RELEASE_GIT_COMMIT="$(git rev-parse HEAD)" \
   RELEASE_DIRTY="false" \
   RELEASE_APPROVAL_STATUS="approved" \
@@ -80,7 +82,10 @@ A non-secret configuration template for an approved release runner is:
 ```dotenv
 # Never place the private key value in this file.
 RELEASE_SIGNING_KEY_PEM=<injected-by-approved-secret-manager>
+RELEASE_SIGNING_PUBLIC_KEY_SHA256=<sha256-of-public-key-pem>
+RELEASE_SIGNING_PUBLIC_KEY_FINGERPRINT_VERIFIED=<independently-confirmed-by-security-reviewer>
 RELEASE_GIT_COMMIT=<exact-reviewed-git-commit>
+
 RELEASE_DIRTY=false
 RELEASE_APPROVAL_STATUS=approved
 RELEASE_APPROVAL_ELIGIBLE=true
@@ -122,7 +127,7 @@ The release runner should be ephemeral, should not persist the private key after
 
 ## 5. Four mandatory reviewer sign-offs
 
-The final checklist requires four distinct roles. One person may hold multiple roles only if the organization’s separation-of-duties policy explicitly allows it and the overlap is recorded. Every row requires a real reviewer identity, a decision, an ISO-8601 timestamp, and notes that identify the evidence reviewed.
+The final checklist requires four distinct roles. One person may hold multiple roles only if the organization’s separation-of-duties policy explicitly allows it and the overlap is recorded. Every row requires one of the four distinct roles (`release_operator`, `protocol_finance`, `ai_data`, or `security`), a real reviewer identity, an approval decision, an ISO-8601 timestamp, and notes that identify the evidence reviewed. The release-evidence aggregator will not treat four generic approvals or duplicate roles as complete.
 
 | Role | Mandatory responsibility | Minimum evidence reviewed | Approval condition |
 |---|---|---|---|

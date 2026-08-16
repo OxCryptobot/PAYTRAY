@@ -23,7 +23,9 @@ const expectedTables = [
   'verified_trust_signals',
   'webhook_inbox',
   'extension_hooks',
-  'operations_quality_runs'
+  'operations_quality_runs',
+  'reviewer_attestation_challenges',
+  'reviewer_attestations'
 ]
 
 try {
@@ -46,7 +48,7 @@ try {
   ))
   assert.deepEqual(
     migrationResult.rows.map((row) => row.migration_name),
-    ['001_init', '002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims', '015_verified_trust_signals', '016_webhook_inbox', '017_extension_hooks', '018_operations_quality_runs']
+    ['001_init', '002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims', '015_verified_trust_signals', '016_webhook_inbox', '017_extension_hooks', '018_operations_quality_runs', '019_reviewer_attestations']
   )
 
   const ledgerIndexes = await transaction((client) => client.query(`
@@ -75,6 +77,16 @@ try {
     ORDER BY column_name
   `, [['reviewer_id', 'reviewer_notes', 'reviewed_at']]))
   assert.deepEqual(reviewColumns.rows.map((row) => row.column_name), ['reviewed_at', 'reviewer_id', 'reviewer_notes'])
+
+  const attestationColumns = await transaction((client) => client.query(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'reviewer_attestations'
+      AND column_name = ANY($1::text[])
+    ORDER BY column_name
+  `, [['reviewer_wallet', 'role', 'release_commit', 'artifact_sha256', 'public_key_fingerprint_sha256', 'attestation_digest', 'signature', 'decision', 'applied', 'release_eligible', 'settlement_authority', 'mutation']]))
+  assert.deepEqual(attestationColumns.rows.map((row) => row.column_name), ['applied', 'artifact_sha256', 'attestation_digest', 'decision', 'mutation', 'public_key_fingerprint_sha256', 'release_commit', 'release_eligible', 'reviewer_wallet', 'role', 'settlement_authority', 'signature'])
 
   const verifierColumns = await transaction((client) => client.query(`
     SELECT column_name
@@ -134,7 +146,8 @@ try {
     ledgerIndexes: ledgerIndexes.rows.map((row) => row.indexname),
     verifierColumns: verifierColumns.rows.map((row) => row.column_name),
     reviewColumns: reviewColumns.rows.map((row) => row.column_name),
-    cursorTable: cursorTable.rows.map((row) => row.table_name)
+    cursorTable: cursorTable.rows.map((row) => row.table_name),
+    attestationColumns: attestationColumns.rows.map((row) => row.column_name)
   }, null, 2))
 } finally {
   await closeDatabase()

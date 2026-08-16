@@ -180,10 +180,20 @@ describe('PayTray backend skeleton', () => {
     const wallet = new Wallet('0x8cc2cd804c6eea453f0f79fd4e276ca5a69481cf6be1dd3ee0835d3088c9f612')
     const token = await loginWallet(wallet)
 
-    for (const path of ['/api/v2/ops/audit/events', '/api/v2/ops/discovery/lineage', '/api/v2/ops/verifier/operations', '/api/v2/ops/runtime/health', '/api/v2/ops/evidence', '/api/v2/ops/release-evidence', '/api/v2/ops/reconciliation/evidence', '/api/v2/ops/health/dashboard', '/api/v2/ops/evidence/bundle', '/api/v2/ops/release-gates/latest', '/api/v2/ops/operations-quality/runs', '/api/v2/ops/operations-quality/runs/11111111-1111-4111-8111-111111111111', '/api/v2/ops/outbox/health', '/api/v2/ops/outbox/events', '/api/v2/ops/webhook-inbox/health']) {
+    for (const path of ['/api/v2/ops/audit/events', '/api/v2/ops/discovery/lineage', '/api/v2/ops/verifier/operations', '/api/v2/ops/runtime/health', '/api/v2/ops/evidence', '/api/v2/ops/release-evidence', '/api/v2/ops/reconciliation/evidence', '/api/v2/ops/health/dashboard', '/api/v2/ops/evidence/bundle', '/api/v2/ops/release-gates/latest', '/api/v2/ops/operations-quality/runs', '/api/v2/ops/operations-quality/runs/11111111-1111-4111-8111-111111111111', '/api/v2/ops/outbox/health', '/api/v2/ops/outbox/events', '/api/v2/ops/webhook-inbox/health', '/api/v2/ops/reviewer-attestations']) {
       const response = await request(app)
         .get(path)
         .set('Authorization', `Bearer ${token}`)
+
+      expect(response.status).toBe(502)
+      expect(response.body.error).toContain('Database service error')
+    }
+
+    for (const [path, payload] of [['/api/v2/ops/reviewer-attestations/challenge', { role: 'security', releaseCommit: '090e837644d3cb6f4516ed10414e7603fed3d150', artifactSha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', publicKeyFingerprintSha256: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', decision: 'approved' }], ['/api/v2/ops/reviewer-attestations/verify', { challengeId: '11111111-1111-4111-8111-111111111111', signature: `0x${'00'.repeat(65)}` }]]) {
+      const response = await request(app)
+        .post(path)
+        .set('Authorization', `Bearer ${token}`)
+        .send(payload)
 
       expect(response.status).toBe(502)
       expect(response.body.error).toContain('Database service error')

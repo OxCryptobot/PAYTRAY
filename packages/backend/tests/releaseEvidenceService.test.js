@@ -11,6 +11,20 @@ const baseEvidence = {
   webhookInboxHealth: { status: 'ok' },
   pendingShadowReviews: 0,
   rollbackTargets: 1,
+  reviewerAttestationSummary: {
+    complete: true,
+    required: 4,
+    requiredRoles: ['release_operator', 'protocol_finance', 'ai_data', 'security'],
+    releaseCommit: '090e837644d3cb6f4516ed10414e7603fed3d150',
+    supplied: 4,
+    valid: 4,
+    rolesPresent: ['release_operator', 'protocol_finance', 'ai_data', 'security'],
+    missingRoles: [],
+    duplicateRoles: [],
+    rejectedRoles: [],
+    identitiesIncluded: false,
+    signatureBytesIncluded: false
+  },
   signoffs: [
     { role: 'release_operator', approved: true, reviewerId: 'release-operator', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true },
     { role: 'protocol_finance', approved: true, reviewerId: 'protocol-reviewer', approvedAt: '2026-08-15T00:00:00.000Z', scope: 'production_release', rollbackAcknowledged: true },
@@ -28,6 +42,7 @@ describe('release evidence aggregation', () => {
     expect(bundle.releaseEligible).toBe(false)
     expect(bundle.signingKeyMaterialIncluded).toBe(false)
     expect(bundle.signoffSummary.missingRoles).toEqual([])
+    expect(bundle.reviewerAttestationSummary.missingRoles).toEqual([])
     expect(bundle.signingKeyEvidence.publicKeyFingerprintSha256).toBe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
     expect(bundle.authority).toBe('release_evidence_aggregation_only')
     expect(bundle.settlementAuthority).toBe(false)
@@ -66,6 +81,6 @@ describe('release evidence aggregation', () => {
     expect(bundle.status).toBe('blocked')
     expect(bundle.evidenceComplete).toBe(false)
     expect(bundle.releaseEligible).toBe(false)
-    expect(bundle.blockers.map((item) => item.name)).toEqual(expect.arrayContaining(['targetOperations', 'deploymentPreflight', 'verifierOperations', 'shadowReviews', 'humanSignoffs', 'signingKey']))
+    expect(bundle.blockers.map((item) => item.name)).toEqual(expect.arrayContaining(['targetOperations', 'deploymentPreflight', 'verifierOperations', 'shadowReviews', 'humanSignoffs', 'reviewerAttestations', 'signingKey']))
   })
 })

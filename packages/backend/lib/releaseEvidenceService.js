@@ -9,6 +9,7 @@ import { listShadowRuns } from './shadowReviewService.js'
 import { buildDurableReconciliationReport } from './payments/reconciliationService.js'
 import { buildReconciliationEvidence } from './reconciliationEvidenceService.js'
 import { buildEvidenceFingerprint } from './evidenceFingerprint.js'
+import { listReviewerAttestations, REVIEWER_ROLES } from './reviewerAttestationService.js'
 
 function check(name, ready, reason, evidence = null) {
   return { name, ready: Boolean(ready), reason, evidence }
@@ -30,6 +31,30 @@ function summarizeSignoffs(signoffs = []) {
     missingRoles,
     complete: missingRoles.length === 0,
     identitiesIncluded: false
+  }
+}
+
+function summarizeReviewerAttestations({ attestations = [], releaseCommit = null } = {}) {
+  const records = Array.isArray(attestations) ? attestations : []
+  const normalizedCommit = typeof releaseCommit === 'string' ? releaseCommit.trim().toLowerCase() : null
+  const matching = records.filter((record) => record?.release_commit?.trim?.().toLowerCase?.() === normalizedCommit && REVIEWER_ROLES.includes(record?.role) && record?.reviewer_wallet && record?.attestation_digest && record?.decision === 'approved' && record?.applied === false && record?.release_eligible === false && record?.settlement_authority === false && record?.mutation === 'read_only')
+  const rolesPresent = [...new Set(matching.map((record) => record.role))]
+  const missingRoles = REVIEWER_ROLES.filter((role) => !rolesPresent.includes(role))
+  const duplicateRoles = REVIEWER_ROLES.filter((role) => matching.filter((record) => record.role === role).length > 1)
+  const rejectedRoles = [...new Set(records.filter((record) => record?.release_commit?.trim?.().toLowerCase?.() === normalizedCommit && REVIEWER_ROLES.includes(record?.role) && record?.decision === 'rejected').map((record) => record.role))]
+  return {
+    required: REVIEWER_ROLES.length,
+    requiredRoles: REVIEWER_ROLES,
+    releaseCommit: normalizedCommit,
+    supplied: records.length,
+    valid: matching.length,
+    rolesPresent,
+    missingRoles,
+    duplicateRoles,
+    rejectedRoles,
+    complete: Boolean(normalizedCommit) && missingRoles.length === 0 && duplicateRoles.length === 0 && rejectedRoles.length === 0,
+    identitiesIncluded: false,
+    signatureBytesIncluded: false
   }
 }
 
@@ -70,6 +95,8 @@ export async function collectReleaseEvidence({ client, config, targetOperations 
   const webhookInboxHealth = await getWebhookInboxHealth({ client })
   const shadowQueue = await listShadowRuns({ client, reviewerDecision: 'pending', limit: 100 })
   const rollbackResult = await client.query('SELECT COUNT(*)::int AS count FROM ai_evaluation_runs WHERE rollback_target IS NOT NULL')
+  const releaseCommit = process.env.RELEASE_GIT_COMMIT || null
+  const reviewerAttestationRecords = releaseCommit ? await listReviewerAttestations({ client, releaseCommit }) : { attestations: [] }
   return buildReleaseEvidenceBundle({
     targetOperations: target,
     deploymentPreflight: target.deployment,
@@ -80,6 +107,7 @@ export async function collectReleaseEvidence({ client, config, targetOperations 
     webhookInboxHealth,
     pendingShadowReviews: shadowQueue.count,
     rollbackTargets: rollbackResult.rows[0]?.count || 0,
+    reviewerAttestationSummary: summarizeReviewerAttestations({ attestations: reviewerAttestationRecords.attestations, releaseCommit }),
     signoffs: resolvedSignoffs,
     signingKeyEvidence: signingKeyEvidence || buildSigningKeyEvidence({
       present: Boolean(process.env.RELEASE_SIGNING_KEY_PEM),
@@ -142,10 +170,12 @@ export function buildReleaseEvidenceBundle({
   webhookInboxHealth = null,
   pendingShadowReviews = 0,
   rollbackTargets = 0,
+  reviewerAttestationSummary = null,
   signoffs = [],
   signingKeyEvidence = null
 } = {}) {
   const signoffSummary = summarizeSignoffs(signoffs)
+  const attestationSummary = reviewerAttestationSummary || summarizeReviewerAttestations()
   const keyEvidence = buildSigningKeyEvidence(signingKeyEvidence || {})
   const checks = [
     check('targetOperations', targetOperations?.status === 'ready', targetOperations?.status === 'ready' ? 'target configuration checks passed' : 'target configuration evidence is blocked or unavailable', { status: targetOperations?.status || 'not_provided', releaseEligible: targetOperations?.releaseEligible === true }),
@@ -158,6 +188,7 @@ export function buildReleaseEvidenceBundle({
     check('shadowReviews', Number(pendingShadowReviews) === 0, Number(pendingShadowReviews) === 0 ? 'no pending shadow reviews reported' : 'pending shadow reviews remain', { pendingShadowReviews: Number(pendingShadowReviews) }),
     check('rollbackTargets', Number(rollbackTargets) > 0, Number(rollbackTargets) > 0 ? 'rollback target evidence is present' : 'rollback target evidence is missing', { rollbackTargets: Number(rollbackTargets) }),
     check('humanSignoffs', signoffSummary.complete, signoffSummary.complete ? 'four required human sign-off roles supplied' : `required human sign-off roles are missing: ${signoffSummary.missingRoles.join(', ')}`, signoffSummary),
+    check('reviewerAttestations', attestationSummary.complete, attestationSummary.complete ? 'four cryptographically verified reviewer attestations are bound to the release commit' : `verified reviewer attestations are incomplete for the release commit: ${attestationSummary.missingRoles.join(', ')}`, attestationSummary),
     check('signingKey', keyEvidence.ready, keyEvidence.ready ? 'operator key presence, public-key fingerprint, and independent fingerprint verification were reported without exposing key material' : 'operator key, public-key fingerprint, and independent fingerprint verification are all required', keyEvidence)
   ]
   const evidenceComplete = checks.every((item) => item.ready)
@@ -166,6 +197,7 @@ export function buildReleaseEvidenceBundle({
     content: {
       checks,
       signoffSummary,
+      reviewerAttestationSummary: attestationSummary,
       signingKeyEvidence: { ...keyEvidence, publicKeyFingerprintSha256: keyEvidence.publicKeyFingerprintSha256 },
       signingKeyMaterialIncluded: false,
       authority: 'release_evidence_aggregation_only',
@@ -188,6 +220,7 @@ export function buildReleaseEvidenceBundle({
     checks,
     blockers: checks.filter((item) => !item.ready).map(({ name, reason }) => ({ name, reason })),
     signoffSummary,
+    reviewerAttestationSummary: attestationSummary,
     signingKeyEvidence: { ...keyEvidence, publicKeyFingerprintSha256: keyEvidence.publicKeyFingerprintSha256 },
     signingKeyMaterialIncluded: false,
     evidenceFingerprint,

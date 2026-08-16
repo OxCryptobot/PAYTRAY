@@ -76,6 +76,7 @@ if (!isolated) {
     const unifiedEvidence = await request(app).get('/api/v2/ops/evidence').set(auth)
     const releaseEvidence = await request(app).get('/api/v2/ops/release-evidence').set(auth)
     const reconciliationEvidence = await request(app).get('/api/v2/ops/reconciliation/evidence').set(auth)
+    const reviewerAttestations = await request(app).get('/api/v2/ops/reviewer-attestations').set(auth)
 
     const checks = {
       collaboration: collaboration.status === 200 && collaboration.body.health?.collaborationAvailable === true,
@@ -98,14 +99,15 @@ if (!isolated) {
       releaseGatesLatest: [200, 503].includes(releaseGatesLatest.status) && releaseGatesLatest.body.releaseGates?.authority === 'operations_quality_audit' && releaseGatesLatest.body.releaseGates?.mutation === 'read_only' && releaseGatesLatest.body.releaseGates?.settlementAuthority === false && releaseGatesLatest.body.releaseGates?.releaseEligible === false,
       unifiedEvidence: [200, 503].includes(unifiedEvidence.status) && unifiedEvidence.body.evidence?.mutation === 'read_only' && unifiedEvidence.body.evidence?.settlementAuthority === false && unifiedEvidence.body.evidence?.releaseEligible === false && unifiedEvidence.body.evidence?.evidenceFingerprint?.algorithm === 'sha256',
       releaseEvidence: [200, 503].includes(releaseEvidence.status) && releaseEvidence.body.bundle?.mutation === 'read_only' && releaseEvidence.body.bundle?.settlementAuthority === false && releaseEvidence.body.bundle?.releaseEligible === false && releaseEvidence.body.bundle?.evidenceFingerprint?.algorithm === 'sha256',
-      reconciliationEvidence: [200, 503].includes(reconciliationEvidence.status) && reconciliationEvidence.body.evidence?.mutation === 'read_only' && reconciliationEvidence.body.evidence?.settlementAuthority === false && reconciliationEvidence.body.evidence?.evidenceHash
+      reconciliationEvidence: [200, 503].includes(reconciliationEvidence.status) && reconciliationEvidence.body.evidence?.mutation === 'read_only' && reconciliationEvidence.body.evidence?.settlementAuthority === false && reconciliationEvidence.body.evidence?.evidenceHash,
+      reviewerAttestations: reviewerAttestations.status === 200 && reviewerAttestations.body.report?.authority === 'reviewer_attestation_inspection_only' && reviewerAttestations.body.report?.mutation === 'read_only' && reviewerAttestations.body.report?.settlementAuthority === false && reviewerAttestations.body.report?.releaseEligible === false && reviewerAttestations.body.report?.submissionPerformed === false && Array.isArray(reviewerAttestations.body.report?.attestations)
     }
     const ready = Object.values(checks).every(Boolean)
     console.log(JSON.stringify({
       status: ready ? 'verified' : 'blocked',
       databaseStatus: getDatabaseStatus(),
       checks,
-      routeStatuses: { collaboration: collaboration.status, engagementCreate: engagementCreate.status, paymentState: paymentState.status, openapi: openapi.status, contracts: contracts.status, hook: hook.status, hooks: hooks.status, trustSignals: trustSignals.status, audit: audit.status, lineage: lineage.status, outbox: outbox.status, inbox: inbox.status, outboxProcess: outboxProcess.status, verifier: verifier.status, runtimeHealth: runtimeHealth.status, healthDashboard: healthDashboard.status, evidenceBundle: evidenceBundle.status, operationsQualityRuns: operationsQualityRuns.status, operationsQualityRunDetail: operationsQualityRunDetail.status, releaseGatesLatest: releaseGatesLatest.status, unifiedEvidence: unifiedEvidence.status, releaseEvidence: releaseEvidence.status, reconciliationEvidence: reconciliationEvidence.status },
+      routeStatuses: { collaboration: collaboration.status, engagementCreate: engagementCreate.status, paymentState: paymentState.status, openapi: openapi.status, contracts: contracts.status, hook: hook.status, hooks: hooks.status, trustSignals: trustSignals.status, audit: audit.status, lineage: lineage.status, outbox: outbox.status, inbox: inbox.status, outboxProcess: outboxProcess.status, verifier: verifier.status, runtimeHealth: runtimeHealth.status, healthDashboard: healthDashboard.status, evidenceBundle: evidenceBundle.status, operationsQualityRuns: operationsQualityRuns.status, operationsQualityRunDetail: operationsQualityRunDetail.status, releaseGatesLatest: releaseGatesLatest.status, unifiedEvidence: unifiedEvidence.status, releaseEvidence: releaseEvidence.status, reconciliationEvidence: reconciliationEvidence.status, reviewerAttestations: reviewerAttestations.status },
       settlementAuthority: false,
       mutation: 'read_only',
       deploymentPerformed: false,

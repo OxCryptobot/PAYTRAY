@@ -63,6 +63,7 @@ import { getLatestReleaseGatesRun, getOperationsQualityRun, listOperationsQualit
 import { buildOperatorEvidenceBundle } from './lib/operatorEvidenceBundleService.js'
 import { collectReleaseEvidence, collectReconciliationEvidence, buildUnifiedOperatorEvidence } from './lib/releaseEvidenceService.js'
 import { getExtensionContractCapabilities, normalizeExtensionHookInput, projectExtensionPayload } from './lib/extensionContracts.js'
+import { issueReviewerAttestationChallenge, verifyReviewerAttestation, listReviewerAttestations } from './lib/reviewerAttestationService.js'
 import { getExtensionOpenApiDocument } from './lib/extensionOpenApi.js'
 import { listExtensionHooks, registerExtensionHook } from './lib/extensionHookService.js'
 import { getWebhookInboxHealth } from './lib/webhookInboxService.js'
@@ -2131,6 +2132,53 @@ app.get('/api/v2/ops/evidence', authenticateToken, requireScopes('ops:*'), async
       return buildUnifiedOperatorEvidence({ releaseEvidence, reconciliationEvidence })
     })
     res.status(evidence.evidenceComplete ? 200 : 503).json({ success: evidence.evidenceComplete, evidence })
+  } catch (error) {
+    next(error)
+  }
+})
+app.post('/api/v2/ops/reviewer-attestations/challenge', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'reviewer attestation challenge requires a ready PostgreSQL database')
+    }
+    const challenge = await transaction((client) => issueReviewerAttestationChallenge({
+      client,
+      reviewerWallet: req.walletAddress,
+      role: req.body?.role,
+      releaseCommit: req.body?.releaseCommit,
+      artifactSha256: req.body?.artifactSha256,
+      publicKeyFingerprintSha256: req.body?.publicKeyFingerprintSha256,
+      decision: req.body?.decision,
+      ttlSeconds: req.body?.ttlSeconds
+    }))
+    res.status(201).json({ success: true, challenge })
+  } catch (error) {
+    next(error)
+  }
+})
+app.post('/api/v2/ops/reviewer-attestations/verify', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'reviewer attestation verification requires a ready PostgreSQL database')
+    }
+    const attestation = await transaction((client) => verifyReviewerAttestation({
+      client,
+      challengeId: req.body?.challengeId,
+      signature: req.body?.signature,
+      authenticatedWallet: req.walletAddress
+    }))
+    res.json({ success: true, attestation })
+  } catch (error) {
+    next(error)
+  }
+})
+app.get('/api/v2/ops/reviewer-attestations', authenticateToken, requireScopes('ops:*'), async (req, res, next) => {
+  try {
+    if (getDatabaseStatus() !== 'ready') {
+      throw new ExternalServiceError('Database', 'reviewer attestation inspection requires a ready PostgreSQL database')
+    }
+    const report = await transaction((client) => listReviewerAttestations({ client, releaseCommit: req.query?.releaseCommit || null }))
+    res.json({ success: true, report })
   } catch (error) {
     next(error)
   }

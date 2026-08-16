@@ -84,6 +84,11 @@ A non-secret configuration template for an approved release runner is:
 RELEASE_SIGNING_KEY_PEM=<injected-by-approved-secret-manager>
 RELEASE_SIGNING_PUBLIC_KEY_SHA256=<sha256-of-public-key-pem>
 RELEASE_SIGNING_PUBLIC_KEY_FINGERPRINT_VERIFIED=<independently-confirmed-by-security-reviewer>
+RELEASE_SIGNING_PUBLIC_KEY_PEM=<approved-public-key-pem-or-protected-file-injection>
+RELEASE_SIGNING_KEY_SOURCE=approved-secret-manager
+RELEASE_SIGNING_KEY_VERSION=<immutable-secret-version>
+RELEASE_SIGNING_KEY_PROTECTED=true
+RELEASE_SIGNING_FINGERPRINT_ATTESTATION_FILE=<protected-security-attestation-json>
 RELEASE_GIT_COMMIT=<exact-reviewed-git-commit>
 
 RELEASE_DIRTY=false
@@ -240,6 +245,9 @@ npm run test
 npm run lint
 DATABASE_URL="$DATABASE_URL" npm run backend:migrations:check
 
+# Verify custody, public-key derivation, and independent security fingerprint attestation.
+npm run backend:release:key:custody:check
+
 # Release evidence gates.
 DATABASE_URL="$DATABASE_URL" npm run backend:release:approval:check
 npm run backend:release:manifest:check
@@ -261,7 +269,7 @@ env RELEASE_SIGNING_KEY_PEM="$(<"$PAYTRAY_KEY_DIR/release-signing-key.pem")" \
 npm run backend:release:payload:verify /protected/path/signed-release-payload.json
 ```
 
-The expected final state is: release approval `status: ready`, `eligible: true`; manifest `status: ready`; Railway settings `matched`; recovery `verified`; payload `status: ready` with a non-null signature; detached verification `status: verified` and exit code `0`; and all four reviewer records approved with real identities and timestamps.
+The expected final state is: key custody `status: verified`; release approval `status: ready`, `eligible: true`; manifest `status: ready`; Railway settings `matched`; recovery `verified`; payload `status: ready` with a non-null signature; detached verification `status: verified` and exit code `0`; and all four reviewer records approved with real identities and timestamps. A missing secret, mismatched derived public key, mismatched fingerprint, missing security attestation, or placeholder key version must remain blocked.
 
 ## 9. Release-blocker stop conditions
 

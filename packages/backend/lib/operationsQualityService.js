@@ -19,7 +19,8 @@ const EXPECTED_BLOCKED_CHECKS = new Set([
   'outbox-health',
   'idempotency-cleanup',
   'release-manifest',
-  'release-payload'
+  'release-payload',
+  'operator-key-custody'
 ])
 
 export function classifyOperationsCheck({ name, exitCode, output = '', strict = false } = {}) {

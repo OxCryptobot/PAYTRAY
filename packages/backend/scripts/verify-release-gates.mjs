@@ -23,6 +23,7 @@ const checks = [
   { name: 'reconciliation-evidence', script: 'backend:reconciliation:evidence:check' },
   { name: 'release-manifest', script: 'backend:release:manifest:check' },
   { name: 'release-payload', script: 'backend:release:payload:check' },
+  { name: 'operator-key-custody', script: 'backend:release:key:custody:check' },
   { name: 'advisory-ai', script: 'backend:advisory:ai:check' },
   { name: 'token-metadata', script: 'backend:token:metadata:check' },
   { name: 'smoke-phase2', script: 'backend:smoke:phase2:check' },

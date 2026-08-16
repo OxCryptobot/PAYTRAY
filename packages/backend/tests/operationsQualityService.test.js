@@ -45,6 +45,11 @@ describe('operations quality service', () => {
       exitCode: 1,
       output: JSON.stringify({ status: 'ok', artifact: { status: 'blocked' } })
     })
+    const secretManagerBlocked = classifyOperationsCheck({
+      name: 'secret-manager-custody',
+      exitCode: 1,
+      output: JSON.stringify({ status: 'blocked', reason: 'ephemeral secret-manager evidence is required', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    })
     expect(releaseGatesBlocked.state).toBe('operator_blocked')
     expect(releaseGatesBlocked.expectedBlocked).toBe(true)
     expect(bundleBlocked.state).toBe('operator_blocked')
@@ -53,6 +58,8 @@ describe('operations quality service', () => {
     expect(payloadBlocked.state).toBe('operator_blocked')
     expect(outboxBlocked.state).toBe('operator_blocked')
     expect(approvalBlocked.state).toBe('operator_blocked')
+    expect(secretManagerBlocked.state).toBe('operator_blocked')
+    expect(secretManagerBlocked.expectedBlocked).toBe(true)
     expect(failed.state).toBe('failed')
     expect(failed.expectedBlocked).toBe(false)
   })
@@ -69,8 +76,15 @@ describe('operations quality service', () => {
       strict: true,
       output: JSON.stringify({ status: 'blocked', reason: 'explicit opt-in required' })
     })
+    const strictSecretManager = classifyOperationsCheck({
+      name: 'secret-manager-custody',
+      exitCode: 1,
+      strict: true,
+      output: JSON.stringify({ status: 'blocked', reason: 'ephemeral secret-manager evidence is required' })
+    })
     expect(normal.state).toBe('operator_blocked')
     expect(strict.state).toBe('failed')
+    expect(strictSecretManager.state).toBe('failed')
   })
 
   it('builds an immutable report with no release or settlement authority', () => {

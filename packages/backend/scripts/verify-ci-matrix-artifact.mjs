@@ -21,7 +21,7 @@ function assertNoSensitiveKeys(value, path = '$') {
   }
 }
 
-export function validateCiMatrixArtifact({ artifactPath, expectedReportKind, content } = {}) {
+export function validateCiMatrixArtifact({ artifactPath, expectedReportKind, content, requiredCheckNames = [] } = {}) {
   if (!artifactPath && content == null) throw new TypeError('artifactPath or content is required')
   if (!SAFE_REPORT_KINDS.has(String(expectedReportKind))) throw new TypeError('expectedReportKind is invalid')
   const raw = content == null ? fs.readFileSync(artifactPath, 'utf8') : String(content)
@@ -35,6 +35,9 @@ export function validateCiMatrixArtifact({ artifactPath, expectedReportKind, con
   if (artifact.reportKind !== expectedReportKind) fail(`CI matrix artifact reportKind must be ${expectedReportKind}`)
   if (!SAFE_STATES.has(artifact.status)) fail('CI matrix artifact status is invalid')
   if (!Array.isArray(artifact.checks)) fail('CI matrix artifact checks must be an array')
+  for (const requiredName of requiredCheckNames) {
+    if (!artifact.checks.some((check) => check?.name === requiredName)) fail(`CI matrix artifact is missing required check: ${requiredName}`)
+  }
   const checkCount = Number(artifact.checkCount)
   if (!Number.isInteger(checkCount) || checkCount !== artifact.checks.length) fail('CI matrix artifact checkCount does not match checks')
   const passedCount = Number(artifact.passedCount)
@@ -67,7 +70,7 @@ export function validateCiMatrixArtifact({ artifactPath, expectedReportKind, con
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const [artifactPath, expectedReportKind] = process.argv.slice(2)
-  const result = validateCiMatrixArtifact({ artifactPath, expectedReportKind })
+  const [artifactPath, expectedReportKind, ...requiredCheckNames] = process.argv.slice(2)
+  const result = validateCiMatrixArtifact({ artifactPath, expectedReportKind, requiredCheckNames })
   console.log(JSON.stringify(result, null, 2))
 }

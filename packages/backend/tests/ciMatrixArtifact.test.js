@@ -49,6 +49,32 @@ describe('CI matrix artifact verifier', () => {
     expect(() => validateCiMatrixArtifact({ expectedReportKind: 'release_gates', content: JSON.stringify(artifact({ mutation: 'write' })) })).toThrow('mutation')
   })
 
+  it('requires named release checks when requested by CI', () => {
+    const artifactWithCustody = artifact({
+      checkCount: 3,
+      operatorBlockerCount: 2,
+      checks: [
+        { name: 'quality-gate', state: 'passed' },
+        { name: 'railway-trial', state: 'operator_blocked' },
+        { name: 'secret-manager-custody', state: 'operator_blocked' }
+      ],
+      operatorBlockers: [
+        { name: 'railway-trial', status: 'settings_unavailable', reason: 'operator evidence is required' },
+        { name: 'secret-manager-custody', status: 'blocked', reason: 'operator evidence is required' }
+      ]
+    })
+    expect(validateCiMatrixArtifact({
+      expectedReportKind: 'release_gates',
+      requiredCheckNames: ['secret-manager-custody'],
+      content: JSON.stringify(artifactWithCustody)
+    })).toMatchObject({ status: 'verified', checkCount: 3, operatorBlockerCount: 2 })
+    expect(() => validateCiMatrixArtifact({
+      expectedReportKind: 'release_gates',
+      requiredCheckNames: ['secret-manager-custody'],
+      content: JSON.stringify(artifact())
+    })).toThrow('missing required check')
+  })
+
   it('rejects wrong report provenance and recursive sensitive fields', () => {
     expect(() => validateCiMatrixArtifact({ expectedReportKind: 'operations_quality', content: JSON.stringify(artifact()) })).toThrow('reportKind')
     expect(() => validateCiMatrixArtifact({ expectedReportKind: 'release_gates', content: JSON.stringify(artifact({ checks: [{ name: 'release-gates', metadata: { signingSecret: 'never' } }, { name: 'quality-gate', state: 'passed' }] })) })).toThrow('sensitive key')

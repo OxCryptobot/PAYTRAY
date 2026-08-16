@@ -122,7 +122,7 @@ jobs:
           SETTLEMENT_CHAIN_ID: '84532'
       - name: Verify release-gates artifact contract
         if: always()
-        run: node packages/backend/scripts/verify-ci-matrix-artifact.mjs artifacts/release-gates.json release_gates
+        run: node packages/backend/scripts/verify-ci-matrix-artifact.mjs artifacts/release-gates.json release_gates secret-manager-custody
       - name: Fingerprint release-gate evidence
         if: always()
         run: sha256sum artifacts/release-gates.json | tee artifacts/release-gates.json.sha256

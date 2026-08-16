@@ -249,6 +249,10 @@ DATABASE_URL="$DATABASE_URL" npm run backend:migrations:check
 # Verify custody, public-key derivation, and independent security fingerprint attestation.
 npm run backend:release:key:custody:check
 
+# Verify ephemeral secret-manager injection and the non-secret custody manifest.
+# This must not persist or print the private key.
+npm run backend:release:key:secret-manager:check
+
 # Release evidence gates.
 DATABASE_URL="$DATABASE_URL" npm run backend:release:approval:check
 npm run backend:release:manifest:check

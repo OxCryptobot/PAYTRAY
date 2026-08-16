@@ -61,6 +61,21 @@ OPERATIONS_QUALITY_STRICT=true npm run backend:operations:quality:check
 
 Strict mode must fail until all required operator evidence is real. Neither mode changes `releaseEligible`, `settlementAuthority`, payment state, ledger state, reviewer decisions, or AI promotion status.
 
+Before any release-payload inspection, verify operator-key custody and secret-manager custody separately. These commands read protected evidence and key material only within the release process; they never print private keys, signature bytes, secret values, reviewer notes, or approval tokens:
+
+```bash
+# Requires the protected Ed25519 key, public-key fingerprint, signed security attestation,
+# and non-secret custody manifest from the authorized release operator.
+npm run backend:release:key:custody:check
+
+# Requires ephemeral secret-manager injection and a non-secret custody manifest.
+# RELEASE_SIGNING_KEY_PERSISTED must remain false; the manifest must not contain PEM,
+# signature, token, password, authorization, or other secret material.
+npm run backend:release:key:secret-manager:check
+```
+
+A missing or mismatched custody artifact is an expected `operator_blocked` result in normal mode and a fatal failure in strict mode. A verified custody artifact proves only custody evidence; it does not approve reviewers, clear the six shadow runs, make a release eligible, grant settlement authority, or authorize deployment.
+
 For post-run inspection, first list the bounded audit summaries and then retrieve one valid run by its returned UUID:
 
 ```bash
@@ -203,7 +218,7 @@ curl --fail-with-body --silent --show-error \
 
 A zero pending count is necessary but does not promote a model and does not clear Railway, recovery, verifier, reconciliation, human sign-off, or Ed25519 signing-key gates.
 
-## 5. Recovery and isolated 13-migration verification
+## 5. Recovery and isolated 19-migration verification
 
 The recovery script creates a fresh source backup, so `RECOVERY_BACKUP_FILE` must point to a protected path. It uses `pg_dump --format=custom --no-owner --no-privileges`, sets backup mode `0600`, calculates SHA-256, and runs `pg_restore --list` for catalog evidence.
 
@@ -227,7 +242,7 @@ RECOVERY_TARGET_ISOLATED=true \
 npm run backend:recovery:check
 ```
 
-The script rejects a restore when the source and restore URLs are identical or when `RECOVERY_TARGET_ISOLATED` is not exactly `true`. It restores with `pg_restore --exit-on-error --no-owner --no-privileges`, then checks all expected public tables and requires exactly 18 rows in `schema_migrations`. A successful result has `status: verified`, `restore.status: verified`, `restore.migrationCount: 18`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`.
+The script rejects a restore when the source and restore URLs are identical or when `RECOVERY_TARGET_ISOLATED` is not exactly `true`. It restores with `pg_restore --exit-on-error --no-owner --no-privileges`, then checks all expected public tables and requires exactly 19 rows in `schema_migrations`. A successful result has `status: verified`, `restore.status: verified`, `restore.migrationCount: 19`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`.
 
 The recovery script’s count check should be followed by the stricter migration/schema verifier against the isolated target:
 
@@ -257,6 +272,7 @@ That command checks the exact migration names:
 016_webhook_inbox
 017_extension_hooks
 018_operations_quality_runs
+019_reviewer_attestations
 ```
 
 It also checks the required table set, `payment_verifier_cursors`, shadow-review columns, verifier provenance columns, outcome-verification columns, payment lifecycle columns, discovery columns, and the unique ledger index. Preserve the backup SHA-256, catalog listing, isolated restore log, migration output, and application connectivity result together as the recovery evidence bundle.

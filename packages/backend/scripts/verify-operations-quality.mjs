@@ -18,7 +18,8 @@ const checks = [
   { name: 'release-evidence', script: 'backend:release:evidence:check' },
   { name: 'reconciliation-evidence', script: 'backend:reconciliation:evidence:check' },
   { name: 'evidence-bundle', script: 'backend:ops:evidence:bundle:check' },
-  { name: 'release-gates', script: 'backend:release:gates:check' }
+  { name: 'release-gates', script: 'backend:release:gates:check' },
+  { name: 'secret-manager-custody', script: 'backend:release:key:secret-manager:check' }
 ]
 
 function extractJson(output) {

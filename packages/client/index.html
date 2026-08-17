@@ -58,12 +58,12 @@
           <button class="filter-button" id="clear-filters">Clear</button><button class="filter-button" id="load-live-discovery">Use live discovery</button>
         </section>
 
-        <div class="section-heading"><div><span class="eyebrow">RECOMMENDED FOR YOU</span><h2>Experts who fit the brief.</h2></div><div class="heading-meta"><span class="live-dot"></span><span id="result-count">4 experts</span><button class="sort-button">Best match <span>⌄</span></button></div></div>
+        <div class="section-heading"><div><span class="eyebrow">RECOMMENDED FOR YOU</span><h2>Experts who fit the brief.</h2></div><div class="heading-meta"><span class="live-dot" aria-hidden="true"></span><span id="result-count" aria-live="polite">4 experts</span><button class="sort-button" type="button" aria-label="Sort experts by best match">Best match <span aria-hidden="true">⌄</span></button></div></div>
 
         <section class="content-grid">
           <div class="expert-list" id="expert-list"></div>
 
-          <aside class="engagement-panel" id="engagement">
+          <aside class="engagement-panel" id="engagement" aria-label="Engagement preview">
             <div class="panel-header"><div><span class="eyebrow">ENGAGEMENT PREVIEW</span><h3 id="panel-title">Choose an expert</h3></div><span class="panel-status">READY</span></div>
             <div id="empty-engagement" class="empty-state"><div class="empty-orbit">✦</div><p>Select an expert to carry discovery context into a private engagement.</p><span>Match context, payment terms, and trust evidence stay together.</span></div>
             <div id="selected-engagement" class="selected-engagement hidden">
@@ -73,7 +73,7 @@
               <button class="primary-button" id="start-engagement">Start conversation <span>→</span></button>
               <button class="secondary-button" id="request-stream">Request testnet payment intent <span>↗</span></button>
               <button class="filter-button" id="refresh-payment-status">Refresh verified status</button>
-              <div id="stream-status" class="stream-status hidden" role="status"></div>
+              <div id="stream-status" class="stream-status hidden" role="status" aria-live="polite"></div>
             </div>
           </aside>
         </section>

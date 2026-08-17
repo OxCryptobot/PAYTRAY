@@ -52,6 +52,10 @@ jobs:
           NODE_ENV: production
           VERIFIER_WORKER_ENABLED: 'true'
           VERIFIER_WORKER_ID: ci-verifier
+      - name: Run port-isolated client smoke E2E
+        run: npm run client:e2e:smoke
+        env:
+          CLIENT_SMOKE_PORT: '0'
 
   operations-quality:
     name: Operations quality matrix
@@ -80,6 +84,11 @@ jobs:
       - name: Verify operations-quality artifact contract
         if: always()
         run: node packages/backend/scripts/verify-ci-matrix-artifact.mjs artifacts/operations-quality.json operations_quality
+      - name: Verify migration-018 operations-quality artifact persistence contract
+        if: always()
+        run: npm run backend:release:operations-quality:artifact:check artifacts/operations-quality.json
+        env:
+          OPERATIONS_QUALITY_ARTIFACT_ISOLATED: 'true'
       - name: Fingerprint operations-quality evidence
         if: always()
         run: sha256sum artifacts/operations-quality.json | tee artifacts/operations-quality.json.sha256
@@ -137,6 +146,20 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  container-build:
+    name: Production container build and health contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Build production container
+        run: docker build --pull=false --tag paytray-ci:${{ github.sha }} .
+      - name: Verify container metadata
+        run: |
+          docker image inspect paytray-ci:${{ github.sha }} --format '{{json .Config.User}} {{json .Config.Healthcheck}}' | tee container-metadata.json
+          grep -q 'paytray' container-metadata.json
+          grep -q 'check-health.mjs' container-metadata.json
+
   postgres-contract:
     name: Isolated PostgreSQL route contract
     runs-on: ubuntu-latest
@@ -166,6 +189,30 @@ jobs:
         run: npm ci
       - name: Verify migrations and schema contracts
         run: npm run backend:migrations:check
+      - name: Verify migration-018 operations-quality constraints
+        run: npm run backend:release:migration:018:check
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
+          MIGRATION_018_CONTRACT_ISOLATED: 'true'
+      - name: Verify migration-016 webhook inbox race
+        run: npm run backend:release:migration:016:check
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
+          MIGRATION_016_CONTRACT_ISOLATED: 'true'
+      - name: Verify migration-019 SQL constraints
+        run: npm run backend:release:migration:019:check
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
+          MIGRATION_019_CONTRACT_ISOLATED: 'true'
+      - name: Verify reviewer-attestation transaction race
+        run: npm run backend:release:attestation:race:check
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
+          ATTESTATION_RACE_ISOLATED: 'true'
       - name: Verify ready-PostgreSQL route contracts
         run: npm run backend:ready:postgres:check
         env:
@@ -232,9 +279,80 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           READY_POSTGRES_DATABASE_ISOLATED: 'true'
+      - name: Run restored operations-quality matrix
+        if: always()
+        run: |
+          set +e
+          node packages/backend/scripts/verify-operations-quality.mjs > artifacts/restored-operations-quality.json
+          status=$?
+          cat artifacts/restored-operations-quality.json
+          exit $status
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+          OPERATIONS_QUALITY_STRICT: 'false'
+      - name: Verify restored migration-018 operations-quality artifact
+        if: always()
+        run: |
+          set +e
+          npm run backend:release:operations-quality:artifact:check artifacts/restored-operations-quality.json > artifacts/restored-operations-quality-verification.json
+          status=$?
+          cat artifacts/restored-operations-quality-verification.json
+          exit $status
+        env:
+          OPERATIONS_QUALITY_ARTIFACT_ISOLATED: 'true'
+          OPERATIONS_QUALITY_ARTIFACT_REQUIRE_AUDIT: 'true'
+      - name: Verify restored migration-018 operations-quality constraints
+        if: always()
+        run: |
+          set +e
+          npm run backend:release:migration:018:check > artifacts/restored-migration-018-constraints.json
+          status=$?
+          cat artifacts/restored-migration-018-constraints.json
+          exit $status
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+          MIGRATION_018_CONTRACT_ISOLATED: 'true'
+      - name: Verify restored migration-016 webhook inbox race
+        if: always()
+        run: |
+          set +e
+          npm run backend:release:migration:016:check > artifacts/restored-migration-016-webhook-inbox.json
+          status=$?
+          cat artifacts/restored-migration-016-webhook-inbox.json
+          exit $status
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+          MIGRATION_016_CONTRACT_ISOLATED: 'true'
+      - name: Verify restored migration-019 SQL constraints
+        if: always()
+        run: |
+          set +e
+          npm run backend:release:migration:019:check > artifacts/restored-migration-019-constraints.json
+          status=$?
+          cat artifacts/restored-migration-019-constraints.json
+          exit $status
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+          MIGRATION_019_CONTRACT_ISOLATED: 'true'
+      - name: Verify restored reviewer-attestation transaction race
+        if: always()
+        run: |
+          set +e
+          npm run backend:release:attestation:race:check > artifacts/restored-attestation-concurrency.json
+          status=$?
+          cat artifacts/restored-attestation-concurrency.json
+          exit $status
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+          ATTESTATION_RACE_ISOLATED: 'true'
       - name: Fingerprint recovery evidence
         if: always()
-        run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json | tee artifacts/recovery-evidence.sha256
+        run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-019-constraints.json artifacts/restored-attestation-concurrency.json | tee artifacts/recovery-evidence.sha256
       - name: Upload redacted recovery evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -244,6 +362,12 @@ jobs:
             artifacts/recovery-evidence.json
             artifacts/restored-migrations.json
             artifacts/restored-ready-postgres.json
+            artifacts/restored-operations-quality.json
+            artifacts/restored-operations-quality-verification.json
+            artifacts/restored-migration-018-constraints.json
+            artifacts/restored-migration-016-webhook-inbox.json
+            artifacts/restored-migration-019-constraints.json
+            artifacts/restored-attestation-concurrency.json
             artifacts/recovery-evidence.sha256
           if-no-files-found: error
           retention-days: 7

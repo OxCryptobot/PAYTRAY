@@ -19,13 +19,13 @@ const challenge = {
   consumed_at: null
 }
 
-function makeClient({ consumed = false } = {}) {
+function makeClient({ consumed = false, expiresAt = challenge.expires_at, challengeOverride = {} } = {}) {
   const calls = []
   return {
     calls,
     async query(sql, params) {
       calls.push({ sql, params })
-      if (sql.startsWith('SELECT * FROM reviewer_attestation_challenges')) return { rows: [{ ...challenge, consumed_at: consumed ? '2026-08-16T00:01:00.000Z' : null }] }
+      if (sql.startsWith('SELECT * FROM reviewer_attestation_challenges')) return { rows: [{ ...challenge, expires_at: expiresAt, ...challengeOverride, consumed_at: consumed ? '2026-08-16T00:01:00.000Z' : null }] }
       if (sql.startsWith('UPDATE reviewer_attestation_challenges')) return { rows: consumed ? [] : [{ id: challenge.id }] }
       if (sql.startsWith('INSERT INTO reviewer_attestations')) return { rows: [{ id: 'attestation-1', verified_at: '2026-08-16T00:02:00.000Z', created_at: '2026-08-16T00:02:00.000Z' }] }
       if (sql.startsWith('INSERT INTO financial_audit_events')) return { rows: [{ id: 'audit-1' }] }
@@ -80,6 +80,20 @@ describe('reviewer attestation service', () => {
       return makeClient().query(sql, params)
     }
     await expect(verifyReviewerAttestation({ client: tamperedClient, challengeId: challenge.id, signature, authenticatedWallet: wallet.address })).rejects.toThrow('message hash mismatch')
+  })
+
+  it('rejects expired challenges before signature recovery', async () => {
+    const client = makeClient({ expiresAt: '2020-08-16T00:15:00.000Z' })
+    const signature = await wallet.signMessage('expired challenge test')
+    await expect(verifyReviewerAttestation({ client, challengeId: challenge.id, signature, authenticatedWallet: wallet.address })).rejects.toThrow('expired')
+    expect(client.calls.some(({ sql }) => sql.startsWith('UPDATE reviewer_attestation_challenges'))).toBe(false)
+    expect(client.calls.some(({ sql }) => sql.startsWith('INSERT INTO reviewer_attestations'))).toBe(false)
+  })
+
+  it('rejects malformed signature bytes before database access', async () => {
+    const client = makeClient()
+    await expect(verifyReviewerAttestation({ client, challengeId: challenge.id, signature: '0x1234', authenticatedWallet: wallet.address })).rejects.toThrow('65-byte EIP-191 signature')
+    expect(client.calls).toHaveLength(0)
   })
 
   it('rejects replayed challenges and does not insert an attestation', async () => {

@@ -156,7 +156,7 @@ function renderExperts() {
   }
 
   list.innerHTML = visible.map((expert) => `
-    <article class="expert-card ${state.selectedId === expert.id ? 'selected' : ''}" data-expert-id="${expert.id}">
+    <article class="expert-card ${state.selectedId === expert.id ? 'selected' : ''}" data-expert-id="${escapeHtml(expert.id)}" tabindex="0" role="button" aria-pressed="${state.selectedId === expert.id}" aria-label="View fit for ${escapeHtml(expert.name)}">
       <div class="expert-main">
         <div class="avatar" style="background:${escapeHtml(expert.avatar)}">${escapeHtml(expert.initials)}</div>
         <div class="expert-info">
@@ -180,7 +180,7 @@ function selectExpert(id) {
   document.querySelector('#panel-expert').textContent = expert.name
   document.querySelector('#panel-role').textContent = expert.role
   document.querySelector('#panel-context').textContent = expert.context
-  document.querySelector('#panel-tags').innerHTML = expert.tags.map((tag) => `<span class="tag">${tag}</span>`).join('')
+  document.querySelector('#panel-tags').innerHTML = expert.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('')
   document.querySelector('#panel-rate').textContent = '0.0003472 USDC / sec'
   document.querySelector('#panel-start').textContent = '30 minutes'
   panelTitle.textContent = 'A considered fit.'
@@ -346,6 +346,14 @@ document.addEventListener('click', (event) => {
   if (event.target.closest('#start-engagement')) startEngagement()
   if (event.target.closest('#request-stream')) requestPaymentIntent()
   if (event.target.closest('#refresh-payment-status')) refreshPaymentStatus()
+})
+
+document.addEventListener('keydown', (event) => {
+  if (!['Enter', ' '].includes(event.key)) return
+  const card = event.target.closest('[data-expert-id]')
+  if (!card || event.target.closest('button')) return
+  event.preventDefault()
+  selectExpert(card.dataset.expertId)
 })
 searchInput.addEventListener('input', (event) => { state.query = event.target.value; renderExperts() })
 domainFilter.addEventListener('change', (event) => { state.domain = event.target.value; renderExperts() })

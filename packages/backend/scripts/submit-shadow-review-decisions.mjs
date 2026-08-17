@@ -48,7 +48,7 @@ function loadWorksheet(filePath) {
   }
   assertSafeTree(worksheet)
   if (!worksheet || typeof worksheet !== 'object' || Array.isArray(worksheet)) fail('review worksheet must be an object')
-  if (worksheet.releaseCommit && !/^[0-9a-f]{40}$/.test(worksheet.releaseCommit)) fail('releaseCommit must be a lowercase 40-character commit hash')
+  if (typeof worksheet.releaseCommit !== 'string' || !/^[0-9a-f]{40}$/.test(worksheet.releaseCommit)) fail('releaseCommit is required and must be a lowercase 40-character commit hash')
   if (!Array.isArray(worksheet.reviews) || worksheet.reviews.length !== EXPECTED_RUN_IDS.length) fail('worksheet must contain exactly six reviews')
 
   const seen = new Set()
@@ -78,6 +78,9 @@ function requireSubmitGuards(reviews) {
   if (reviews.some((review) => review.decision === 'approved_pilot') && process.env.SHADOW_REVIEW_APPROVED_PILOT_CONFIRMATION !== APPROVED_PILOT_CONFIRMATION) {
     fail(`approved_pilot decisions require SHADOW_REVIEW_APPROVED_PILOT_CONFIRMATION=${APPROVED_PILOT_CONFIRMATION}`)
   }
+  const expectedCommit = requiredText(process.env.PAYTRAY_REVIEW_EXPECTED_COMMIT, 'PAYTRAY_REVIEW_EXPECTED_COMMIT')
+  if (!/^[0-9a-f]{40}$/.test(expectedCommit) || expectedCommit !== process.env.PAYTRAY_REVIEW_EXPECTED_COMMIT.trim()) fail('PAYTRAY_REVIEW_EXPECTED_COMMIT must be lowercase hexadecimal with 40 characters')
+  if (expectedCommit !== process.env.PAYTRAY_REVIEW_WORKSHEET_RELEASE_COMMIT) fail('PAYTRAY_REVIEW_WORKSHEET_RELEASE_COMMIT must equal the worksheet releaseCommit')
   const baseUrl = requiredText(process.env.PAYTRAY_REVIEW_BASE_URL, 'PAYTRAY_REVIEW_BASE_URL')
   let parsed
   try {
@@ -113,6 +116,7 @@ function dryRunReport({ worksheet, filePath }) {
 }
 
 async function submitReviews({ worksheet, filePath }) {
+  process.env.PAYTRAY_REVIEW_WORKSHEET_RELEASE_COMMIT = worksheet.releaseCommit
   const baseUrl = requireSubmitGuards(worksheet.reviews)
   const results = []
   for (const review of worksheet.reviews) {

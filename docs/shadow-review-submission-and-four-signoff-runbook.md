@@ -78,6 +78,7 @@ Submission is intentionally guarded by explicit environment values. The operator
 export PAYTRAY_REVIEW_BASE_URL=https://<authenticated-paytray-target>
 export PAYTRAY_REVIEW_ACCESS_TOKEN='<inject ephemerally; do not persist or print>'
 export PAYTRAY_REVIEW_WORKSHEET_FILE=/secure/paytray/shadow-review-decisions.json
+export PAYTRAY_REVIEW_EXPECTED_COMMIT=<same 40-character lowercase commit as worksheet.releaseCommit>
 export SHADOW_REVIEW_SUBMISSION_MODE=submit
 export SHADOW_REVIEW_SUBMISSION_ENABLED=true
 export SHADOW_REVIEW_SUBMISSION_CONFIRMATION=I_UNDERSTAND_HUMAN_REVIEW_SUBMISSION

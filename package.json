@@ -26,6 +26,7 @@
     "backend:release:key:custody:check": "node packages/backend/scripts/verify-operator-key-custody.mjs",
     "backend:release:key:secret-manager:check": "node packages/backend/scripts/verify-secret-manager-custody.mjs",
     "backend:shadow:reviews:check": "node packages/backend/scripts/inspect-shadow-review-status.mjs",
+    "backend:release:shadow:reviews:submit:check": "node packages/backend/scripts/submit-shadow-review-decisions.mjs",
     "backend:release:gates:check": "node packages/backend/scripts/verify-release-gates.mjs",
     "backend:ops:evidence:bundle:check": "node packages/backend/scripts/inspect-operator-evidence-bundle.mjs",
     "backend:ops:evidence:bundle:verify": "node packages/backend/scripts/verify-operator-evidence-bundle.mjs",

@@ -318,7 +318,7 @@ jobs:
         run: |
           mkdir -p artifacts
           set +e
-          npm run backend:recovery:check > artifacts/recovery-evidence.json
+          node packages/backend/scripts/verify-recovery-evidence.mjs > artifacts/recovery-evidence.json
           status=$?
           cat artifacts/recovery-evidence.json
           exit $status

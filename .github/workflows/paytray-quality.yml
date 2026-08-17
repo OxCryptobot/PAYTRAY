@@ -159,9 +159,28 @@ jobs:
           IDEMPOTENCY_CLEANUP_CONFIG_FILE=artifacts/idempotency-cleanup.json \
           node packages/backend/scripts/verify-durable-worker-evidence.mjs > artifacts/durable-worker-evidence.json
           cat artifacts/durable-worker-evidence.json
+      - name: Capture verifier and reconciliation evidence
+        if: always()
+        run: |
+          set +e
+          node packages/backend/scripts/inspect-verifier-operations.mjs > artifacts/verifier-operations.json 2>&1
+          node packages/backend/scripts/inspect-reconciliation-evidence.mjs > artifacts/reconciliation-evidence.json 2>&1
+          cat artifacts/verifier-operations.json
+          cat artifacts/reconciliation-evidence.json
+      - name: Compose verifier/reconciliation evidence
+        if: always()
+        run: |
+          set +e
+          VERIFIER_RECONCILIATION_EVIDENCE_TARGET=local_disposable \
+          VERIFIER_OPERATIONS_FILE=artifacts/verifier-operations.json \
+          RECONCILIATION_EVIDENCE_FILE=artifacts/reconciliation-evidence.json \
+          node packages/backend/scripts/verify-verifier-reconciliation-evidence.mjs > artifacts/verifier-reconciliation-evidence.json
+          status=$?
+          cat artifacts/verifier-reconciliation-evidence.json
+          exit 0
       - name: Fingerprint release-gate evidence
         if: always()
-        run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json artifacts/outbox-health.json artifacts/outbox-worker.json artifacts/idempotency-cleanup.json artifacts/durable-worker-evidence.json | tee artifacts/release-gates.json.sha256
+        run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json artifacts/outbox-health.json artifacts/outbox-worker.json artifacts/idempotency-cleanup.json artifacts/durable-worker-evidence.json artifacts/verifier-operations.json artifacts/reconciliation-evidence.json artifacts/verifier-reconciliation-evidence.json | tee artifacts/release-gates.json.sha256
       - name: Upload release-gate evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -174,6 +193,9 @@ jobs:
             artifacts/outbox-worker.json
             artifacts/idempotency-cleanup.json
             artifacts/durable-worker-evidence.json
+            artifacts/verifier-operations.json
+            artifacts/reconciliation-evidence.json
+            artifacts/verifier-reconciliation-evidence.json
             artifacts/release-gates.json.sha256
           if-no-files-found: error
           retention-days: 7

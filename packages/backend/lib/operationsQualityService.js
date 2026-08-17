@@ -9,6 +9,7 @@ const EXPECTED_BLOCKED_CHECKS = new Set([
   'railway-trial',
   'recovery',
   'verifier-operations',
+  'verifier-cursor-evidence',
   'release-approval',
   'release-manifest',
   'release-payload',

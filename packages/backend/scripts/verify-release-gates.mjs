@@ -15,6 +15,7 @@ const checks = [
   { name: 'deployment-preflight', script: 'backend:deployment:check' },
   { name: 'railway-trial', script: 'backend:railway:trial:check' },
   { name: 'verifier-operations', script: 'backend:verifier:operations:check' },
+  { name: 'verifier-cursor-evidence', script: 'backend:release:verifier:cursor:evidence:check' },
   { name: 'outbox-health', script: 'backend:outbox:health:check' },
   { name: 'idempotency-cleanup', script: 'backend:idempotency:cleanup:check' },
   { name: 'target-operations', script: 'backend:target:operations:check' },

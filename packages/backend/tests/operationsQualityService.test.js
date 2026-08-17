@@ -18,6 +18,11 @@ describe('operations quality service', () => {
       exitCode: 0,
       output: JSON.stringify({ status: 'operator_blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
     })
+    const cursorEvidenceBlocked = classifyOperationsCheck({
+      name: 'verifier-cursor-evidence',
+      exitCode: 1,
+      output: JSON.stringify({ status: 'operator_blocked', reason: 'durable verifier cursor is missing', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    })
     const bundleBlocked = classifyOperationsCheck({
       name: 'evidence-bundle',
       exitCode: 1,
@@ -52,6 +57,8 @@ describe('operations quality service', () => {
     })
     expect(releaseGatesBlocked.state).toBe('operator_blocked')
     expect(releaseGatesBlocked.expectedBlocked).toBe(true)
+    expect(cursorEvidenceBlocked.state).toBe('operator_blocked')
+    expect(cursorEvidenceBlocked.expectedBlocked).toBe(true)
     expect(bundleBlocked.state).toBe('operator_blocked')
     expect(bundleBlocked.expectedBlocked).toBe(true)
     expect(manifestBlocked.state).toBe('operator_blocked')
@@ -82,9 +89,16 @@ describe('operations quality service', () => {
       strict: true,
       output: JSON.stringify({ status: 'blocked', reason: 'ephemeral secret-manager evidence is required' })
     })
+    const strictCursorEvidence = classifyOperationsCheck({
+      name: 'verifier-cursor-evidence',
+      exitCode: 1,
+      strict: true,
+      output: JSON.stringify({ status: 'operator_blocked', reason: 'durable verifier cursor is missing' })
+    })
     expect(normal.state).toBe('operator_blocked')
     expect(strict.state).toBe('failed')
     expect(strictSecretManager.state).toBe('failed')
+    expect(strictCursorEvidence.state).toBe('failed')
   })
 
   it('builds an immutable report with no release or settlement authority', () => {

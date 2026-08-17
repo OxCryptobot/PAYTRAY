@@ -7,7 +7,7 @@ const ALLOWED_MUTATIONS = new Set([null, 'none', 'read_only'])
 const STAGES = [
   { id: 'target-evidence', title: 'Authenticated target evidence', checks: ['railway-trial', 'target-operations'] },
   { id: 'target-recovery', title: 'Target backup and isolated recovery', checks: ['recovery'] },
-  { id: 'fresh-verifier', title: 'Fresh verifier operations evidence', checks: ['verifier-operations'] },
+  { id: 'fresh-verifier', title: 'Fresh verifier operations evidence', checks: ['verifier-operations', 'verifier-cursor-evidence'] },
   { id: 'reconciliation', title: 'Fresh reconciliation evidence', checks: ['reconciliation-evidence'] },
   { id: 'durable-workers', title: 'Durable outbox and housekeeping evidence', checks: ['outbox-health', 'idempotency-cleanup'] },
   { id: 'human-evidence', title: 'Shadow-review and four-role signoff evidence', checks: ['release-evidence', 'release-approval'] },

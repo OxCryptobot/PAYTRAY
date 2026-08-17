@@ -18,6 +18,7 @@ const sequenceChecks = [
   'target-operations',
   'recovery',
   'verifier-operations',
+  'verifier-cursor-evidence',
   'reconciliation-evidence',
   'outbox-health',
   'idempotency-cleanup',
@@ -69,7 +70,7 @@ describe('release approval gate', () => {
     const result = buildPostAttestationSequenceReport({ report: makeSequenceReport('operator_blocked'), sourceSha256: 'a'.repeat(64) })
     expect(result).toMatchObject({ status: 'operator_blocked', sequence: 'post_shadow_review_attestation', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
     expect(result.orderedStages.map((stage) => stage.id)).toEqual(['target-evidence', 'target-recovery', 'fresh-verifier', 'reconciliation', 'durable-workers', 'human-evidence', 'operator-custody', 'manifest-payload'])
-    expect(result.blockingChecks.length).toBe(13)
+    expect(result.blockingChecks.length).toBe(14)
   })
 
   it('reports a complete ordered sequence as verified while preserving false authority fields', () => {

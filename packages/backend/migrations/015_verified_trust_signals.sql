@@ -18,6 +18,21 @@ CREATE TABLE IF NOT EXISTS verified_trust_signals (
   UNIQUE (subject_user_id, outcome_id, signal_type)
 );
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'verified_trust_signals'::regclass
+      AND conname = 'verified_trust_signals_eligible_for_ranking_check'
+  ) THEN
+    ALTER TABLE verified_trust_signals
+      ADD CONSTRAINT verified_trust_signals_eligible_for_ranking_check
+      CHECK (eligible_for_ranking = false);
+  END IF;
+END
+$$;
+
 CREATE INDEX IF NOT EXISTS verified_trust_signals_subject_index
   ON verified_trust_signals (subject_wallet_address, created_at DESC);
 

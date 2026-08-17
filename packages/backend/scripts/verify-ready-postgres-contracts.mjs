@@ -11,6 +11,8 @@ if (!isolated) {
   console.error(JSON.stringify({
     status: 'blocked',
     reason: 'READY_POSTGRES_DATABASE_ISOLATED=true is required before exercising a database-backed route contract',
+    releaseEligible: false,
+    settlementAuthority: false,
     mutation: 'read_only',
     deploymentPerformed: false,
     settlementMutationPerformed: false
@@ -95,11 +97,11 @@ if (!isolated) {
       healthDashboard: [200, 503].includes(healthDashboard.status) && healthDashboard.body.dashboard?.authority === 'operator_health_aggregation_only' && healthDashboard.body.dashboard?.mutation === 'read_only' && healthDashboard.body.dashboard?.settlementAuthority === false && healthDashboard.body.dashboard?.releaseEligible === false && healthDashboard.body.dashboard?.components?.length === 5,
       evidenceBundle: [200, 503].includes(evidenceBundle.status) && evidenceBundle.body.bundle?.authority === 'operator_evidence_bundle_export_only' && evidenceBundle.body.bundle?.mutation === 'read_only' && evidenceBundle.body.bundle?.settlementAuthority === false && evidenceBundle.body.bundle?.releaseEligible === false && evidenceBundle.body.bundle?.evidenceFingerprint?.algorithm === 'sha256',
       operationsQualityRuns: operationsQualityRuns.status === 200 && operationsQualityRuns.body.runs?.authority === 'operations_quality_audit' && operationsQualityRuns.body.runs?.mutation === 'read_only' && operationsQualityRuns.body.runs?.settlementAuthority === false && operationsQualityRuns.body.runs?.releaseEligible === false && Array.isArray(operationsQualityRuns.body.runs?.runs),
-      operationsQualityRunDetail: operationsQualityRunDetail.status === 204 || (operationsQualityRunDetail.status === 200 && operationsQualityRunDetail.body.run?.authority === 'operations_quality_audit' && operationsQualityRunDetail.body.run?.mutation === 'read_only' && operationsQualityRunDetail.body.run?.settlementAuthority === false && operationsQualityRunDetail.body.run?.releaseEligible === false && operationsQualityRunDetail.body.run?.run?.report_hash),
+      operationsQualityRunDetail: operationsQualityRunDetail.status === 204 || (operationsQualityRunDetail.status === 200 && operationsQualityRunDetail.body.run?.authority === 'operations_quality_audit' && operationsQualityRunDetail.body.run?.mutation === 'read_only' && operationsQualityRunDetail.body.run?.settlementAuthority === false && operationsQualityRunDetail.body.run?.releaseEligible === false && Boolean(operationsQualityRunDetail.body.run?.run?.report_hash)),
       releaseGatesLatest: [200, 503].includes(releaseGatesLatest.status) && releaseGatesLatest.body.releaseGates?.authority === 'operations_quality_audit' && releaseGatesLatest.body.releaseGates?.mutation === 'read_only' && releaseGatesLatest.body.releaseGates?.settlementAuthority === false && releaseGatesLatest.body.releaseGates?.releaseEligible === false,
       unifiedEvidence: [200, 503].includes(unifiedEvidence.status) && unifiedEvidence.body.evidence?.mutation === 'read_only' && unifiedEvidence.body.evidence?.settlementAuthority === false && unifiedEvidence.body.evidence?.releaseEligible === false && unifiedEvidence.body.evidence?.evidenceFingerprint?.algorithm === 'sha256',
       releaseEvidence: [200, 503].includes(releaseEvidence.status) && releaseEvidence.body.bundle?.mutation === 'read_only' && releaseEvidence.body.bundle?.settlementAuthority === false && releaseEvidence.body.bundle?.releaseEligible === false && releaseEvidence.body.bundle?.evidenceFingerprint?.algorithm === 'sha256',
-      reconciliationEvidence: [200, 503].includes(reconciliationEvidence.status) && reconciliationEvidence.body.evidence?.mutation === 'read_only' && reconciliationEvidence.body.evidence?.settlementAuthority === false && reconciliationEvidence.body.evidence?.evidenceHash,
+      reconciliationEvidence: [200, 503].includes(reconciliationEvidence.status) && reconciliationEvidence.body.evidence?.mutation === 'read_only' && reconciliationEvidence.body.evidence?.settlementAuthority === false && Boolean(reconciliationEvidence.body.evidence?.evidenceHash),
       reviewerAttestations: reviewerAttestations.status === 200 && reviewerAttestations.body.report?.authority === 'reviewer_attestation_inspection_only' && reviewerAttestations.body.report?.mutation === 'read_only' && reviewerAttestations.body.report?.settlementAuthority === false && reviewerAttestations.body.report?.releaseEligible === false && reviewerAttestations.body.report?.submissionPerformed === false && Array.isArray(reviewerAttestations.body.report?.attestations)
     }
     const ready = Object.values(checks).every(Boolean)
@@ -108,6 +110,7 @@ if (!isolated) {
       databaseStatus: getDatabaseStatus(),
       checks,
       routeStatuses: { collaboration: collaboration.status, engagementCreate: engagementCreate.status, paymentState: paymentState.status, openapi: openapi.status, contracts: contracts.status, hook: hook.status, hooks: hooks.status, trustSignals: trustSignals.status, audit: audit.status, lineage: lineage.status, outbox: outbox.status, inbox: inbox.status, outboxProcess: outboxProcess.status, verifier: verifier.status, runtimeHealth: runtimeHealth.status, healthDashboard: healthDashboard.status, evidenceBundle: evidenceBundle.status, operationsQualityRuns: operationsQualityRuns.status, operationsQualityRunDetail: operationsQualityRunDetail.status, releaseGatesLatest: releaseGatesLatest.status, unifiedEvidence: unifiedEvidence.status, releaseEvidence: releaseEvidence.status, reconciliationEvidence: reconciliationEvidence.status, reviewerAttestations: reviewerAttestations.status },
+      releaseEligible: false,
       settlementAuthority: false,
       mutation: 'read_only',
       deploymentPerformed: false,
@@ -119,6 +122,8 @@ if (!isolated) {
       status: 'blocked',
       reason: error.message,
       databaseStatus: getDatabaseStatus(),
+      releaseEligible: false,
+      settlementAuthority: false,
       mutation: 'read_only',
       deploymentPerformed: false,
       settlementMutationPerformed: false

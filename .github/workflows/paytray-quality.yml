@@ -201,6 +201,12 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           MIGRATION_016_CONTRACT_ISOLATED: 'true'
+      - name: Verify migration-015 trust-signal constraints
+        run: npm run backend:release:migration:015:check
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
+          MIGRATION_015_CONTRACT_ISOLATED: 'true'
       - name: Verify migration-019 SQL constraints
         run: npm run backend:release:migration:019:check
         env:
@@ -269,12 +275,12 @@ jobs:
           RECOVERY_RESTORE_DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           RECOVERY_TARGET_ISOLATED: 'true'
       - name: Verify restored migrations
-        run: npm run backend:migrations:check > artifacts/restored-migrations.json
+        run: node packages/backend/scripts/verify-migrations.mjs > artifacts/restored-migrations.json
         env:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
       - name: Verify restored ready-PostgreSQL contracts
-        run: npm run backend:ready:postgres:check > artifacts/restored-ready-postgres.json
+        run: LOG_LEVEL=error node packages/backend/scripts/verify-ready-postgres-contracts.mjs > artifacts/restored-ready-postgres.json
         env:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
@@ -283,7 +289,7 @@ jobs:
         if: always()
         run: |
           set +e
-          node packages/backend/scripts/verify-operations-quality.mjs > artifacts/restored-operations-quality.json
+          LOG_LEVEL=error node packages/backend/scripts/verify-operations-quality.mjs > artifacts/restored-operations-quality.json
           status=$?
           cat artifacts/restored-operations-quality.json
           exit $status
@@ -295,7 +301,7 @@ jobs:
         if: always()
         run: |
           set +e
-          npm run backend:release:operations-quality:artifact:check artifacts/restored-operations-quality.json > artifacts/restored-operations-quality-verification.json
+          node packages/backend/scripts/verify-operations-quality-artifact.mjs artifacts/restored-operations-quality.json > artifacts/restored-operations-quality-verification.json
           status=$?
           cat artifacts/restored-operations-quality-verification.json
           exit $status
@@ -306,7 +312,7 @@ jobs:
         if: always()
         run: |
           set +e
-          npm run backend:release:migration:018:check > artifacts/restored-migration-018-constraints.json
+          node packages/backend/scripts/verify-migration-018-constraints.mjs > artifacts/restored-migration-018-constraints.json
           status=$?
           cat artifacts/restored-migration-018-constraints.json
           exit $status
@@ -318,7 +324,7 @@ jobs:
         if: always()
         run: |
           set +e
-          npm run backend:release:migration:016:check > artifacts/restored-migration-016-webhook-inbox.json
+          node packages/backend/scripts/verify-migration-016-webhook-inbox.mjs > artifacts/restored-migration-016-webhook-inbox.json
           status=$?
           cat artifacts/restored-migration-016-webhook-inbox.json
           exit $status
@@ -330,7 +336,7 @@ jobs:
         if: always()
         run: |
           set +e
-          npm run backend:release:migration:019:check > artifacts/restored-migration-019-constraints.json
+          node packages/backend/scripts/verify-migration-019-constraints.mjs > artifacts/restored-migration-019-constraints.json
           status=$?
           cat artifacts/restored-migration-019-constraints.json
           exit $status
@@ -338,11 +344,23 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           MIGRATION_019_CONTRACT_ISOLATED: 'true'
+      - name: Verify restored migration-015 trust-signal constraints
+        if: always()
+        run: |
+          set +e
+          node packages/backend/scripts/verify-migration-015-trust-signals.mjs > artifacts/restored-migration-015-trust-signals.json
+          status=$?
+          cat artifacts/restored-migration-015-trust-signals.json
+          exit $status
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+          MIGRATION_015_CONTRACT_ISOLATED: 'true'
       - name: Verify restored reviewer-attestation transaction race
         if: always()
         run: |
           set +e
-          npm run backend:release:attestation:race:check > artifacts/restored-attestation-concurrency.json
+          node packages/backend/scripts/verify-reviewer-attestation-concurrency.mjs > artifacts/restored-attestation-concurrency.json
           status=$?
           cat artifacts/restored-attestation-concurrency.json
           exit $status
@@ -350,9 +368,19 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           ATTESTATION_RACE_ISOLATED: 'true'
-      - name: Fingerprint recovery evidence
+      - name: Prepare recovery artifact SHA-256 sidecar
         if: always()
-        run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-019-constraints.json artifacts/restored-attestation-concurrency.json | tee artifacts/recovery-evidence.sha256
+        run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-019-constraints.json artifacts/restored-attestation-concurrency.json | tee artifacts/recovery-evidence.sha256
+      - name: Verify recovery artifact bundle
+        if: always()
+        run: |
+          set +e
+          node packages/backend/scripts/verify-recovery-artifact.mjs --sidecar artifacts/recovery-evidence.sha256 artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-019-constraints.json artifacts/restored-attestation-concurrency.json > artifacts/recovery-artifact-verification.json
+          status=$?
+          cat artifacts/recovery-artifact-verification.json
+          exit $status
+        env:
+          RECOVERY_ARTIFACT_ISOLATED: 'true'
       - name: Upload redacted recovery evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -366,8 +394,10 @@ jobs:
             artifacts/restored-operations-quality-verification.json
             artifacts/restored-migration-018-constraints.json
             artifacts/restored-migration-016-webhook-inbox.json
+            artifacts/restored-migration-015-trust-signals.json
             artifacts/restored-migration-019-constraints.json
             artifacts/restored-attestation-concurrency.json
+            artifacts/recovery-artifact-verification.json
             artifacts/recovery-evidence.sha256
           if-no-files-found: error
           retention-days: 7

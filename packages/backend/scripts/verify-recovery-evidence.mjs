@@ -158,6 +158,8 @@ try {
     },
     restore,
     authority: 'recovery_evidence_only',
+    releaseEligible: false,
+    settlementAuthority: false,
     mutation: restore.status === 'verified' ? 'isolated_recovery_only' : 'backup_only',
     deploymentPerformed: false,
     settlementMutationPerformed: false
@@ -168,6 +170,8 @@ try {
     status: 'blocked',
     reason: error.message,
     authority: 'recovery_evidence_only',
+    releaseEligible: false,
+    settlementAuthority: false,
     mutation: 'none',
     deploymentPerformed: false,
     settlementMutationPerformed: false

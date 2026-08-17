@@ -8,7 +8,7 @@ import { buildDeploymentPreflight } from '../lib/deploymentPreflight.js'
 import { buildReleaseApprovalArtifact } from '../lib/releaseApprovalGate.js'
 import { parseTokenRegistry } from '../lib/payments/tokenRegistry.js'
 
-let exitCode = 0
+let exitCode = 1
 try {
   await initializeDatabase()
   const artifact = await transaction(async (client) => {
@@ -35,6 +35,17 @@ try {
   })
   exitCode = artifact.status === 'approved' ? 0 : 1
   console.log(JSON.stringify({ status: 'ok', artifact }, null, 2))
+} catch (error) {
+  console.log(JSON.stringify({
+    status: 'blocked',
+    reason: error instanceof Error ? error.message : String(error),
+    authority: 'release_approval_inspection_only',
+    releaseEligible: false,
+    settlementAuthority: false,
+    mutation: 'read_only',
+    deploymentPerformed: false,
+    settlementMutationPerformed: false
+  }, null, 2))
 } finally {
   await closeDatabase()
 }

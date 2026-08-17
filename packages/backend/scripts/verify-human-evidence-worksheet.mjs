@@ -126,9 +126,27 @@ export function validateHumanEvidenceWorksheet({ content } = {}) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const worksheetPath = process.argv[2] || process.env.HUMAN_EVIDENCE_WORKSHEET_FILE
-  if (!worksheetPath) throw new Error('worksheet path or HUMAN_EVIDENCE_WORKSHEET_FILE is required')
-  const result = validateHumanEvidenceWorksheet({ content: fs.readFileSync(worksheetPath, 'utf8') })
-  console.log(JSON.stringify(result, null, 2))
-  process.exitCode = result.prepared || result.draftPrepared ? 0 : 1
+  try {
+    const worksheetPath = process.argv[2] || process.env.HUMAN_EVIDENCE_WORKSHEET_FILE
+    if (!worksheetPath) throw new Error('worksheet path or HUMAN_EVIDENCE_WORKSHEET_FILE is required')
+    const result = validateHumanEvidenceWorksheet({ content: fs.readFileSync(worksheetPath, 'utf8') })
+    console.log(JSON.stringify(result, null, 2))
+    process.exitCode = result.prepared || result.draftPrepared ? 0 : 1
+  } catch (error) {
+    console.log(JSON.stringify({
+      status: 'blocked',
+      reason: error instanceof Error ? error.message : String(error),
+      authority: 'human_evidence_worksheet_only',
+      prepared: false,
+      draftPrepared: false,
+      submissionPermitted: false,
+      submissionPerformed: false,
+      releaseEligible: false,
+      settlementAuthority: false,
+      mutation: 'read_only',
+      deploymentPerformed: false,
+      settlementMutationPerformed: false
+    }, null, 2))
+    process.exitCode = 1
+  }
 }

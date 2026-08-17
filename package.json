@@ -28,6 +28,7 @@
     "backend:shadow:reviews:check": "node packages/backend/scripts/inspect-shadow-review-status.mjs",
     "backend:release:shadow:reviews:submit:check": "node packages/backend/scripts/submit-shadow-review-decisions.mjs",
     "backend:release:post-attestation:sequence:check": "node packages/backend/scripts/verify-post-attestation-release-sequence.mjs",
+    "backend:release:reviewer-attestations:bundle:check": "node packages/backend/scripts/verify-reviewer-attestation-bundle.mjs",
     "backend:release:gates:check": "node packages/backend/scripts/verify-release-gates.mjs",
     "backend:ops:evidence:bundle:check": "node packages/backend/scripts/inspect-operator-evidence-bundle.mjs",
     "backend:ops:evidence:bundle:verify": "node packages/backend/scripts/verify-operator-evidence-bundle.mjs",

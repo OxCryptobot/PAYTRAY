@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildReleaseApprovalArtifact } from '../lib/releaseApprovalGate.js'
 import { buildPostAttestationSequenceReport } from '../scripts/verify-post-attestation-release-sequence.mjs'
+import { validateReviewerAttestationBundle } from '../scripts/verify-reviewer-attestation-bundle.mjs'
 
 const base = {
   deploymentPreflight: { ready: true, settlement: { chainId: 84532, mainnetEnabled: false }, checks: [] },
@@ -82,5 +83,17 @@ describe('release approval gate', () => {
   it('rejects authority violations and sensitive fields in release-gate reports', () => {
     expect(() => buildPostAttestationSequenceReport({ report: { ...makeSequenceReport(), releaseEligible: true } })).toThrow('immutable authority violation')
     expect(() => buildPostAttestationSequenceReport({ report: { ...makeSequenceReport(), signature: '0x' } })).toThrow('sensitive key')
+  })
+
+  it('fails closed when the four-role attestation bundle is incomplete', () => {
+    expect(() => validateReviewerAttestationBundle({ content: { status: 'ok', attestations: [] } })).toThrow('exactly four attestations')
+  })
+
+  it('rejects raw EIP-191 signature material from redacted attestation reports', () => {
+    expect(() => validateReviewerAttestationBundle({ content: { status: 'ok', signature: '0x' , attestations: [] } })).toThrow('sensitive key')
+  })
+
+  it('rejects an attestation bundle that attempts to grant release authority', () => {
+    expect(() => validateReviewerAttestationBundle({ content: { status: 'ok', releaseEligible: true, attestations: [] } })).toThrow('immutable authority violation')
   })
 })

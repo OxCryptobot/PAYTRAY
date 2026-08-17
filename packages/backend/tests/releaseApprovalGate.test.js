@@ -89,8 +89,9 @@ describe('release approval gate', () => {
     expect(() => validateReviewerAttestationBundle({ content: { status: 'ok', attestations: [] } })).toThrow('exactly four attestations')
   })
 
-  it('rejects raw EIP-191 signature material from redacted attestation reports', () => {
-    expect(() => validateReviewerAttestationBundle({ content: { status: 'ok', signature: '0x' , attestations: [] } })).toThrow('sensitive key')
+  it('accepts safe false-valued redaction metadata while rejecting raw EIP-191 signatures', () => {
+    expect(() => validateReviewerAttestationBundle({ content: { status: 'ok', signatureBytesIncluded: false, attestations: [] } })).toThrow('exactly four attestations')
+    expect(() => validateReviewerAttestationBundle({ content: { status: 'ok', signature: '0x', attestations: [] } })).toThrow('sensitive key')
   })
 
   it('rejects an attestation bundle that attempts to grant release authority', () => {

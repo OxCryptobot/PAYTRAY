@@ -7,6 +7,7 @@ const COMMIT40 = /^[0-9a-f]{40}$/
 const HEX64 = /^[0-9a-f]{64}$/
 const WALLET = /^0x[0-9a-f]{40}$/
 const SENSITIVE_KEY = /(private.?key|secret|password|authorization|cookie|jwt|token|signature|raw.?content|reviewer.?notes|transcript|recording|audio|video)/i
+const SAFE_REDACTION_METADATA = new Set(['signatureBytesIncluded', 'signingKeyMaterialIncluded', 'identitiesIncluded'])
 const ALLOWED_MUTATIONS = new Set([null, 'none', 'read_only'])
 
 function fail(message) {
@@ -30,7 +31,7 @@ function scanSensitiveKeys(value, path = '$') {
   }
   if (!value || typeof value !== 'object') return
   for (const [key, child] of Object.entries(value)) {
-    if (SENSITIVE_KEY.test(key)) fail(`sensitive key is not allowed at ${path}.${key}`)
+    if (SENSITIVE_KEY.test(key) && !(SAFE_REDACTION_METADATA.has(key) && child === false)) fail(`sensitive key is not allowed at ${path}.${key}`)
     scanSensitiveKeys(child, `${path}.${key}`)
   }
 }

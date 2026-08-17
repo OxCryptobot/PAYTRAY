@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildReleaseApprovalArtifact } from '../lib/releaseApprovalGate.js'
+import { buildPostAttestationSequenceReport } from '../scripts/verify-post-attestation-release-sequence.mjs'
 
 const base = {
   deploymentPreflight: { ready: true, settlement: { chainId: 84532, mainnetEnabled: false }, checks: [] },
@@ -8,6 +9,31 @@ const base = {
   verifierStatus: { status: 'fresh', ready: true },
   pendingShadowReviews: 0,
   rollbackTargets: 1
+}
+
+const sequenceChecks = [
+  'railway-trial',
+  'target-operations',
+  'recovery',
+  'verifier-operations',
+  'reconciliation-evidence',
+  'outbox-health',
+  'idempotency-cleanup',
+  'release-evidence',
+  'release-approval',
+  'operator-key-custody',
+  'secret-manager-custody',
+  'release-manifest',
+  'release-payload'
+]
+
+function makeSequenceReport(state = 'passed') {
+  return {
+    reportKind: 'release_gates',
+    releaseEligible: false,
+    settlementAuthority: false,
+    checks: sequenceChecks.map((name) => ({ name, state, reason: state === 'passed' ? 'check passed' : 'operator evidence is required', mutation: 'read_only', releaseEligible: false, settlementAuthority: false }))
+  }
 }
 
 describe('release approval gate', () => {
@@ -35,5 +61,26 @@ describe('release approval gate', () => {
     expect(artifact.status).toBe('blocked')
     expect(artifact.checks.find((check) => check.name === 'verifier').ready).toBe(false)
     expect(artifact.checks.find((check) => check.name === 'reconciliation').ready).toBe(false)
+  })
+
+  it('maps post-attestation blockers into ordered release stages without granting authority', () => {
+    const result = buildPostAttestationSequenceReport({ report: makeSequenceReport('operator_blocked'), sourceSha256: 'a'.repeat(64) })
+    expect(result).toMatchObject({ status: 'operator_blocked', sequence: 'post_shadow_review_attestation', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    expect(result.orderedStages.map((stage) => stage.id)).toEqual(['target-evidence', 'target-recovery', 'fresh-verifier', 'reconciliation', 'durable-workers', 'human-evidence', 'operator-custody', 'manifest-payload'])
+    expect(result.blockingChecks.length).toBe(13)
+  })
+
+  it('reports a complete ordered sequence as verified while preserving false authority fields', () => {
+    const result = buildPostAttestationSequenceReport({ report: makeSequenceReport('passed') })
+    expect(result.status).toBe('verified')
+    expect(result.orderedStages.every((stage) => stage.status === 'verified')).toBe(true)
+    expect(result.releaseEligible).toBe(false)
+    expect(result.settlementAuthority).toBe(false)
+    expect(result.mutation).toBe('read_only')
+  })
+
+  it('rejects authority violations and sensitive fields in release-gate reports', () => {
+    expect(() => buildPostAttestationSequenceReport({ report: { ...makeSequenceReport(), releaseEligible: true } })).toThrow('immutable authority violation')
+    expect(() => buildPostAttestationSequenceReport({ report: { ...makeSequenceReport(), signature: '0x' } })).toThrow('sensitive key')
   })
 })

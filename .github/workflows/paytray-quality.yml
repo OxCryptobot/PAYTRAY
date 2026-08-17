@@ -132,9 +132,17 @@ jobs:
       - name: Verify release-gates artifact contract
         if: always()
         run: node packages/backend/scripts/verify-ci-matrix-artifact.mjs artifacts/release-gates.json release_gates secret-manager-custody
+      - name: Verify post-attestation release-gate sequence
+        if: always()
+        run: |
+          set +e
+          POST_ATTESTATION_RELEASE_GATES_FILE=artifacts/release-gates.json node packages/backend/scripts/verify-post-attestation-release-sequence.mjs > artifacts/post-attestation-release-sequence.json
+          status=$?
+          cat artifacts/post-attestation-release-sequence.json
+          exit $status
       - name: Fingerprint release-gate evidence
         if: always()
-        run: sha256sum artifacts/release-gates.json | tee artifacts/release-gates.json.sha256
+        run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json | tee artifacts/release-gates.json.sha256
       - name: Upload release-gate evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -142,6 +150,7 @@ jobs:
           name: release-gates-${{ github.run_id }}
           path: |
             artifacts/release-gates.json
+            artifacts/post-attestation-release-sequence.json
             artifacts/release-gates.json.sha256
           if-no-files-found: error
           retention-days: 7

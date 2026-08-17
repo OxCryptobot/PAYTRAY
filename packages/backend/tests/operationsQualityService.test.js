@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildOperationsQualityReport, classifyOperationsCheck, isOperationsQualityExitSuccess } from '../lib/operationsQualityService.js'
+import { buildOperationsQualityReport, classifyOperationsCheck, getOperationsCheckClearanceCriteria, isOperationsQualityExitSuccess } from '../lib/operationsQualityService.js'
 
 describe('operations quality service', () => {
   it('classifies expected operator gates separately from unexpected failures', () => {
@@ -59,6 +59,8 @@ describe('operations quality service', () => {
     expect(releaseGatesBlocked.expectedBlocked).toBe(true)
     expect(cursorEvidenceBlocked.state).toBe('operator_blocked')
     expect(cursorEvidenceBlocked.expectedBlocked).toBe(true)
+    expect(cursorEvidenceBlocked.clearanceCriteria).toContain('verifierStatus.status=fresh')
+    expect(getOperationsCheckClearanceCriteria('unknown-check')).toBeNull()
     expect(bundleBlocked.state).toBe('operator_blocked')
     expect(bundleBlocked.expectedBlocked).toBe(true)
     expect(manifestBlocked.state).toBe('operator_blocked')
@@ -67,6 +69,7 @@ describe('operations quality service', () => {
     expect(approvalBlocked.state).toBe('operator_blocked')
     expect(secretManagerBlocked.state).toBe('operator_blocked')
     expect(secretManagerBlocked.expectedBlocked).toBe(true)
+    expect(secretManagerBlocked.clearanceCriteria).toContain('protected')
     expect(failed.state).toBe('failed')
     expect(failed.expectedBlocked).toBe(false)
   })

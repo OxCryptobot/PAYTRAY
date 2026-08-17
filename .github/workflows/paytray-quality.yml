@@ -140,9 +140,28 @@ jobs:
           status=$?
           cat artifacts/post-attestation-release-sequence.json
           exit $status
+      - name: Capture durable-worker component evidence
+        if: always()
+        run: |
+          set +e
+          node packages/backend/scripts/inspect-outbox-health.mjs > artifacts/outbox-health.json 2>&1
+          node packages/backend/scripts/verify-outbox-worker-config.mjs > artifacts/outbox-worker.json 2>&1
+          node packages/backend/scripts/verify-idempotency-cleanup-config.mjs > artifacts/idempotency-cleanup.json 2>&1
+          cat artifacts/outbox-health.json
+          cat artifacts/outbox-worker.json
+          cat artifacts/idempotency-cleanup.json
+      - name: Compose durable-worker evidence
+        if: always()
+        run: |
+          DURABLE_WORKER_EVIDENCE_TARGET=local_disposable \
+          OUTBOX_HEALTH_FILE=artifacts/outbox-health.json \
+          OUTBOX_WORKER_CONFIG_FILE=artifacts/outbox-worker.json \
+          IDEMPOTENCY_CLEANUP_CONFIG_FILE=artifacts/idempotency-cleanup.json \
+          node packages/backend/scripts/verify-durable-worker-evidence.mjs > artifacts/durable-worker-evidence.json
+          cat artifacts/durable-worker-evidence.json
       - name: Fingerprint release-gate evidence
         if: always()
-        run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json | tee artifacts/release-gates.json.sha256
+        run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json artifacts/outbox-health.json artifacts/outbox-worker.json artifacts/idempotency-cleanup.json artifacts/durable-worker-evidence.json | tee artifacts/release-gates.json.sha256
       - name: Upload release-gate evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -151,6 +170,10 @@ jobs:
           path: |
             artifacts/release-gates.json
             artifacts/post-attestation-release-sequence.json
+            artifacts/outbox-health.json
+            artifacts/outbox-worker.json
+            artifacts/idempotency-cleanup.json
+            artifacts/durable-worker-evidence.json
             artifacts/release-gates.json.sha256
           if-no-files-found: error
           retention-days: 7

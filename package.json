@@ -36,6 +36,7 @@
     "backend:verifier:worker:check": "node packages/backend/scripts/verify-verifier-worker-config.mjs",
     "backend:outbox:worker": "node packages/backend/scripts/run-outbox-worker.mjs",
     "backend:outbox:worker:check": "node packages/backend/scripts/verify-outbox-worker-config.mjs",
+    "backend:release:durable-worker:evidence:check": "node packages/backend/scripts/verify-durable-worker-evidence.mjs",
     "backend:extension:contract:check": "node packages/backend/scripts/verify-extension-contract.mjs",
     "backend:sdk:contract:check": "node packages/backend/scripts/verify-sdk-contract.mjs",
     "backend:quality:check": "npm run test && npm run lint && npm run backend:extension:contract:check && npm run backend:sdk:contract:check && git diff --check",

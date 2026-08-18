@@ -49,6 +49,7 @@ function loadWorksheet(filePath) {
   assertSafeTree(worksheet)
   if (!worksheet || typeof worksheet !== 'object' || Array.isArray(worksheet)) fail('review worksheet must be an object')
   if (typeof worksheet.releaseCommit !== 'string' || !/^[0-9a-f]{40}$/.test(worksheet.releaseCommit)) fail('releaseCommit is required and must be a lowercase 40-character commit hash')
+  if (typeof worksheet.artifactSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(worksheet.artifactSha256)) fail('artifactSha256 is required and must be a lowercase 64-character SHA-256 hash')
   if (!Array.isArray(worksheet.reviews) || worksheet.reviews.length !== EXPECTED_RUN_IDS.length) fail('worksheet must contain exactly six reviews')
 
   const seen = new Set()
@@ -65,7 +66,7 @@ function loadWorksheet(filePath) {
   })
   const missing = EXPECTED_RUN_IDS.filter((runId) => !seen.has(runId))
   if (missing.length) fail(`worksheet is missing run IDs: ${missing.join(', ')}`)
-  return { releaseCommit: worksheet.releaseCommit || null, reviews }
+  return { releaseCommit: worksheet.releaseCommit, artifactSha256: worksheet.artifactSha256, reviews }
 }
 
 function requireSubmitGuards(reviews) {
@@ -81,6 +82,9 @@ function requireSubmitGuards(reviews) {
   const expectedCommit = requiredText(process.env.PAYTRAY_REVIEW_EXPECTED_COMMIT, 'PAYTRAY_REVIEW_EXPECTED_COMMIT')
   if (!/^[0-9a-f]{40}$/.test(expectedCommit) || expectedCommit !== process.env.PAYTRAY_REVIEW_EXPECTED_COMMIT.trim()) fail('PAYTRAY_REVIEW_EXPECTED_COMMIT must be lowercase hexadecimal with 40 characters')
   if (expectedCommit !== process.env.PAYTRAY_REVIEW_WORKSHEET_RELEASE_COMMIT) fail('PAYTRAY_REVIEW_WORKSHEET_RELEASE_COMMIT must equal the worksheet releaseCommit')
+  const expectedArtifact = requiredText(process.env.PAYTRAY_REVIEW_EXPECTED_ARTIFACT_SHA256, 'PAYTRAY_REVIEW_EXPECTED_ARTIFACT_SHA256')
+  if (!/^[0-9a-f]{64}$/.test(expectedArtifact) || expectedArtifact !== process.env.PAYTRAY_REVIEW_EXPECTED_ARTIFACT_SHA256.trim()) fail('PAYTRAY_REVIEW_EXPECTED_ARTIFACT_SHA256 must be lowercase hexadecimal with 64 characters')
+  if (expectedArtifact !== process.env.PAYTRAY_REVIEW_WORKSHEET_ARTIFACT_SHA256) fail('PAYTRAY_REVIEW_WORKSHEET_ARTIFACT_SHA256 must equal the worksheet artifactSha256')
   const baseUrl = requiredText(process.env.PAYTRAY_REVIEW_BASE_URL, 'PAYTRAY_REVIEW_BASE_URL')
   let parsed
   try {
@@ -99,6 +103,7 @@ function dryRunReport({ worksheet, filePath }) {
     status: 'dry_run',
     worksheetFile: filePath,
     releaseCommit: worksheet.releaseCommit,
+    artifactSha256: worksheet.artifactSha256,
     expectedRunCount: EXPECTED_RUN_IDS.length,
     suppliedRunCount: worksheet.reviews.length,
     decisionsReviewed: worksheet.reviews.map(({ runId, decision }) => ({ runId, decision })),
@@ -117,6 +122,7 @@ function dryRunReport({ worksheet, filePath }) {
 
 async function submitReviews({ worksheet, filePath }) {
   process.env.PAYTRAY_REVIEW_WORKSHEET_RELEASE_COMMIT = worksheet.releaseCommit
+  process.env.PAYTRAY_REVIEW_WORKSHEET_ARTIFACT_SHA256 = worksheet.artifactSha256
   const baseUrl = requireSubmitGuards(worksheet.reviews)
   const results = []
   for (const review of worksheet.reviews) {
@@ -153,6 +159,7 @@ async function submitReviews({ worksheet, filePath }) {
     status: 'submitted_and_verified',
     worksheetFile: filePath,
     releaseCommit: worksheet.releaseCommit,
+    artifactSha256: worksheet.artifactSha256,
     expectedRunCount: EXPECTED_RUN_IDS.length,
     submittedRunCount: results.length,
     results,

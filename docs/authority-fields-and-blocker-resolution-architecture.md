@@ -106,6 +106,10 @@ The `backend:release:verifier:durable:operations:evidence:check` command compose
 
 The release-gates CI job now creates `release-blocker-resolution.json.sha256` immediately after generic artifact validation and runs `backend:release:blocker:resolution:fingerprint:check`. The verifier binds the artifact report kind, exact commit, sidecar digest, count fields, and false/read-only authority fields. It returns `verified_reference` only for artifact integrity; it cannot resolve a blocker, change release-gate state, or grant authority. Both the sidecar and redacted fingerprint report are retained with the release-gate artifact bundle.
 
+## Human worksheet artifact binding
+
+The human-controlled shadow-review runner now requires each worksheet to carry the exact lowercase 40-character `releaseCommit` and lowercase 64-character `artifactSha256`. Dry-run output echoes the hash as redacted provenance with `networkRequestsPerformed=false`. Submit mode requires `PAYTRAY_REVIEW_EXPECTED_COMMIT` and `PAYTRAY_REVIEW_EXPECTED_ARTIFACT_SHA256` to match the worksheet exactly; mismatches fail before any network request. This binds human review intent to the same release artifact used by reviewer attestations while preserving `submissionPerformed=false`, `applied=false`, `promotionStatus=shadow_only`, `releaseEligible=false`, and `settlementAuthority=false` on validation paths.
+
 ## Smoke-phase2 evidence
 
 The controlled Phase 2 harness emits `smoke_phase2_evidence` with an exact release commit, isolated-database proof, Base Sepolia chain ID `84532`, disabled mainnet policy, an enabled token address, a complete discovery-to-outcome flow, replay protection, and explicit `chainTransactionSubmitted=false` / `settlementMutationPerformed=false`. `backend:release:smoke:phase2:evidence:check` validates the redacted report and returns evidence only; it does not submit a transaction, mutate settlement state, or clear the `smoke-phase2` blocker.

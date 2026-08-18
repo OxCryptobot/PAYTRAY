@@ -1,12 +1,14 @@
 import fs from 'node:fs'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
+import { validateEvidencePath } from './verify-human-evidence-custody.mjs'
 
 const COMMIT40 = /^[0-9a-f]{40}$/
 const SHA256 = /^[0-9a-f]{64}$/
 const TARGETS = new Set(['local_disposable', 'authenticated_target'])
 const SAFE_MUTATIONS = new Set([null, 'none', 'read_only'])
 const TRACKING_STATUSES = new Set(['unassigned', 'operator_in_progress', 'evidence_submitted', 'rejected'])
+const EVIDENCE_REFERENCE_KINDS = new Set(['release_evidence', 'release_approval', 'shadow_review_status', 'verifier_operations', 'verifier_cursor', 'reconciliation', 'recovery', 'railway_settings', 'outbox_health', 'idempotency_cleanup', 'target_operations', 'operator_key_custody', 'secret_manager_custody', 'release_manifest', 'release_payload', 'cryptographic_sequence', 'authority_readiness'])
 const SENSITIVE_KEY = /(?:private.?key|secret|password|authorization|cookie|jwt|token|signature|raw.?content|reviewer.?notes|transcript|recording|audio|video)/i
 
 function fail(message) {
@@ -48,6 +50,41 @@ function loadJson(filePath, label) {
   return { value, sourceSha256: createHash('sha256').update(raw, 'utf8').digest('hex'), filePath }
 }
 
+function loadVerifiedEvidenceReference(reference, { name, commit }) {
+  if (!reference || typeof reference !== 'object' || Array.isArray(reference)) fail(`tracking entry ${name} evidenceReference must be an object`)
+  const kind = reference.kind
+  if (!EVIDENCE_REFERENCE_KINDS.has(kind)) fail(`tracking entry ${name} evidenceReference kind is unsupported`)
+  const target = reference.target
+  if (!TARGETS.has(target)) fail(`tracking entry ${name} evidenceReference target is unsupported`)
+  if (reference.verificationStatus !== 'independently_verified') fail(`tracking entry ${name} evidenceReference must be independently_verified`)
+  const referenceCommit = requireCommit(reference.releaseCommit, `tracking entry ${name} evidenceReference releaseCommit`)
+  if (referenceCommit !== commit) fail(`tracking entry ${name} evidenceReference releaseCommit does not match the release-gates commit`)
+  if (typeof reference.reportKind !== 'string' || reference.reportKind.trim() === '') fail(`tracking entry ${name} evidenceReference reportKind is required`)
+  const protectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT || '/protected/paytray'
+  const resolvedPath = validateEvidencePath(reference.path, { label: `tracking entry ${name} evidenceReference`, target, protectedRoot })
+  const raw = fs.readFileSync(resolvedPath, 'utf8')
+  const sourceSha256 = createHash('sha256').update(raw, 'utf8').digest('hex')
+  if (sourceSha256 !== reference.sha256) fail(`tracking entry ${name} evidenceReference sha256 does not match file content`)
+  let value
+  try {
+    value = JSON.parse(raw)
+  } catch {
+    fail(`tracking entry ${name} evidenceReference file is not valid JSON`)
+  }
+  assertSafeReport(value, `tracking entry ${name} evidenceReference`)
+  if (value.reportKind !== reference.reportKind) fail(`tracking entry ${name} evidenceReference reportKind does not match file content`)
+  if (value.releaseCommit !== undefined && value.releaseCommit !== commit) fail(`tracking entry ${name} evidenceReference file releaseCommit does not match the release-gates commit`)
+  return {
+    kind,
+    target,
+    path: resolvedPath,
+    sha256: sourceSha256,
+    reportKind: reference.reportKind,
+    releaseCommit: commit,
+    verificationStatus: 'independently_verified'
+  }
+}
+
 function normalizeTracking(tracking, commit) {
   if (!tracking || typeof tracking !== 'object' || Array.isArray(tracking)) fail('resolution tracking must be an object')
   scanSensitiveKeys(tracking)
@@ -67,10 +104,13 @@ function normalizeTracking(tracking, commit) {
     const status = entry.status || 'unassigned'
     if (!TRACKING_STATUSES.has(status)) fail(`tracking entry ${name} has unsupported status`)
     if (entry.evidenceArtifactSha256 !== undefined && (typeof entry.evidenceArtifactSha256 !== 'string' || !SHA256.test(entry.evidenceArtifactSha256))) fail(`tracking entry ${name} evidenceArtifactSha256 must be a 64-character lowercase SHA-256`)
+    const evidenceReference = entry.evidenceReference ? loadVerifiedEvidenceReference(entry.evidenceReference, { name, commit }) : null
+    if (evidenceReference && entry.evidenceArtifactSha256 && entry.evidenceArtifactSha256 !== evidenceReference.sha256) fail(`tracking entry ${name} evidenceArtifactSha256 does not match evidenceReference sha256`)
     return {
       name,
       status,
-      evidenceArtifactSha256: entry.evidenceArtifactSha256 || null,
+      evidenceArtifactSha256: evidenceReference?.sha256 || entry.evidenceArtifactSha256 || null,
+      evidenceReference,
       lastCheckedAt: typeof entry.lastCheckedAt === 'string' && !Number.isNaN(Date.parse(entry.lastCheckedAt)) ? entry.lastCheckedAt : null
     }
   })
@@ -93,6 +133,8 @@ function normalizeCheck(check, trackingByName) {
     reason: typeof check.reason === 'string' ? check.reason : null,
     clearanceCriteria: typeof check.clearanceCriteria === 'string' ? check.clearanceCriteria : null,
     evidenceArtifactSha256: tracking.evidenceArtifactSha256,
+    evidenceReference: tracking.evidenceReference || null,
+    referenceState: tracking.evidenceReference ? 'independently_verified_reference' : 'none',
     lastCheckedAt: tracking.lastCheckedAt
   }
 }

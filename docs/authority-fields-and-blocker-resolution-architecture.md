@@ -49,6 +49,22 @@ The authority-readiness composer in `packages/backend/scripts/verify-release-aut
 
 Tracking metadata can never convert `operator_blocked` into `verified_by_release_gate`. Only a fresh release-gate execution can produce that state. `releaseCommit` is required and all tracking entries must match actual release-gate check names.
 
+A tracking entry may include an independently verified redacted evidence reference with this shape:
+
+```json
+{
+  "kind": "verifier_cursor",
+  "target": "authenticated_target",
+  "path": "/protected/paytray/verifier-cursor-<COMMIT>.json",
+  "sha256": "<64 lowercase hex characters>",
+  "reportKind": "verifier_cursor_evidence",
+  "releaseCommit": "<40 lowercase hex characters>",
+  "verificationStatus": "independently_verified"
+}
+```
+
+The tracker resolves the path through the shared absolute-path validator, enforces the authenticated protected evidence root and symlink boundary, reads only JSON, computes SHA-256 over the exact file bytes, compares the declared digest and report kind, binds any embedded `releaseCommit`, recursively rejects sensitive keys, and preserves the reference as `referenceState: "independently_verified_reference"`. This state records a verified reference; it does not clear the release-gate state. References may point to redacted reports only and must not contain private keys, raw signatures, secret values, reviewer notes, or user content.
+
 ### 4. Controlled authority path
 
 The only permitted authority transition is the separately controlled release-approval path after target evidence, human shadow-review decisions, four role sign-offs, four EIP-191 attestations, Ed25519 custody, manifest, and signed-payload predicates are genuinely verified. The readiness composer only proves that this final controlled evaluation may be attempted.

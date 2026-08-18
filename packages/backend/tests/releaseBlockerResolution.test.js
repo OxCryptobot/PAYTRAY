@@ -1,3 +1,7 @@
+import { createHash } from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildReleaseBlockerResolution } from '../scripts/verify-release-blocker-resolution.mjs'
 
@@ -40,6 +44,74 @@ describe('release blocker resolution tracking', () => {
       expect.objectContaining({ name: 'quality-gate', resolutionState: 'verified_by_release_gate', automatedCheck: true, requiresOperatorEvidence: false }),
       expect.objectContaining({ name: 'railway-trial', resolutionState: 'operator_in_progress', automatedCheck: false, requiresOperatorEvidence: true })
     ]))
+  })
+
+  it('ingests a verified redacted evidence reference and preserves the open gate', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-blocker-reference-'))
+    try {
+      const referenceReport = { reportKind: 'release_evidence', status: 'verified', releaseCommit, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }
+      const referencePath = path.join(root, 'release-evidence.json')
+      const raw = JSON.stringify(referenceReport)
+      fs.writeFileSync(referencePath, raw, { mode: 0o600 })
+      const sha256 = createHash('sha256').update(raw).digest('hex')
+      const report = buildReleaseBlockerResolution({
+        report: makeReport([check('release-evidence')]),
+        releaseCommit,
+        tracking: {
+          reportKind: 'release_blocker_resolution_tracking',
+          releaseCommit,
+          entries: [{
+            name: 'release-evidence',
+            status: 'evidence_submitted',
+            evidenceReference: {
+              kind: 'release_evidence',
+              target: 'local_disposable',
+              path: referencePath,
+              sha256,
+              reportKind: 'release_evidence',
+              releaseCommit,
+              verificationStatus: 'independently_verified'
+            }
+          }],
+          releaseEligible: false,
+          settlementAuthority: false,
+          mutation: 'read_only'
+        }
+      })
+      expect(report).toMatchObject({ status: 'operator_blocked', openBlockerCount: 1, releaseEligible: false, settlementAuthority: false })
+      expect(report.checks[0]).toMatchObject({ resolutionState: 'evidence_submitted', referenceState: 'independently_verified_reference', evidenceArtifactSha256: sha256, automatedCheck: false })
+      expect(report.checks[0].evidenceReference).toMatchObject({ kind: 'release_evidence', reportKind: 'release_evidence', releaseCommit, verificationStatus: 'independently_verified' })
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects mismatched, sensitive, or protected-root-escaping evidence references', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-blocker-reference-safe-'))
+    const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-blocker-reference-outside-'))
+    try {
+      const referenceReport = { reportKind: 'release_evidence', status: 'verified', releaseCommit, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }
+      const referencePath = path.join(root, 'release-evidence.json')
+      const raw = JSON.stringify(referenceReport)
+      fs.writeFileSync(referencePath, raw, { mode: 0o600 })
+      const sha256 = createHash('sha256').update(raw).digest('hex')
+      const baseReference = { kind: 'release_evidence', target: 'local_disposable', path: referencePath, sha256, reportKind: 'release_evidence', releaseCommit, verificationStatus: 'independently_verified' }
+      expect(() => buildReleaseBlockerResolution({ report: makeReport([check('release-evidence')]), releaseCommit, tracking: { reportKind: 'release_blocker_resolution_tracking', releaseCommit, entries: [{ name: 'release-evidence', evidenceReference: { ...baseReference, sha256: 'a'.repeat(64) } }] } })).toThrow('sha256 does not match')
+
+      const sensitivePath = path.join(root, 'sensitive.json')
+      const sensitiveRaw = JSON.stringify({ ...referenceReport, rawSignature: 'must-not-be-ingested' })
+      fs.writeFileSync(sensitivePath, sensitiveRaw, { mode: 0o600 })
+      const sensitiveSha256 = createHash('sha256').update(sensitiveRaw).digest('hex')
+      expect(() => buildReleaseBlockerResolution({ report: makeReport([check('release-evidence')]), releaseCommit, tracking: { reportKind: 'release_blocker_resolution_tracking', releaseCommit, entries: [{ name: 'release-evidence', evidenceReference: { ...baseReference, path: sensitivePath, sha256: sensitiveSha256 } }] } })).toThrow('sensitive key is not allowed')
+
+      const outsidePath = path.join(outsideRoot, 'outside.json')
+      fs.writeFileSync(outsidePath, raw, { mode: 0o600 })
+      const outsideReference = { ...baseReference, target: 'authenticated_target', path: outsidePath }
+      expect(() => buildReleaseBlockerResolution({ report: makeReport([check('release-evidence')]), releaseCommit, tracking: { reportKind: 'release_blocker_resolution_tracking', releaseCommit, entries: [{ name: 'release-evidence', evidenceReference: outsideReference }] } })).toThrow('must be inside the protected evidence root')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+      fs.rmSync(outsideRoot, { recursive: true, force: true })
+    }
   })
 
   it('does not treat tracking metadata as evidence that clears a gate', () => {

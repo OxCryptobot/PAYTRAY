@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildHumanEvidenceCustodyReport, validateEvidencePath } from '../scripts/verify-human-evidence-custody.mjs'
 
@@ -59,5 +62,20 @@ describe('human evidence and custody report', () => {
 
   it('rejects a protected-root path that does not exist before reading evidence', () => {
     expect(() => validateEvidencePath('/protected/paytray/missing.json', { target: 'authenticated_target', protectedRoot: '/protected/paytray' })).toThrow()
+  })
+
+  it('rejects a symlink that escapes the authenticated protected root', () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-evidence-root-'))
+    const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-evidence-outside-'))
+    const outsideFile = path.join(outsideRoot, 'release.json')
+    const linkedFile = path.join(tempRoot, 'release.json')
+    fs.writeFileSync(outsideFile, '{}')
+    fs.symlinkSync(outsideFile, linkedFile)
+    try {
+      expect(() => validateEvidencePath(linkedFile, { target: 'authenticated_target', protectedRoot: tempRoot })).toThrow('real path escapes')
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true })
+      fs.rmSync(outsideRoot, { recursive: true, force: true })
+    }
   })
 })

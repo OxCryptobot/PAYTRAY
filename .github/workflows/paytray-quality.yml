@@ -153,6 +153,9 @@ jobs:
           status=$?
           cat artifacts/release-blocker-resolution.json
           exit 0
+      - name: Verify blocker-resolution artifact contract
+        if: always()
+        run: node packages/backend/scripts/verify-ci-matrix-artifact.mjs artifacts/release-blocker-resolution.json release_blocker_resolution
       - name: Verify post-attestation release-gate sequence
         if: always()
         run: |

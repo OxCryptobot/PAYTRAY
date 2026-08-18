@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const SENSITIVE_KEY = /(private.?key|secret|password|authorization|cookie|jwt|token|signature|raw.?content|reviewer.?notes)/i
-const SAFE_REPORT_KINDS = new Set(['operations_quality', 'release_gates'])
+const SAFE_REPORT_KINDS = new Set(['operations_quality', 'release_gates', 'release_blocker_resolution'])
 const SAFE_STATES = new Set(['passed', 'operator_blocked', 'failed'])
 
 function fail(message) {
@@ -34,6 +34,7 @@ export function validateCiMatrixArtifact({ artifactPath, expectedReportKind, con
   assertNoSensitiveKeys(artifact)
   if (artifact.reportKind !== expectedReportKind) fail(`CI matrix artifact reportKind must be ${expectedReportKind}`)
   if (!SAFE_STATES.has(artifact.status)) fail('CI matrix artifact status is invalid')
+  if (artifact.reportKind === 'release_blocker_resolution' && !['active', 'complete', 'incomplete'].includes(artifact.trackingStatus)) fail('blocker-resolution artifact trackingStatus is invalid')
   if (!Array.isArray(artifact.checks)) fail('CI matrix artifact checks must be an array')
   for (const requiredName of requiredCheckNames) {
     if (!artifact.checks.some((check) => check?.name === requiredName)) fail(`CI matrix artifact is missing required check: ${requiredName}`)
@@ -48,6 +49,18 @@ export function validateCiMatrixArtifact({ artifactPath, expectedReportKind, con
   if (!Array.isArray(artifact.operatorBlockers) || !Array.isArray(artifact.unexpectedFailures)) fail('CI matrix artifact blocker arrays are required')
   if (artifact.operatorBlockers.length !== operatorBlockerCount) fail('CI matrix operator blocker count does not match blockers')
   if (artifact.unexpectedFailures.length !== unexpectedFailureCount) fail('CI matrix unexpected failure count does not match failures')
+  if (artifact.reportKind === 'release_blocker_resolution') {
+    const resolvedCount = Number(artifact.resolvedByAutomatedGateCount)
+    if (!Number.isInteger(resolvedCount) || resolvedCount < 0 || resolvedCount > checkCount) fail('blocker-resolution resolved count is invalid')
+    if (artifact.nextAttemptableBlockers && !Array.isArray(artifact.nextAttemptableBlockers)) fail('blocker-resolution nextAttemptableBlockers must be an array')
+    if (typeof artifact.dependencyGraphVersion !== 'string' || artifact.dependencyGraphVersion.trim() === '') fail('blocker-resolution dependencyGraphVersion is required')
+    for (const check of artifact.checks) {
+      if (!['passed', 'operator_blocked', 'failed'].includes(check?.gateState)) fail('blocker-resolution check gateState is invalid')
+      if (!['verified_by_release_gate', 'unassigned', 'operator_in_progress', 'evidence_submitted', 'rejected'].includes(check?.resolutionState)) fail('blocker-resolution check resolutionState is invalid')
+      if (!Array.isArray(check?.dependsOn) || !Array.isArray(check?.blockedBy)) fail('blocker-resolution dependency arrays are required')
+      if (typeof check?.readyToAttempt !== 'boolean') fail('blocker-resolution readyToAttempt must be boolean')
+    }
+  }
   for (const field of ['releaseEligible', 'settlementAuthority', 'deploymentPerformed', 'settlementMutationPerformed']) {
     if (artifact[field] !== false) fail(`CI matrix artifact ${field} must remain false`)
   }

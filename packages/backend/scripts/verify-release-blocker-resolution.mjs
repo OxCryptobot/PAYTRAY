@@ -9,6 +9,27 @@ const TARGETS = new Set(['local_disposable', 'authenticated_target'])
 const SAFE_MUTATIONS = new Set([null, 'none', 'read_only'])
 const TRACKING_STATUSES = new Set(['unassigned', 'operator_in_progress', 'evidence_submitted', 'rejected'])
 const EVIDENCE_REFERENCE_KINDS = new Set(['release_evidence', 'release_approval', 'shadow_review_status', 'verifier_operations', 'verifier_cursor', 'reconciliation', 'recovery', 'railway_settings', 'outbox_health', 'idempotency_cleanup', 'target_operations', 'operator_key_custody', 'secret_manager_custody', 'release_manifest', 'release_payload', 'cryptographic_sequence', 'authority_readiness'])
+const DEPENDENCIES = Object.freeze({
+  migrations: [],
+  recovery: ['migrations'],
+  'railway-trial': [],
+  'verifier-operations': ['migrations', 'railway-trial'],
+  'verifier-cursor-evidence': ['verifier-operations'],
+  'outbox-health': ['migrations'],
+  'idempotency-cleanup': ['migrations'],
+  'target-operations': ['migrations', 'recovery', 'railway-trial', 'verifier-operations', 'outbox-health', 'idempotency-cleanup'],
+  'reconciliation-evidence': ['verifier-operations', 'verifier-cursor-evidence'],
+  'release-evidence': ['target-operations', 'verifier-cursor-evidence', 'reconciliation-evidence', 'outbox-health', 'idempotency-cleanup'],
+  'release-approval': ['release-evidence', 'reconciliation-evidence'],
+  'operator-key-custody': ['release-evidence'],
+  'secret-manager-custody': ['operator-key-custody'],
+  'release-manifest': ['release-evidence'],
+  'release-payload': ['release-approval', 'release-manifest', 'recovery', 'secret-manager-custody'],
+  'release-authority-readiness': ['release-approval', 'release-evidence', 'release-payload', 'operator-key-custody', 'secret-manager-custody', 'verifier-cursor-evidence', 'reconciliation-evidence'],
+  'advisory-ai': [],
+  'token-metadata': ['migrations', 'railway-trial'],
+  'smoke-phase2': ['migrations', 'token-metadata', 'verifier-operations', 'outbox-health', 'idempotency-cleanup']
+})
 const SENSITIVE_KEY = /(?:private.?key|secret|password|authorization|cookie|jwt|token|signature|raw.?content|reviewer.?notes|transcript|recording|audio|video)/i
 
 function fail(message) {
@@ -116,13 +137,25 @@ function normalizeTracking(tracking, commit) {
   })
 }
 
-function normalizeCheck(check, trackingByName) {
+function normalizeCheck(check, trackingByName, gateStates) {
   if (!check || typeof check !== 'object' || typeof check.name !== 'string') fail('every release-gate check must have a name')
   if (!['passed', 'operator_blocked', 'failed'].includes(check.state)) fail(`release-gate check ${check.name} has invalid state`)
   if (check.releaseEligible === true || check.settlementAuthority === true || check.deploymentPerformed === true || check.settlementMutationPerformed === true) fail(`release-gate check ${check.name} contains an immutable authority violation`)
   if (!SAFE_MUTATIONS.has(check.mutation ?? null)) fail(`release-gate check ${check.name} contains an unsafe mutation value`)
   const tracking = trackingByName.get(check.name) || { status: 'unassigned', evidenceArtifactSha256: null, lastCheckedAt: null }
   const gateVerified = check.state === 'passed'
+  const dependsOn = DEPENDENCIES[check.name] || []
+  const blockedBy = dependsOn.filter((dependency) => gateStates.get(dependency) !== 'passed')
+  const readyToAttempt = check.state === 'operator_blocked' && blockedBy.length === 0 && tracking.status !== 'evidence_submitted'
+  const nextAction = gateVerified
+    ? 'gate passed in the current release-gate run'
+    : check.state === 'failed'
+      ? 'fix the engineering failure before operator evidence is interpreted'
+      : tracking.status === 'evidence_submitted'
+        ? 'independently verify the referenced redacted artifact, then rerun the release gate'
+        : readyToAttempt
+          ? 'operator may begin the clearance procedure described by clearanceCriteria'
+          : `resolve dependencies first: ${blockedBy.join(', ')}`
   return {
     name: check.name,
     gateState: check.state,
@@ -135,6 +168,10 @@ function normalizeCheck(check, trackingByName) {
     evidenceArtifactSha256: tracking.evidenceArtifactSha256,
     evidenceReference: tracking.evidenceReference || null,
     referenceState: tracking.evidenceReference ? 'independently_verified_reference' : 'none',
+    dependsOn,
+    blockedBy,
+    readyToAttempt,
+    nextAction,
     lastCheckedAt: tracking.lastCheckedAt
   }
 }
@@ -148,28 +185,38 @@ export function buildReleaseBlockerResolution({ report, sourceSha256 = null, tra
   const commit = requireCommit(releaseCommit, 'releaseCommit')
   const trackingEntries = tracking ? normalizeTracking(tracking, commit) : []
   const trackingByName = new Map(trackingEntries.map((entry) => [entry.name, entry]))
+  const gateStates = new Map(report.checks.map((check) => [check?.name, check?.state]))
   const checkNames = new Set()
   const checks = report.checks.map((check) => {
     if (checkNames.has(check?.name)) fail(`duplicate release-gate check: ${check.name}`)
     checkNames.add(check?.name)
-    return normalizeCheck(check, trackingByName)
+    return normalizeCheck(check, trackingByName, gateStates)
   })
   const names = new Set(checks.map((check) => check.name))
   const orphanTrackingEntries = trackingEntries.filter((entry) => !names.has(entry.name)).map((entry) => entry.name)
   if (orphanTrackingEntries.length) fail(`tracking entries do not match release-gates checks: ${orphanTrackingEntries.join(', ')}`)
 
   const openBlockers = checks.filter((check) => check.gateState !== 'passed')
+  const passedChecks = checks.filter((check) => check.gateState === 'passed')
+  const operatorBlockers = checks.filter((check) => check.gateState === 'operator_blocked')
   const unexpectedFailures = checks.filter((check) => check.gateState === 'failed')
   return {
+    reportKind: 'release_blocker_resolution',
     status: unexpectedFailures.length > 0 ? 'failed' : openBlockers.length > 0 ? 'operator_blocked' : 'ready',
     trackingStatus: openBlockers.length > 0 ? 'active' : 'complete',
     target,
     releaseCommit: commit,
     sourceReportSha256: sourceSha256,
     checkCount: checks.length,
-    resolvedByAutomatedGateCount: checks.filter((check) => check.automatedCheck).length,
+    passedCount: passedChecks.length,
+    operatorBlockerCount: operatorBlockers.length,
+    resolvedByAutomatedGateCount: passedChecks.length,
     openBlockerCount: openBlockers.length,
     unexpectedFailureCount: unexpectedFailures.length,
+    dependencyGraphVersion: '2026-08-18.release-blockers.v1',
+    nextAttemptableBlockers: checks.filter((check) => check.readyToAttempt).map((check) => check.name),
+    operatorBlockers: operatorBlockers.map((check) => ({ name: check.name, status: check.resolutionState, reason: check.reason, clearanceCriteria: check.clearanceCriteria })),
+    unexpectedFailures: unexpectedFailures.map((check) => ({ name: check.name, status: check.resolutionState, reason: check.reason, clearanceCriteria: check.clearanceCriteria })),
     checks,
     nextAction: openBlockers.length > 0
       ? 'Continue read-only checks and resolve each blocker with independently captured evidence; tracking metadata cannot clear a gate or grant authority.'
@@ -200,6 +247,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.exitCode = report.status === 'failed' ? 1 : 0
   } catch (error) {
     console.log(JSON.stringify({
+      reportKind: 'release_blocker_resolution',
       status: 'blocked',
       trackingStatus: 'incomplete',
       reason: error instanceof Error ? error.message : String(error),

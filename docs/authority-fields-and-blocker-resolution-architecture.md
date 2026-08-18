@@ -65,13 +65,15 @@ A tracking entry may include an independently verified redacted evidence referen
 
 The tracker resolves the path through the shared absolute-path validator, enforces the authenticated protected evidence root and symlink boundary, reads only JSON, computes SHA-256 over the exact file bytes, compares the declared digest and report kind, binds any embedded `releaseCommit`, recursively rejects sensitive keys, and preserves the reference as `referenceState: "independently_verified_reference"`. This state records a verified reference; it does not clear the release-gate state. References may point to redacted reports only and must not contain private keys, raw signatures, secret values, reviewer notes, or user content.
 
+The tracker also publishes a versioned dependency graph and a `nextAttemptableBlockers` list. A blocker is actionable only when its prerequisite gates are currently `passed`; dependent blockers expose `blockedBy` and a deterministic `nextAction`. This is scheduling guidance for operators, not an automatic clearance mechanism. For example, verifier operations wait on target migrations and Railway evidence, while release-authority readiness waits on the complete evidence, approval, payload, custody, cursor, and reconciliation chain.
+
 ### 4. Controlled authority path
 
 The only permitted authority transition is the separately controlled release-approval path after target evidence, human shadow-review decisions, four role sign-offs, four EIP-191 attestations, Ed25519 custody, manifest, and signed-payload predicates are genuinely verified. The readiness composer only proves that this final controlled evaluation may be attempted.
 
 ## CI automation boundary
 
-The release-gates CI job now runs the resolution tracker after producing `artifacts/release-gates.json`. It records `artifacts/release-blocker-resolution.json`, fingerprints it with the other redacted release artifacts, and uploads it for operator follow-up. CI uses the exact GitHub commit SHA and `local_disposable` classification. The job never submits human decisions, reads production secrets, deploys, sends transactions, or changes payment state.
+The release-gates CI job now runs the resolution tracker after producing `artifacts/release-gates.json`, then validates the emitted report with `verify-ci-matrix-artifact.mjs` using `reportKind: release_blocker_resolution`. It records `artifacts/release-blocker-resolution.json`, fingerprints it with the other redacted release artifacts, and uploads it for operator follow-up. CI uses the exact GitHub commit SHA and `local_disposable` classification. The job never submits human decisions, reads production secrets, deploys, sends transactions, or changes payment state. A malformed tracker report therefore fails the artifact contract instead of being accepted as a valid progress report.
 
 ## Required operator workflow
 

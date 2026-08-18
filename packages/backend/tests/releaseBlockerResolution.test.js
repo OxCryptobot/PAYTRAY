@@ -151,6 +151,21 @@ describe('release blocker resolution tracking', () => {
     expect(() => buildReleaseBlockerResolution({ report: makeReport([check('quality-gate', 'passed'), check('quality-gate', 'passed')]), releaseCommit })).toThrow('duplicate release-gate check')
   })
 
+  it('computes the next actionable blocker set without changing gate state', () => {
+    const report = buildReleaseBlockerResolution({
+      report: makeReport([
+        check('migrations'),
+        check('railway-trial'),
+        check('verifier-operations'),
+        check('advisory-ai')
+      ]),
+      releaseCommit
+    })
+    expect(report.nextAttemptableBlockers).toEqual(['migrations', 'railway-trial', 'advisory-ai'])
+    expect(report.checks.find((item) => item.name === 'verifier-operations')).toMatchObject({ blockedBy: ['migrations', 'railway-trial'], readyToAttempt: false, nextAction: 'resolve dependencies first: migrations, railway-trial' })
+    expect(report).toMatchObject({ status: 'operator_blocked', openBlockerCount: 4, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+  })
+
   it('returns a non-authoritative complete status only when every release-gate check passed', () => {
     const report = buildReleaseBlockerResolution({ report: makeReport([check('quality-gate', 'passed'), check('release-manifest', 'passed')]), releaseCommit })
     expect(report).toMatchObject({ status: 'ready', trackingStatus: 'complete', resolvedByAutomatedGateCount: 2, openBlockerCount: 0, unexpectedFailureCount: 0, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })

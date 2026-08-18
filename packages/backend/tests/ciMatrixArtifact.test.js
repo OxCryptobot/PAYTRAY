@@ -1,6 +1,34 @@
 import { describe, expect, it } from 'vitest'
 import { validateCiMatrixArtifact } from '../scripts/verify-ci-matrix-artifact.mjs'
 
+function blockerResolutionArtifact(overrides = {}) {
+  return {
+    reportKind: 'release_blocker_resolution',
+    status: 'operator_blocked',
+    trackingStatus: 'active',
+    checkCount: 2,
+    passedCount: 1,
+    operatorBlockerCount: 1,
+    unexpectedFailureCount: 0,
+    resolvedByAutomatedGateCount: 1,
+    dependencyGraphVersion: '2026-08-18.release-blockers.v1',
+    nextAttemptableBlockers: ['railway-trial'],
+    checks: [
+      { name: 'quality-gate', gateState: 'passed', resolutionState: 'verified_by_release_gate', dependsOn: [], blockedBy: [], readyToAttempt: false },
+      { name: 'railway-trial', gateState: 'operator_blocked', resolutionState: 'unassigned', dependsOn: [], blockedBy: [], readyToAttempt: true }
+    ],
+    operatorBlockers: [{ name: 'railway-trial', status: 'settings_unavailable', reason: 'operator evidence is required' }],
+    unexpectedFailures: [],
+    authority: 'release_blocker_resolution_tracking_only',
+    mutation: 'read_only',
+    releaseEligible: false,
+    settlementAuthority: false,
+    deploymentPerformed: false,
+    settlementMutationPerformed: false,
+    ...overrides
+  }
+}
+
 function artifact(overrides = {}) {
   return {
     reportKind: 'release_gates',
@@ -34,6 +62,31 @@ describe('CI matrix artifact verifier', () => {
       releaseEligible: false,
       settlementAuthority: false
     })
+  })
+
+  it('verifies a blocker-resolution artifact with dependency metadata', () => {
+    expect(validateCiMatrixArtifact({ expectedReportKind: 'release_blocker_resolution', content: JSON.stringify(blockerResolutionArtifact()) })).toMatchObject({
+      status: 'verified',
+      reportKind: 'release_blocker_resolution',
+      reportStatus: 'operator_blocked',
+      checkCount: 2,
+      operatorBlockerCount: 1,
+      mutation: 'read_only',
+      releaseEligible: false,
+      settlementAuthority: false
+    })
+  })
+
+  it('rejects malformed blocker-resolution dependency metadata and authority fields', () => {
+    expect(() => validateCiMatrixArtifact({ expectedReportKind: 'release_blocker_resolution', content: JSON.stringify(blockerResolutionArtifact({ dependencyGraphVersion: '' })) })).toThrow('dependencyGraphVersion')
+    const invalidDependencyArtifact = blockerResolutionArtifact({
+      checks: [
+        { ...blockerResolutionArtifact().checks[0], blockedBy: 'not-array' },
+        blockerResolutionArtifact().checks[1]
+      ]
+    })
+    expect(() => validateCiMatrixArtifact({ expectedReportKind: 'release_blocker_resolution', content: JSON.stringify(invalidDependencyArtifact) })).toThrow('dependency arrays')
+    expect(() => validateCiMatrixArtifact({ expectedReportKind: 'release_blocker_resolution', content: JSON.stringify(blockerResolutionArtifact({ releaseEligible: true })) })).toThrow('releaseEligible')
   })
 
   it('verifies an operations-quality artifact with the expected provenance', () => {

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
@@ -22,9 +23,26 @@ function scanSensitiveKeys(value, path = '$') {
   }
 }
 
-function loadJson(filePath, label) {
+export function validateEvidencePath(filePath, { label = 'evidence', target = 'local_disposable', protectedRoot = '/protected/paytray' } = {}) {
   if (!filePath) fail(`${label} file is required`)
-  const raw = fs.readFileSync(filePath, 'utf8')
+  if (!path.isAbsolute(filePath)) fail(`${label} path must be absolute`)
+  const resolvedPath = path.resolve(filePath)
+  if (target === 'authenticated_target') {
+    if (!path.isAbsolute(protectedRoot)) fail('protected evidence root must be absolute')
+    const resolvedRoot = path.resolve(protectedRoot)
+    const relative = path.relative(resolvedRoot, resolvedPath)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) fail(`${label} path must be inside the protected evidence root`)
+    const realPath = fs.realpathSync(resolvedPath)
+    const realRoot = fs.realpathSync(resolvedRoot)
+    const realRelative = path.relative(realRoot, realPath)
+    if (realRelative.startsWith('..') || path.isAbsolute(realRelative)) fail(`${label} real path escapes the protected evidence root`)
+  }
+  return resolvedPath
+}
+
+function loadJson(filePath, label, options = {}) {
+  const resolvedPath = validateEvidencePath(filePath, { label, ...options })
+  const raw = fs.readFileSync(resolvedPath, 'utf8')
   let value
   try {
     value = JSON.parse(raw)
@@ -132,10 +150,12 @@ export function buildHumanEvidenceCustodyReport({ releaseEvidence, operatorKey, 
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
-    const release = loadJson(process.env.HUMAN_EVIDENCE_RELEASE_FILE, 'human evidence release')
-    const operator = loadJson(process.env.HUMAN_EVIDENCE_OPERATOR_KEY_FILE, 'operator-key custody')
-    const secret = loadJson(process.env.HUMAN_EVIDENCE_SECRET_MANAGER_FILE, 'secret-manager custody')
     const target = process.env.HUMAN_EVIDENCE_TARGET || 'local_disposable'
+    const protectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT || '/protected/paytray'
+    const pathOptions = { target, protectedRoot }
+    const release = loadJson(process.env.HUMAN_EVIDENCE_RELEASE_FILE, 'human evidence release', pathOptions)
+    const operator = loadJson(process.env.HUMAN_EVIDENCE_OPERATOR_KEY_FILE, 'operator-key custody', pathOptions)
+    const secret = loadJson(process.env.HUMAN_EVIDENCE_SECRET_MANAGER_FILE, 'secret-manager custody', pathOptions)
     const report = buildHumanEvidenceCustodyReport({
       releaseEvidence: release.value,
       operatorKey: operator.value,

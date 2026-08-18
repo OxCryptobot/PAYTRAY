@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildHumanEvidenceCustodyReport } from '../scripts/verify-human-evidence-custody.mjs'
+import { buildHumanEvidenceCustodyReport, validateEvidencePath } from '../scripts/verify-human-evidence-custody.mjs'
 
 const roles = ['release_operator', 'protocol_finance', 'ai_data', 'security']
 
@@ -49,5 +49,15 @@ describe('human evidence and custody report', () => {
     expect(() => buildHumanEvidenceCustodyReport({ releaseEvidence: releaseEvidence(), operatorKey: operatorKey(), secretManager: secretManager(), target: 'inferred_target' })).toThrow('unsupported human evidence target')
     const result = buildHumanEvidenceCustodyReport({ releaseEvidence: releaseEvidence(), operatorKey: operatorKey(), secretManager: secretManager() })
     expect(result.target).toBe('local_disposable')
+  })
+
+  it('requires absolute paths inside the protected root for authenticated target evidence', () => {
+    expect(() => validateEvidencePath('relative/report.json', { target: 'authenticated_target' })).toThrow('must be absolute')
+    expect(() => validateEvidencePath('/tmp/report.json', { target: 'authenticated_target', protectedRoot: '/protected/paytray' })).toThrow('inside the protected evidence root')
+    expect(validateEvidencePath('/tmp/report.json', { target: 'local_disposable' })).toBe('/tmp/report.json')
+  })
+
+  it('rejects a protected-root path that does not exist before reading evidence', () => {
+    expect(() => validateEvidencePath('/protected/paytray/missing.json', { target: 'authenticated_target', protectedRoot: '/protected/paytray' })).toThrow()
   })
 })

@@ -132,6 +132,16 @@ jobs:
       - name: Verify release-gates artifact contract
         if: always()
         run: node packages/backend/scripts/verify-ci-matrix-artifact.mjs artifacts/release-gates.json release_gates secret-manager-custody
+      - name: Build blocker clearance plan
+        if: always()
+        run: |
+          set +e
+          BLOCKER_CLEARANCE_RELEASE_GATES_FILE=artifacts/release-gates.json \
+          BLOCKER_CLEARANCE_PLAN_TARGET=local_disposable \
+          node packages/backend/scripts/verify-release-blocker-clearance-plan.mjs > artifacts/release-blocker-clearance-plan.json
+          status=$?
+          cat artifacts/release-blocker-clearance-plan.json
+          exit 0
       - name: Verify post-attestation release-gate sequence
         if: always()
         run: |
@@ -190,7 +200,7 @@ jobs:
           exit 0
       - name: Fingerprint release-gate evidence
         if: always()
-        run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json artifacts/outbox-health.json artifacts/outbox-worker.json artifacts/idempotency-cleanup.json artifacts/durable-worker-evidence.json artifacts/verifier-operations.json artifacts/reconciliation-evidence.json artifacts/verifier-reconciliation-evidence.json artifacts/verifier-cursor-evidence.json | tee artifacts/release-gates.json.sha256
+        run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json artifacts/outbox-health.json artifacts/outbox-worker.json artifacts/idempotency-cleanup.json artifacts/durable-worker-evidence.json artifacts/verifier-operations.json artifacts/reconciliation-evidence.json artifacts/verifier-reconciliation-evidence.json artifacts/verifier-cursor-evidence.json artifacts/release-blocker-clearance-plan.json | tee artifacts/release-gates.json.sha256
       - name: Upload release-gate evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -207,6 +217,7 @@ jobs:
             artifacts/reconciliation-evidence.json
             artifacts/verifier-reconciliation-evidence.json
             artifacts/verifier-cursor-evidence.json
+            artifacts/release-blocker-clearance-plan.json
             artifacts/release-gates.json.sha256
           if-no-files-found: error
           retention-days: 7

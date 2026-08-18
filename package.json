@@ -60,6 +60,7 @@
     "backend:reconciliation:evidence:check": "node packages/backend/scripts/inspect-reconciliation-evidence.mjs",
     "backend:release:verifier-reconciliation:evidence:check": "node packages/backend/scripts/verify-verifier-reconciliation-evidence.mjs",
     "backend:release:verifier:cursor:evidence:check": "node packages/backend/scripts/verify-verifier-cursor-evidence.mjs",
+    "backend:release:blocker:clearance:check": "node packages/backend/scripts/verify-release-blocker-clearance-plan.mjs",
     "backend:release:manifest:check": "node packages/backend/scripts/inspect-release-manifest.mjs",
     "backend:release:payload:check": "node packages/backend/scripts/inspect-release-payload.mjs",
     "backend:release:payload:verify": "node packages/backend/scripts/verify-release-payload.mjs",

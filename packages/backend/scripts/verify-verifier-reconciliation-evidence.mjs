@@ -59,6 +59,7 @@ export function buildVerifierReconciliationEvidence({ verifier, reconciliation, 
   if (!reconciliationReady) blockers.push({ label: 'reconciliation', reason: `reconciliation status is ${reconciliationReport.status || 'unknown'}` })
   if (!noIssues) blockers.push({ label: 'reconciliation-issues', reason: `reconciliation issue count is ${issueCount}` })
   return {
+    reportKind: 'verifier_reconciliation_evidence',
     status: blockers.length ? 'operator_blocked' : 'verified',
     evidenceTarget,
     authenticatedTarget: evidenceTarget === 'authenticated_target',
@@ -72,7 +73,8 @@ export function buildVerifierReconciliationEvidence({ verifier, reconciliation, 
     mutation: 'read_only',
     deploymentPerformed: false,
     settlementMutationPerformed: false,
-    authority: 'verifier_reconciliation_evidence_only'
+    authority: 'verifier_reconciliation_evidence_only',
+    ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }
 }
 
@@ -89,6 +91,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.exitCode = evidence.status === 'verified' ? 0 : 1
   } catch (error) {
     console.log(JSON.stringify({
+      reportKind: 'verifier_reconciliation_evidence',
       status: 'operator_blocked',
       reason: error instanceof Error ? error.message : String(error),
       releaseEligible: false,

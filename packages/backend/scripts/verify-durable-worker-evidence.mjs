@@ -70,6 +70,7 @@ export function buildDurableWorkerEvidence({ outboxHealth, outboxWorker, idempot
   const blockers = checks.filter((check) => !check.ready).map((check) => ({ label: check.label, reason: check.reason }))
   const authenticatedTarget = evidenceTarget === 'authenticated_target'
   return {
+    reportKind: 'durable_worker_evidence',
     status: blockers.length ? 'operator_blocked' : 'verified',
     evidenceTarget,
     authenticatedTarget,
@@ -80,7 +81,8 @@ export function buildDurableWorkerEvidence({ outboxHealth, outboxWorker, idempot
     mutation: 'read_only',
     deploymentPerformed: false,
     settlementMutationPerformed: false,
-    authority: 'durable_worker_evidence_aggregation_only'
+    authority: 'durable_worker_evidence_aggregation_only',
+    ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }
 }
 
@@ -98,6 +100,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.exitCode = 0
   } catch (error) {
     console.log(JSON.stringify({
+      reportKind: 'durable_worker_evidence',
       status: 'operator_blocked',
       reason: error instanceof Error ? error.message : String(error),
       releaseEligible: false,

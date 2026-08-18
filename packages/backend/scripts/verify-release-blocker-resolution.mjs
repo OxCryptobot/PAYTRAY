@@ -8,7 +8,8 @@ const SHA256 = /^[0-9a-f]{64}$/
 const TARGETS = new Set(['local_disposable', 'authenticated_target'])
 const SAFE_MUTATIONS = new Set([null, 'none', 'read_only'])
 const TRACKING_STATUSES = new Set(['unassigned', 'operator_in_progress', 'evidence_submitted', 'rejected'])
-const EVIDENCE_REFERENCE_KINDS = new Set(['release_evidence', 'release_approval', 'shadow_review_status', 'verifier_operations', 'verifier_cursor', 'reconciliation', 'recovery', 'railway_settings', 'outbox_health', 'idempotency_cleanup', 'target_operations', 'operator_key_custody', 'secret_manager_custody', 'release_manifest', 'release_payload', 'cryptographic_sequence', 'authority_readiness', 'advisory_ai', 'token_metadata', 'downstream_operational'])
+const EVIDENCE_REFERENCE_KINDS = new Set(['release_evidence', 'release_approval', 'shadow_review_status', 'verifier_operations', 'verifier_cursor', 'reconciliation', 'recovery', 'verifier_reconciliation', 'durable_worker', 'verifier_durable_operations', 'railway_settings', 'outbox_health', 'idempotency_cleanup', 'target_operations',
+ 'operator_key_custody', 'secret_manager_custody', 'release_manifest', 'release_payload', 'cryptographic_sequence', 'authority_readiness', 'advisory_ai', 'token_metadata', 'downstream_operational'])
 const DEPENDENCIES = Object.freeze({
   migrations: [],
   recovery: ['migrations'],

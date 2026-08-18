@@ -146,6 +146,7 @@ try {
 
   const recoveryStatus = restore.status === 'verified' ? 'verified' : 'schema_catalog_only'
   console.log(JSON.stringify({
+    reportKind: 'recovery_evidence',
     status: recoveryStatus,
     sourceDatabase: safeDatabaseLabel(sourceUrl),
     backup: {
@@ -162,11 +163,13 @@ try {
     settlementAuthority: false,
     mutation: restore.status === 'verified' ? 'isolated_recovery_only' : 'backup_only',
     deploymentPerformed: false,
-    settlementMutationPerformed: false
+    settlementMutationPerformed: false,
+    ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))
   process.exitCode = recoveryStatus === 'verified' ? 0 : 1
 } catch (error) {
   console.error(JSON.stringify({
+    reportKind: 'recovery_evidence',
     status: 'blocked',
     reason: error.message,
     authority: 'recovery_evidence_only',
@@ -174,7 +177,8 @@ try {
     settlementAuthority: false,
     mutation: 'none',
     deploymentPerformed: false,
-    settlementMutationPerformed: false
+    settlementMutationPerformed: false,
+    ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))
   process.exitCode = 1
 }

@@ -137,8 +137,10 @@ try {
   )
 
   console.log(JSON.stringify({
+    reportKind: 'migration_evidence',
     status: 'ok',
     databaseStatus: getDatabaseStatus(),
+    schemaContractsPassed: true,
     migrationNames: migrationResult.rows.map((row) => row.migration_name),
     financialCoreTables: actualTables,
     discoveryColumns: discoveryColumns.rows.map((row) => row.column_name),
@@ -147,7 +149,13 @@ try {
     verifierColumns: verifierColumns.rows.map((row) => row.column_name),
     reviewColumns: reviewColumns.rows.map((row) => row.column_name),
     cursorTable: cursorTable.rows.map((row) => row.table_name),
-    attestationColumns: attestationColumns.rows.map((row) => row.column_name)
+    attestationColumns: attestationColumns.rows.map((row) => row.column_name),
+    releaseEligible: false,
+    settlementAuthority: false,
+    mutation: 'read_only',
+    deploymentPerformed: false,
+    settlementMutationPerformed: false,
+    ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))
 } finally {
   await closeDatabase()

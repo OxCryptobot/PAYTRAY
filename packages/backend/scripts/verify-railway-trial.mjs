@@ -16,6 +16,7 @@ const status = !preflight.ready
       ? 'metadata_unavailable'
       : 'match'
 const report = {
+  reportKind: 'railway_trial_evidence',
   status,
   preflight,
   trialUrl,
@@ -25,7 +26,10 @@ const report = {
   networkCallPerformed: false,
   mutation: 'read_only',
   releaseEligible: false,
-  settlementAuthority: false
+  settlementAuthority: false,
+  applied: false,
+  settlementMutationPerformed: false,
+  ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
 }
 console.log(JSON.stringify(report, null, 2))
 if (status !== 'match') process.exitCode = 1

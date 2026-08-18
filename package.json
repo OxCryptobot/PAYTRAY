@@ -61,6 +61,7 @@
     "backend:release:verifier-reconciliation:evidence:check": "node packages/backend/scripts/verify-verifier-reconciliation-evidence.mjs",
     "backend:release:verifier:cursor:evidence:check": "node packages/backend/scripts/verify-verifier-cursor-evidence.mjs",
     "backend:release:blocker:clearance:check": "node packages/backend/scripts/verify-release-blocker-clearance-plan.mjs",
+    "backend:release:blocker:resolution:check": "node packages/backend/scripts/verify-release-blocker-resolution.mjs",
     "backend:release:human:evidence:custody:check": "node packages/backend/scripts/verify-human-evidence-custody.mjs",
     "backend:release:cryptographic:sequence:check": "node packages/backend/scripts/verify-cryptographic-release-sequence.mjs",
     "backend:release:authority:readiness:check": "node packages/backend/scripts/verify-release-authority-readiness.mjs",

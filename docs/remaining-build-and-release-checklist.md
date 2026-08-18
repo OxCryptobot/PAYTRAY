@@ -313,6 +313,6 @@ The liveness endpoints are health evidence only. They do not clear migration, Ra
 | Batch | Scope | Status | Evidence |
 |---|---|---|---|
 | Release-cycle planning simulation | Deterministic engineering lead-time plan for CI modernization, dependency refresh, probe observability, warning tracing, performance telemetry, warning governance, and pipeline conformance | Planning-only | 18 modeled working days on the stated dependency graph; modeled operator-blocker resolution rate remains 0%. |
-| CI runner/action modernization | Upgrade GitHub Actions checkout/setup-node references from v4 to v5 while preserving Node 22 application runtime and all existing job contracts | Implemented locally, pending CI | Must verify all six CI jobs, action deprecation warnings, test counts, artifact fingerprints, and immutable safety fields. |
+| CI runner/action modernization | Upgrade GitHub Actions checkout/setup-node references from v4 to v5 and upload-artifact references from v4 to v7 while preserving Node 22 application runtime and all existing job contracts | Implemented locally, pending CI | Must verify all six CI jobs, action deprecation warnings, test counts, artifact fingerprints, and immutable safety fields. |
 
 Simulation output is not release evidence and cannot clear migrations, Railway, target, verifier, AI, human-review, custody, approval, manifest, payload, or authority blockers.

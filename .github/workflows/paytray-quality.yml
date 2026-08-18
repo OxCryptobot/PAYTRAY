@@ -94,7 +94,7 @@ jobs:
         run: sha256sum artifacts/operations-quality.json | tee artifacts/operations-quality.json.sha256
       - name: Upload operations-quality evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: operations-quality-${{ github.run_id }}
           path: |
@@ -264,7 +264,7 @@ jobs:
         run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json artifacts/outbox-health.json artifacts/outbox-worker.json artifacts/idempotency-cleanup.json artifacts/durable-worker-evidence.json artifacts/verifier-operations.json artifacts/reconciliation-evidence.json artifacts/verifier-reconciliation-evidence.json artifacts/verifier-cursor-evidence.json artifacts/cryptographic-release-sequence.json artifacts/release-authority-readiness.json artifacts/release-blocker-clearance-plan.json artifacts/release-blocker-resolution.json artifacts/release-blocker-resolution.json.sha256 artifacts/release-blocker-resolution-fingerprint.json | tee artifacts/release-gates.json.sha256
       - name: Upload release-gate evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-gates-${{ github.run_id }}
           path: |
@@ -525,7 +525,7 @@ jobs:
           RECOVERY_ARTIFACT_ISOLATED: 'true'
       - name: Upload redacted recovery evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: recovery-evidence-${{ github.run_id }}
           path: |

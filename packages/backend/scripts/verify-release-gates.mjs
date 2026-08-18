@@ -24,6 +24,7 @@ const checks = [
   { name: 'reconciliation-evidence', script: 'backend:reconciliation:evidence:check' },
   { name: 'release-manifest', script: 'backend:release:manifest:check' },
   { name: 'release-payload', script: 'backend:release:payload:check' },
+  { name: 'release-authority-readiness', script: 'backend:release:authority:readiness:check' },
   { name: 'operator-key-custody', script: 'backend:release:key:custody:check' },
   { name: 'secret-manager-custody', script: 'backend:release:key:secret-manager:check' },
   { name: 'advisory-ai', script: 'backend:advisory:ai:check' },

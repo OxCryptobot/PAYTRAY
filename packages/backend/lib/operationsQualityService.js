@@ -20,7 +20,8 @@ const EXPECTED_BLOCKED_CHECKS = new Set([
   'outbox-health',
   'idempotency-cleanup',
   'operator-key-custody',
-  'secret-manager-custody'
+  'secret-manager-custody',
+  'release-authority-readiness'
 ])
 
 const CLEARANCE_CRITERIA = Object.freeze({
@@ -37,6 +38,7 @@ const CLEARANCE_CRITERIA = Object.freeze({
   'reconciliation-evidence': 'Target reconciliation runs against the fresh verifier cursor and reports zero unresolved lifecycle, finality, projection-lag, ledger-linkage, and unlinked-chain-evidence issues.',
   'release-manifest': 'Exact commit is valid, worktree is clean, settlement policy is safe, and every required runtime artifact has a valid SHA-256 hash.',
   'release-payload': 'Approval is genuinely approved, manifest/migration/recovery/Railway evidence is ready, and the canonical Ed25519-signed payload verifies without tampering.',
+  'release-authority-readiness': 'Exact commit, approved release approval, complete release evidence, six terminal shadow reviews, verified cryptographic sequence, and independently verified signed payload must all pass; this check only authorizes controlled evaluation and never grants release authority.',
   'operator-key-custody': 'Ephemerally injected Ed25519 key pair derives the supplied public key and expected fingerprint, with matching approved custody manifest and security-role EIP-191 fingerprint attestation.',
   'secret-manager-custody': 'Exact release commit, protected approved-secret-manager version, ephemeral key injection, non-secret custody manifest, matching fingerprint, and privateKeyExported=false are independently verified.',
   'advisory-ai': 'Advisory provider is enabled/configured with bounded retrieval and budget behavior, raw content persistence disabled, human review required, and promotion remaining shadow-only.',

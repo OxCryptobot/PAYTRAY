@@ -27,7 +27,8 @@ const sequenceChecks = [
   'operator-key-custody',
   'secret-manager-custody',
   'release-manifest',
-  'release-payload'
+  'release-payload',
+  'release-authority-readiness'
 ]
 
 function makeSequenceReport(state = 'passed') {
@@ -69,8 +70,8 @@ describe('release approval gate', () => {
   it('maps post-attestation blockers into ordered release stages without granting authority', () => {
     const result = buildPostAttestationSequenceReport({ report: makeSequenceReport('operator_blocked'), sourceSha256: 'a'.repeat(64) })
     expect(result).toMatchObject({ status: 'operator_blocked', sequence: 'post_shadow_review_attestation', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
-    expect(result.orderedStages.map((stage) => stage.id)).toEqual(['target-evidence', 'target-recovery', 'fresh-verifier', 'reconciliation', 'durable-workers', 'human-evidence', 'operator-custody', 'manifest-payload'])
-    expect(result.blockingChecks.length).toBe(14)
+    expect(result.orderedStages.map((stage) => stage.id)).toEqual(['target-evidence', 'target-recovery', 'fresh-verifier', 'reconciliation', 'durable-workers', 'human-evidence', 'operator-custody', 'manifest-payload', 'authority-readiness'])
+    expect(result.blockingChecks.length).toBe(15)
   })
 
   it('reports a complete ordered sequence as verified while preserving false authority fields', () => {

@@ -12,7 +12,8 @@ const STAGES = [
   { id: 'durable-workers', title: 'Durable outbox and housekeeping evidence', checks: ['outbox-health', 'idempotency-cleanup'] },
   { id: 'human-evidence', title: 'Shadow-review and four-role signoff evidence', checks: ['release-evidence', 'release-approval'] },
   { id: 'operator-custody', title: 'Operator key and secret-manager custody', checks: ['operator-key-custody', 'secret-manager-custody'] },
-  { id: 'manifest-payload', title: 'Release manifest and signed payload', checks: ['release-manifest', 'release-payload'] }
+  { id: 'manifest-payload', title: 'Release manifest and signed payload', checks: ['release-manifest', 'release-payload'] },
+  { id: 'authority-readiness', title: 'Controlled release-authority readiness evaluation', checks: ['release-authority-readiness'] }
 ]
 
 function fail(message) {

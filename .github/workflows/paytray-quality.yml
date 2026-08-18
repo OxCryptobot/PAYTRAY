@@ -198,9 +198,27 @@ jobs:
           status=$?
           cat artifacts/verifier-cursor-evidence.json
           exit 0
+      - name: Verify cryptographic release sequence
+        if: always()
+        run: |
+          set +e
+          CRYPTO_SEQUENCE_TARGET=local_disposable \
+          CRYPTO_RELEASE_EVIDENCE_FILE=artifacts/release-gates.json \
+          CRYPTO_ATTESTATION_BUNDLE_FILE=artifacts/release-gates.json \
+          CRYPTO_OPERATOR_KEY_CUSTODY_FILE=artifacts/release-gates.json \
+          CRYPTO_SECRET_MANAGER_CUSTODY_FILE=artifacts/release-gates.json \
+          CRYPTO_RELEASE_MANIFEST_FILE=artifacts/release-gates.json \
+          CRYPTO_RELEASE_PAYLOAD_FILE=artifacts/release-gates.json \
+          CRYPTO_RELEASE_COMMIT=0000000000000000000000000000000000000000 \
+          CRYPTO_ARTIFACT_SHA256=0000000000000000000000000000000000000000000000000000000000000000 \
+          CRYPTO_PUBLIC_KEY_FINGERPRINT_SHA256=0000000000000000000000000000000000000000000000000000000000000000 \
+          node packages/backend/scripts/verify-cryptographic-release-sequence.mjs > artifacts/cryptographic-release-sequence.json
+          status=$?
+          cat artifacts/cryptographic-release-sequence.json
+          exit 0
       - name: Fingerprint release-gate evidence
         if: always()
-        run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json artifacts/outbox-health.json artifacts/outbox-worker.json artifacts/idempotency-cleanup.json artifacts/durable-worker-evidence.json artifacts/verifier-operations.json artifacts/reconciliation-evidence.json artifacts/verifier-reconciliation-evidence.json artifacts/verifier-cursor-evidence.json artifacts/release-blocker-clearance-plan.json | tee artifacts/release-gates.json.sha256
+        run: sha256sum artifacts/release-gates.json artifacts/post-attestation-release-sequence.json artifacts/outbox-health.json artifacts/outbox-worker.json artifacts/idempotency-cleanup.json artifacts/durable-worker-evidence.json artifacts/verifier-operations.json artifacts/reconciliation-evidence.json artifacts/verifier-reconciliation-evidence.json artifacts/verifier-cursor-evidence.json artifacts/cryptographic-release-sequence.json artifacts/release-blocker-clearance-plan.json | tee artifacts/release-gates.json.sha256
       - name: Upload release-gate evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -217,6 +235,7 @@ jobs:
             artifacts/reconciliation-evidence.json
             artifacts/verifier-reconciliation-evidence.json
             artifacts/verifier-cursor-evidence.json
+            artifacts/cryptographic-release-sequence.json
             artifacts/release-blocker-clearance-plan.json
             artifacts/release-gates.json.sha256
           if-no-files-found: error

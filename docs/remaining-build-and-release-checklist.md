@@ -307,3 +307,12 @@ The last two commands must remain blocked until real approval, Railway, migratio
 | Liveness/readiness split | Process-only `/livez` and `/api/health/liveness`; strict `/readyz` and `/api/health/readiness`; `Cache-Control: no-store`; immutable safety fields | Implemented locally, pending CI | Liveness does not query dependencies or grant authority. Focused and full regression tests must verify HTTP 200 liveness under unconfigured dependencies and preserve strict readiness semantics. |
 
 The liveness endpoints are health evidence only. They do not clear migration, Railway, verifier, target, advisory-AI, shadow-review, sign-off, custody, approval, manifest, payload, or release-authority blockers.
+
+## 8. Next release-cycle planning and CI modernization
+
+| Batch | Scope | Status | Evidence |
+|---|---|---|---|
+| Release-cycle planning simulation | Deterministic engineering lead-time plan for CI modernization, dependency refresh, probe observability, warning tracing, performance telemetry, warning governance, and pipeline conformance | Planning-only | 18 modeled working days on the stated dependency graph; modeled operator-blocker resolution rate remains 0%. |
+| CI runner/action modernization | Upgrade GitHub Actions checkout/setup-node references from v4 to v5 while preserving Node 22 application runtime and all existing job contracts | Implemented locally, pending CI | Must verify all six CI jobs, action deprecation warnings, test counts, artifact fingerprints, and immutable safety fields. |
+
+Simulation output is not release evidence and cannot clear migrations, Railway, target, verifier, AI, human-review, custody, approval, manifest, payload, or authority blockers.

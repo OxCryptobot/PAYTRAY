@@ -8,7 +8,7 @@ const SHA256 = /^[0-9a-f]{64}$/
 const TARGETS = new Set(['local_disposable', 'authenticated_target'])
 const SAFE_MUTATIONS = new Set([null, 'none', 'read_only'])
 const TRACKING_STATUSES = new Set(['unassigned', 'operator_in_progress', 'evidence_submitted', 'rejected'])
-const EVIDENCE_REFERENCE_KINDS = new Set(['release_evidence', 'release_approval', 'shadow_review_status', 'verifier_operations', 'verifier_cursor', 'reconciliation', 'recovery', 'railway_settings', 'outbox_health', 'idempotency_cleanup', 'target_operations', 'operator_key_custody', 'secret_manager_custody', 'release_manifest', 'release_payload', 'cryptographic_sequence', 'authority_readiness'])
+const EVIDENCE_REFERENCE_KINDS = new Set(['release_evidence', 'release_approval', 'shadow_review_status', 'verifier_operations', 'verifier_cursor', 'reconciliation', 'recovery', 'railway_settings', 'outbox_health', 'idempotency_cleanup', 'target_operations', 'operator_key_custody', 'secret_manager_custody', 'release_manifest', 'release_payload', 'cryptographic_sequence', 'authority_readiness', 'advisory_ai'])
 const DEPENDENCIES = Object.freeze({
   migrations: [],
   recovery: ['migrations'],
@@ -19,7 +19,7 @@ const DEPENDENCIES = Object.freeze({
   'idempotency-cleanup': ['migrations'],
   'target-operations': ['migrations', 'recovery', 'railway-trial', 'verifier-operations', 'outbox-health', 'idempotency-cleanup'],
   'reconciliation-evidence': ['verifier-operations', 'verifier-cursor-evidence'],
-  'release-evidence': ['target-operations', 'verifier-cursor-evidence', 'reconciliation-evidence', 'outbox-health', 'idempotency-cleanup'],
+  'release-evidence': ['target-operations', 'verifier-cursor-evidence', 'reconciliation-evidence', 'outbox-health', 'idempotency-cleanup', 'advisory-ai'],
   'release-approval': ['release-evidence', 'reconciliation-evidence'],
   'operator-key-custody': ['release-evidence'],
   'secret-manager-custody': ['operator-key-custody'],
@@ -30,7 +30,7 @@ const DEPENDENCIES = Object.freeze({
   'token-metadata': ['migrations', 'railway-trial'],
   'smoke-phase2': ['migrations', 'token-metadata', 'verifier-operations', 'outbox-health', 'idempotency-cleanup']
 })
-const SENSITIVE_KEY = /(?:private.?key|secret|password|authorization|cookie|jwt|token|signature|raw.?content|reviewer.?notes|transcript|recording|audio|video)/i
+const SENSITIVE_KEY = /(?:private.?key|secret|password|authorization|cookie|jwt|token|signature|raw.?content(?!persisted$|persistence$)|reviewer.?notes|transcript|recording|audio|video)/i
 
 function fail(message) {
   throw new Error(message)

@@ -87,3 +87,9 @@ The release-gates CI job now runs the resolution tracker after producing `artifa
 ## Safety tests
 
 The tracker tests cover open-blocker tracking, automated gate resolution, operator-progress states, exact commit binding, orphan tracking entries, sensitive-field rejection, nested authority violations, unsafe mutations, duplicate gate checks, unexpected engineering failures, and the complete non-authoritative state. The tracker is intentionally a **resolution recorder and verifier**, not an authority-granting mechanism.
+
+## Bounded advisory-AI and downstream evidence
+
+The `advisory-ai` blocker is handled through `backend:advisory:ai:check` and `backend:release:advisory-ai:evidence:check`. Capability evidence must prove an explicitly enabled and configured provider/model, bounded latency and cost, bounded retrieval, valid retention, raw-content persistence disabled, human review required, promotion remaining `shadow_only`, and read-only non-authority fields. The verifier accepts only redacted, exact-commit-bound `advisory_ai_evidence` reports and returns `verified_reference` without clearing the fresh release gate.
+
+The blocker-resolution dependency graph now includes `advisory-ai` as a prerequisite of `release-evidence`. A verified reference does not satisfy the dependency; only a subsequent fresh release-gate run can change the `advisory-ai` gate to `passed`. Downstream target operations, token metadata, verifier cursor, reconciliation, release evidence, approval, payload, and authority stages remain independently gated. No advisory output may be applied to payment state or promote AI ranking.

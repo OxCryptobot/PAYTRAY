@@ -151,6 +151,31 @@ describe('release blocker resolution tracking', () => {
     expect(() => buildReleaseBlockerResolution({ report: makeReport([check('quality-gate', 'passed'), check('quality-gate', 'passed')]), releaseCommit })).toThrow('duplicate release-gate check')
   })
 
+  it('accepts an independently verified advisory-AI reference without clearing the gate', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-advisory-reference-'))
+    try {
+      const referenceReport = { reportKind: 'advisory_ai_evidence', status: 'ready', releaseCommit, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', applied: false, deploymentPerformed: false, settlementMutationPerformed: false, promotionStatus: 'shadow_only', humanOverrideRequired: true, rawContentPersisted: false }
+      const referencePath = path.join(root, 'advisory-ai.json')
+      const raw = JSON.stringify(referenceReport)
+      fs.writeFileSync(referencePath, raw, { mode: 0o600 })
+      const sha256 = createHash('sha256').update(raw).digest('hex')
+      const report = buildReleaseBlockerResolution({
+        report: makeReport([check('advisory-ai'), check('release-evidence')]),
+        releaseCommit,
+        tracking: {
+          reportKind: 'release_blocker_resolution_tracking',
+          releaseCommit,
+          entries: [{ name: 'advisory-ai', status: 'evidence_submitted', evidenceReference: { kind: 'advisory_ai', target: 'local_disposable', path: referencePath, sha256, reportKind: 'advisory_ai_evidence', releaseCommit, verificationStatus: 'independently_verified' } }]
+        }
+      })
+      expect(report.checks.find((item) => item.name === 'advisory-ai')).toMatchObject({ referenceState: 'independently_verified_reference', resolutionState: 'evidence_submitted', automatedCheck: false })
+      expect(report.checks.find((item) => item.name === 'release-evidence')).toMatchObject({ blockedBy: expect.arrayContaining(['advisory-ai']), readyToAttempt: false })
+      expect(report).toMatchObject({ releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('computes the next actionable blocker set without changing gate state', () => {
     const report = buildReleaseBlockerResolution({
       report: makeReport([

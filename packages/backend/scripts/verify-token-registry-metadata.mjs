@@ -15,16 +15,24 @@ try {
     registry: parseTokenRegistry(config.payments.tokenRegistry),
     chainId: config.payments.settlementChainId
   })
-  console.log(JSON.stringify(result, null, 2))
-  exitCode = result.status === 'matched' ? 0 : 1
+      console.log(JSON.stringify({
+      reportKind: 'token_metadata_evidence',
+      ...result,
+      ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
+    }, null, 2))
+    exitCode = result.status === 'matched' ? 0 : 1
+
 } catch (error) {
-  console.error(JSON.stringify({
+      console.error(JSON.stringify({
+    reportKind: 'token_metadata_evidence',
     status: 'blocked',
+
     reason: error.message,
     authority: 'read_only_rpc_metadata',
     mutation: 'read_only',
     deploymentPerformed: false,
-    settlementMutationPerformed: false
+    settlementMutationPerformed: false,
+    ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))
   exitCode = 1
 }

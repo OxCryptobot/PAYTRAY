@@ -64,6 +64,7 @@
     "backend:release:blocker:resolution:check": "node packages/backend/scripts/verify-release-blocker-resolution.mjs",
     "backend:release:foundation:blockers:check": "node packages/backend/scripts/verify-foundation-blocker-evidence.mjs",
     "backend:release:advisory-ai:evidence:check": "node packages/backend/scripts/verify-advisory-ai-evidence.mjs",
+    "backend:release:downstream:operations:evidence:check": "node packages/backend/scripts/verify-downstream-operational-evidence.mjs",
     "backend:release:human:evidence:custody:check": "node packages/backend/scripts/verify-human-evidence-custody.mjs",
     "backend:release:cryptographic:sequence:check": "node packages/backend/scripts/verify-cryptographic-release-sequence.mjs",
     "backend:release:authority:readiness:check": "node packages/backend/scripts/verify-release-authority-readiness.mjs",

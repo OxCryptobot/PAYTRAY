@@ -26,7 +26,7 @@ import {
   getPaymentIntentV2,
   listPaymentStreamsV2
 } from './lib/payments/paymentApiService.js'
-import { buildReadinessReport } from './lib/health.js'
+import { buildLivenessReport, buildReadinessReport } from './lib/health.js'
 import { searchExperts } from './lib/discoveryService.js'
 import { recordDiscoveryImpressions } from './lib/discoveryImpressionService.js'
 import {
@@ -1089,7 +1089,18 @@ function authenticatePublicApi(req, res, next) {
   return next()
 }
 
+app.get('/livez', (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  res.status(200).json(buildLivenessReport({ pid: process.pid, uptimeSeconds: process.uptime(), now: new Date() }))
+})
+
+app.get('/api/health/liveness', (req, res) => {
+  res.set('Cache-Control', 'no-store')
+  res.status(200).json(buildLivenessReport({ pid: process.pid, uptimeSeconds: process.uptime(), now: new Date() }))
+})
+
 app.get('/health', (req, res) => {
+  res.set('Cache-Control', 'no-store')
   const reliability = computeReliabilityMetrics()
   const p95Latency = percentile(requestMetrics.latencies, 95)
 
@@ -1109,6 +1120,7 @@ app.get('/health', (req, res) => {
 })
 
 app.get('/api/health', (req, res) => {
+  res.set('Cache-Control', 'no-store')
   const reliability = computeReliabilityMetrics()
 
   res.json({
@@ -1134,6 +1146,7 @@ function getReadinessReport() {
 }
 
 app.get('/readyz', (req, res) => {
+  res.set('Cache-Control', 'no-store')
   const report = getReadinessReport()
   res.status(report.ready ? 200 : 503).json({
     service: 'paytray-backend',
@@ -1143,6 +1156,7 @@ app.get('/readyz', (req, res) => {
 })
 
 app.get('/api/health/readiness', (req, res) => {
+  res.set('Cache-Control', 'no-store')
   const report = getReadinessReport()
   res.status(report.ready ? 200 : 503).json({
     success: report.ready,

@@ -299,3 +299,11 @@ The last two commands must remain blocked until real approval, Railway, migratio
 [4]: https://github.com/OxCryptobot/PAYTRAY/blob/16165d61b5f1192fb747b31ea3783b65e1e6326f/packages/backend/lib/auditLogService.js Batch AR audit service
 
 [5]: https://github.com/OxCryptobot/PAYTRAY/blob/16165d61b5f1192fb747b31ea3783b65e1e6326f/packages/backend/lib/discoveryLineageService.js Batch AT lineage service
+
+## 7. Liveness/readiness hardening batch
+
+| Batch | Scope | Status | Evidence |
+|---|---|---|---|
+| Liveness/readiness split | Process-only `/livez` and `/api/health/liveness`; strict `/readyz` and `/api/health/readiness`; `Cache-Control: no-store`; immutable safety fields | Implemented locally, pending CI | Liveness does not query dependencies or grant authority. Focused and full regression tests must verify HTTP 200 liveness under unconfigured dependencies and preserve strict readiness semantics. |
+
+The liveness endpoints are health evidence only. They do not clear migration, Railway, verifier, target, advisory-AI, shadow-review, sign-off, custody, approval, manifest, payload, or release-authority blockers.

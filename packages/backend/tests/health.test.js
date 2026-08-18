@@ -1,5 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import { buildReadinessReport } from '../lib/health.js'
+import { buildLivenessReport, buildReadinessReport } from '../lib/health.js'
+
+describe('Paytray process liveness', () => {
+  it('reports process liveness without evaluating dependencies or granting authority', () => {
+    expect(buildLivenessReport({ pid: 42, uptimeSeconds: 12.5, now: new Date('2026-08-18T22:00:00.000Z') })).toEqual({
+      status: 'alive',
+      live: true,
+      authority: 'process_liveness_only',
+      dependencyChecksPerformed: false,
+      pid: 42,
+      uptimeSeconds: 12.5,
+      timestamp: '2026-08-18T22:00:00.000Z',
+      releaseEligible: false,
+      settlementAuthority: false,
+      mutation: 'read_only',
+      deploymentPerformed: false,
+      settlementMutationPerformed: false
+    })
+  })
+
+  it('normalizes invalid process metrics without failing liveness', () => {
+    expect(buildLivenessReport({ pid: 0, uptimeSeconds: -1, now: new Date('2026-08-18T22:00:00.000Z') })).toMatchObject({ status: 'alive', live: true, pid: null, uptimeSeconds: 0, dependencyChecksPerformed: false })
+  })
+})
 
 describe('Paytray dependency readiness', () => {
   const configured = {

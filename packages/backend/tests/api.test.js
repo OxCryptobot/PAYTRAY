@@ -63,6 +63,20 @@ describe('PayTray backend skeleton', () => {
     expect(response.body.status).toBe('healthy')
     expect(response.body.service).toBe('paytray-backend')
     expect(response.body.checks.database).toBe('unconfigured')
+    expect(response.headers['cache-control']).toBe('no-store')
+  })
+
+  it('keeps process liveness independent from dependency readiness', async () => {
+    const live = await request(app).get('/livez')
+    expect(live.status).toBe(200)
+    expect(live.headers['cache-control']).toBe('no-store')
+    expect(live.body).toMatchObject({ status: 'alive', live: true, dependencyChecksPerformed: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    expect(live.body.checks).toBeUndefined()
+
+    const apiLive = await request(app).get('/api/health/liveness')
+    expect(apiLive.status).toBe(200)
+    expect(apiLive.headers['cache-control']).toBe('no-store')
+    expect(apiLive.body).toMatchObject({ status: 'alive', live: true, dependencyChecksPerformed: false })
   })
 
   it('rejects invalid wallet signatures at login', async () => {

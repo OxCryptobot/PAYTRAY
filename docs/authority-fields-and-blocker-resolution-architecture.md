@@ -117,3 +117,7 @@ The controlled Phase 2 harness emits `smoke_phase2_evidence` with an exact relea
 ## Release-evidence reference
 
 `backend:release:evidence:reference:check` validates a redacted `release_evidence` envelope against the exact commit, all twelve required evidence checks, reconciled `evidenceComplete`, the SHA-256 evidence fingerprint shape, four-role and four-attestation summaries, and the immutable `releaseEligible=false`, `settlementAuthority=false`, `mutation=read_only`, and execution-false fields. A `verified_reference` result remains aggregation evidence and cannot replace authenticated target evidence, human sign-offs, shadow-review decisions, operator-key custody, release approval, manifest, or signed payload verification.
+
+## Liveness and readiness probe separation
+
+The backend now exposes `/livez` and `/api/health/liveness` as process-only liveness endpoints. They return HTTP 200 with `status=alive`, `live=true`, `dependencyChecksPerformed=false`, `Cache-Control: no-store`, and immutable read-only safety fields; they do not query PostgreSQL, RPC, token registry, verifier workers, or external providers. Strict dependency readiness remains on `/readyz` and `/api/health/readiness`, which may return HTTP 503 when the configured environment is not ready. This prevents an intentionally unready deployment from being restarted merely because it is not yet safe to receive application traffic. The liveness contract is diagnostic evidence only and cannot establish release eligibility, settlement authority, or deployment completion.

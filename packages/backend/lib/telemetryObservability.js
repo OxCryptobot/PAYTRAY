@@ -1,4 +1,4 @@
-export async function getTelemetryHealth({ client, now = new Date() }) {
+export async function getTelemetryHealth({ client, now = new Date(), p95LatencyTargetMs = 800, minSamples = 3 }) {
   const summary = await client.query(`
     SELECT
       COUNT(*)::integer AS total_events,
@@ -32,26 +32,45 @@ export async function getTelemetryHealth({ client, now = new Date() }) {
     FROM ai_evaluation_runs
   `)
   const row = summary.rows[0]
+  const totalEvents = Number(row.total_events)
+  const byEventType = Object.fromEntries(lagByType.rows.map((item) => [item.event_type, {
+    count: Number(item.count),
+    medianLagMs: Number(item.median_lag_ms),
+    p95LagMs: Number(item.p95_lag_ms)
+  }]))
+  const p95LagMs = Object.values(byEventType).reduce((max, item) => Math.max(max, item.p95LagMs), 0)
+  const sampleSufficient = totalEvents >= minSamples
   return {
     status: Number(row.restricted_events) > 0 ? 'attention' : 'ok',
     generatedAt: now.toISOString(),
     ingestion: {
-      totalEvents: Number(row.total_events),
+      totalEvents,
       eventsLast24h: Number(row.events_last_24h),
       averageLagMs: Number(row.average_ingestion_lag_ms),
       maxLagMs: Number(row.max_ingestion_lag_ms),
       restrictedEvents: Number(row.restricted_events),
-      byEventType: Object.fromEntries(lagByType.rows.map((item) => [item.event_type, {
-        count: Number(item.count),
-        medianLagMs: Number(item.median_lag_ms),
-        p95LagMs: Number(item.p95_lag_ms)
-      }]))
+      byEventType
+    },
+    performance: {
+      sampleCount: totalEvents,
+      minSamples,
+      sampleSufficient,
+      p95LagMs,
+      p95LatencyTargetMs,
+      withinTarget: sampleSufficient ? p95LagMs <= p95LatencyTargetMs : null
     },
     coverage: Object.fromEntries(coverage.rows.map((item) => [item.event_type, Number(item.count)])),
     shadowEvaluation: {
       shadowRuns: Number(shadows.rows[0].shadow_runs),
       pendingReviews: Number(shadows.rows[0].pending_reviews),
       approvedPilotRuns: Number(shadows.rows[0].approved_pilot_runs)
+    },
+    safety: {
+      releaseEligible: false,
+      settlementAuthority: false,
+      mutation: 'read_only',
+      deploymentPerformed: false,
+      settlementMutationPerformed: false
     }
   }
 }

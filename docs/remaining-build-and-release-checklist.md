@@ -316,3 +316,11 @@ The liveness endpoints are health evidence only. They do not clear migration, Ra
 | CI runner/action modernization | Upgrade GitHub Actions checkout/setup-node references from v4 to v5 and upload-artifact references from v4 to v7 while preserving Node 22 application runtime and all existing job contracts | Implemented locally, pending CI | Must verify all six CI jobs, action deprecation warnings, test counts, artifact fingerprints, and immutable safety fields. |
 
 Simulation output is not release evidence and cannot clear migrations, Railway, target, verifier, AI, human-review, custody, approval, manifest, payload, or authority blockers.
+
+## 9. Telemetry performance observability hardening
+
+| Batch | Scope | Status | Evidence |
+|---|---|---|---|
+| Bounded telemetry performance metrics | Add sample count, minimum-sample sufficiency, aggregate p95 ingestion lag, configured target comparison, and immutable read-only safety fields without changing release or settlement authority | Implemented locally, pending validation | Focused telemetry and release-readiness tests must preserve 394-test baseline or improve it; insufficient samples report `withinTarget=null`. |
+
+Telemetry performance metrics are diagnostic context only. They cannot clear operational blockers, substitute for authenticated target evidence, promote AI ranking, or grant payment, deployment, settlement, or release authority.

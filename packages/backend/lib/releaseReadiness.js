@@ -2,7 +2,7 @@ import { getTelemetryHealth } from './telemetryObservability.js'
 import { getVerifierReadiness } from './payments/verifierReadiness.js'
 
 export async function getReleaseReadiness({ client, config, databaseStatus, enabledTokenCount, verifierWorkerStatus = 'not_configured', env = config.env }) {
-  const telemetry = await getTelemetryHealth({ client })
+  const telemetry = await getTelemetryHealth({ client, ...(config.observability || {}) })
   const verifier = await getVerifierReadiness({ client, config, verifierWorkerStatus, env })
   const outcomes = await client.query(`
     SELECT

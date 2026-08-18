@@ -101,3 +101,15 @@ The next downstream stage is composed by `backend:release:downstream:operations:
 ## Verifier, recovery, and durable-operations evidence
 
 The `backend:release:verifier:durable:operations:evidence:check` command composes three redacted references: `recovery_evidence`, `verifier_reconciliation_evidence`, and `durable_worker_evidence`. It requires an isolated recovery with 19 migrations, fresh verifier status, verified zero-issue reconciliation, outbox health `ok`, outbox worker `ready`, and idempotency cleanup `ready`. Each source is bound to the exact release commit and protected path, recursively redacted, SHA-256 fingerprinted, and checked for false/read-only authority fields. The result is evidence-only and cannot clear a fresh gate, mutate payment state, or grant release authority.
+
+## Blocker-resolution artifact fingerprint
+
+The release-gates CI job now creates `release-blocker-resolution.json.sha256` immediately after generic artifact validation and runs `backend:release:blocker:resolution:fingerprint:check`. The verifier binds the artifact report kind, exact commit, sidecar digest, count fields, and false/read-only authority fields. It returns `verified_reference` only for artifact integrity; it cannot resolve a blocker, change release-gate state, or grant authority. Both the sidecar and redacted fingerprint report are retained with the release-gate artifact bundle.
+
+## Smoke-phase2 evidence
+
+The controlled Phase 2 harness emits `smoke_phase2_evidence` with an exact release commit, isolated-database proof, Base Sepolia chain ID `84532`, disabled mainnet policy, an enabled token address, a complete discovery-to-outcome flow, replay protection, and explicit `chainTransactionSubmitted=false` / `settlementMutationPerformed=false`. `backend:release:smoke:phase2:evidence:check` validates the redacted report and returns evidence only; it does not submit a transaction, mutate settlement state, or clear the `smoke-phase2` blocker.
+
+## Release-evidence reference
+
+`backend:release:evidence:reference:check` validates a redacted `release_evidence` envelope against the exact commit, all twelve required evidence checks, reconciled `evidenceComplete`, the SHA-256 evidence fingerprint shape, four-role and four-attestation summaries, and the immutable `releaseEligible=false`, `settlementAuthority=false`, `mutation=read_only`, and execution-false fields. A `verified_reference` result remains aggregation evidence and cannot replace authenticated target evidence, human sign-offs, shadow-review decisions, operator-key custody, release approval, manifest, or signed payload verification.

@@ -18,10 +18,11 @@ try {
       independentlyVerified: process.env.RELEASE_SIGNING_PUBLIC_KEY_FINGERPRINT_VERIFIED === 'true'
     }
   }))
-  console.log(JSON.stringify({ status: 'ok', bundle }, null, 2))
+  console.log(JSON.stringify({ reportKind: 'release_evidence', status: 'ok', bundle }, null, 2))
   exitCode = bundle.evidenceComplete ? 0 : 1
 } catch (error) {
   console.error(JSON.stringify({
+    reportKind: 'release_evidence',
     status: 'blocked',
     reason: error.message,
     authority: 'release_evidence_aggregation_only',

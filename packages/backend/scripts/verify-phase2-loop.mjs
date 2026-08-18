@@ -210,7 +210,16 @@ try {
   assert.equal(outcomeReplay.body.idempotentReplay, true)
 
   console.log(JSON.stringify({
+    reportKind: 'smoke_phase2_evidence',
     status: 'ok',
+    releaseCommit: process.env.SMOKE_PHASE2_EVIDENCE_COMMIT || null,
+    releaseEligible: false,
+    settlementAuthority: false,
+    mutation: 'read_only',
+    applied: false,
+    deploymentPerformed: false,
+    settlementMutationPerformed: false,
+    authority: 'controlled_smoke_evidence',
     experts: discovery.body.count,
     engagementId: engagement.body.engagement.id,
     threadId: engagement.body.engagement.thread_id,
@@ -228,12 +237,18 @@ try {
   }, null, 2))
 } catch (error) {
   console.error(JSON.stringify({
+    reportKind: 'smoke_phase2_evidence',
     status: 'blocked',
-    reason: error.message,
+    releaseCommit: process.env.SMOKE_PHASE2_EVIDENCE_COMMIT || null,
+    releaseEligible: false,
+    settlementAuthority: false,
+    mutation: 'read_only',
+    applied: false,
+    deploymentPerformed: false,
+    settlementMutationPerformed: false,
     authority: 'controlled_smoke_evidence',
-    mutation: 'none',
-    chainTransactionSubmitted: false,
-    settlementMutationPerformed: false
+    reason: error.message,
+    chainTransactionSubmitted: false
   }, null, 2))
   process.exitCode = 1
 } finally {

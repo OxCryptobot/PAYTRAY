@@ -109,6 +109,7 @@ export async function collectReleaseEvidence({ client, config, targetOperations 
     rollbackTargets: rollbackResult.rows[0]?.count || 0,
     reviewerAttestationSummary: summarizeReviewerAttestations({ attestations: reviewerAttestationRecords.attestations, releaseCommit }),
     signoffs: resolvedSignoffs,
+    releaseCommit,
     signingKeyEvidence: signingKeyEvidence || buildSigningKeyEvidence({
       present: Boolean(process.env.RELEASE_SIGNING_KEY_PEM),
       publicKeyFingerprintSha256: process.env.RELEASE_SIGNING_PUBLIC_KEY_SHA256,
@@ -172,7 +173,8 @@ export function buildReleaseEvidenceBundle({
   rollbackTargets = 0,
   reviewerAttestationSummary = null,
   signoffs = [],
-  signingKeyEvidence = null
+  signingKeyEvidence = null,
+  releaseCommit = process.env.RELEASE_GIT_COMMIT || null
 } = {}) {
   const signoffSummary = summarizeSignoffs(signoffs)
   const attestationSummary = reviewerAttestationSummary || summarizeReviewerAttestations()
@@ -195,6 +197,7 @@ export function buildReleaseEvidenceBundle({
   const evidenceFingerprint = buildEvidenceFingerprint({
     kind: 'release_evidence',
     content: {
+      releaseCommit,
       checks,
       signoffSummary,
       reviewerAttestationSummary: attestationSummary,
@@ -208,6 +211,7 @@ export function buildReleaseEvidenceBundle({
   })
   return {
     status: evidenceComplete ? 'evidence_complete_pending_release_gate' : 'blocked',
+    releaseCommit,
     evidenceComplete,
     releaseEligible: false,
     approvalRequired: true,

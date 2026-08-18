@@ -63,6 +63,7 @@
     "backend:release:blocker:clearance:check": "node packages/backend/scripts/verify-release-blocker-clearance-plan.mjs",
     "backend:release:human:evidence:custody:check": "node packages/backend/scripts/verify-human-evidence-custody.mjs",
     "backend:release:cryptographic:sequence:check": "node packages/backend/scripts/verify-cryptographic-release-sequence.mjs",
+    "backend:release:authority:readiness:check": "node packages/backend/scripts/verify-release-authority-readiness.mjs",
     "backend:release:manifest:check": "node packages/backend/scripts/inspect-release-manifest.mjs",
     "backend:release:payload:check": "node packages/backend/scripts/inspect-release-payload.mjs",
     "backend:release:payload:verify": "node packages/backend/scripts/verify-release-payload.mjs",

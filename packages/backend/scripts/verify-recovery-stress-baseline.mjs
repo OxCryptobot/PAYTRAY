@@ -47,7 +47,7 @@ function validateResource(resource, label, expectedSamples, workers = []) {
   return { present: true, sampleCount: resource.sampleCount, peakRssKb: resource.memory.peakRssKb, maxHeapUsedBytes: resource.memory.maxHeapUsedBytes }
 }
 
-function validateReport(report, expectedCommit, expectedConcurrency) {
+function validateReport(report, expectedCommit, expectedConcurrency, expectedRtoTargetMs = null) {
   assertObject(report, `recovery-stress-${expectedConcurrency}`)
   if (report.reportKind !== 'local_disposable_recovery_stress') fail(`concurrency ${expectedConcurrency} has an invalid reportKind`)
   if (report.releaseCommit !== expectedCommit) fail(`concurrency ${expectedConcurrency} is bound to an unexpected commit`)
@@ -61,7 +61,15 @@ function validateReport(report, expectedCommit, expectedConcurrency) {
     assertNonnegativeInteger(report.phaseLatencyMs[phase].count, `concurrency ${expectedConcurrency}.phaseLatencyMs.${phase}.count`)
   }
   assertObject(report.rto, `concurrency ${expectedConcurrency}.rto`)
-  if (report.rto.targetConfigured !== false || report.rto.withinTarget !== null || report.rto.basis !== 'not_configured') fail(`concurrency ${expectedConcurrency} must preserve null RTO semantics without an operator target`)
+  assertObject(report.sequenceElapsedMs, `concurrency ${expectedConcurrency}.sequenceElapsedMs`)
+  if (expectedRtoTargetMs === null) {
+    if (report.rto.targetConfigured !== false || report.rto.withinTarget !== null || report.rto.basis !== 'not_configured') fail(`concurrency ${expectedConcurrency} must preserve null RTO semantics without an operator target`)
+  } else {
+    if (report.rto.targetConfigured !== true || report.rto.targetMs !== expectedRtoTargetMs || report.rto.basis !== 'operator_supplied_target') fail(`concurrency ${expectedConcurrency} has inconsistent operator RTO target fields`)
+    if (typeof report.rto.withinTarget !== 'boolean') fail(`concurrency ${expectedConcurrency}.rto.withinTarget must be boolean with an operator target`)
+    if (typeof report.sequenceElapsedMs.max !== 'number' || !Number.isFinite(report.sequenceElapsedMs.max) || report.sequenceElapsedMs.max < 0) fail(`concurrency ${expectedConcurrency}.sequenceElapsedMs.max is invalid`)
+    if (report.rto.withinTarget !== report.sequenceElapsedMs.max <= expectedRtoTargetMs) fail(`concurrency ${expectedConcurrency}.withinTarget is inconsistent with sequence max and target`)
+  }
   if (report.releaseEligible !== false || report.settlementAuthority !== false || report.mutation !== 'read_only' || report.deploymentPerformed !== false || report.settlementMutationPerformed !== false) fail(`concurrency ${expectedConcurrency} has unsafe authority fields`)
   const resource = validateResource(report.resourceTelemetry, `concurrency ${expectedConcurrency}.resourceTelemetry`, expectedConcurrency, report.workers)
   return {
@@ -70,15 +78,17 @@ function validateReport(report, expectedCommit, expectedConcurrency) {
     throughputPerSecond: report.throughputPerSecond,
     sequenceElapsedMs: report.sequenceElapsedMs,
     phaseLatencyMs: report.phaseLatencyMs,
+    rto: report.rto,
     resource
   }
 }
 
-export async function validateRecoveryStressBaseline({ reportPaths, expectedCommit, expectedConcurrencies = REQUIRED_CONCURRENCIES } = {}) {
+export async function validateRecoveryStressBaseline({ reportPaths, expectedCommit, expectedConcurrencies = REQUIRED_CONCURRENCIES, expectedRtoTargetMs = null } = {}) {
   if (!Array.isArray(reportPaths) || reportPaths.length !== expectedConcurrencies.length) fail('reportPaths must contain one report per expected concurrency')
   if (!/^[a-f0-9]{40}$/.test(expectedCommit || '')) fail('expectedCommit must be a lowercase 40-character hexadecimal commit')
   const reports = await Promise.all(reportPaths.map((filePath) => loadReport(path.resolve(filePath))))
-  const levels = reports.map((report, index) => validateReport(report, expectedCommit, expectedConcurrencies[index]))
+  if (expectedRtoTargetMs !== null && (!Number.isSafeInteger(expectedRtoTargetMs) || expectedRtoTargetMs < 1)) fail('expectedRtoTargetMs must be a positive integer when supplied')
+  const levels = reports.map((report, index) => validateReport(report, expectedCommit, expectedConcurrencies[index], expectedRtoTargetMs))
   const actual = levels.map((level) => level.concurrency).sort((a, b) => a - b)
   const expected = [...expectedConcurrencies].sort((a, b) => a - b)
   if (JSON.stringify(actual) !== JSON.stringify(expected)) fail('expected concurrency levels are not unique and complete')
@@ -102,10 +112,13 @@ export async function validateRecoveryStressBaseline({ reportPaths, expectedComm
 export async function main() {
   const reportPaths = String(process.env.RECOVERY_STRESS_REPORTS || '').split(',').map((value) => value.trim()).filter(Boolean)
   const expectedConcurrencies = String(process.env.RECOVERY_STRESS_EXPECTED_CONCURRENCIES || '2,4,8').split(',').map((value) => Number.parseInt(value.trim(), 10))
+  const expectedRtoTargetRaw = process.env.RECOVERY_STRESS_EXPECTED_RTO_TARGET_MS
+  const expectedRtoTargetMs = expectedRtoTargetRaw === undefined ? null : Number.parseInt(expectedRtoTargetRaw, 10)
   const report = await validateRecoveryStressBaseline({
     reportPaths,
     expectedCommit: process.env.RECOVERY_STRESS_EXPECTED_COMMIT,
-    expectedConcurrencies
+    expectedConcurrencies,
+    expectedRtoTargetMs
   })
   console.log(JSON.stringify(report, null, 2))
 }

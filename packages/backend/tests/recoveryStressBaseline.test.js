@@ -6,7 +6,7 @@ import { validateRecoveryStressBaseline } from '../scripts/verify-recovery-stres
 
 const COMMIT = 'f488f6db0d77a0414c6061f7a1b3e50ca08be105'
 
-function sampleReport(concurrency, { resource = false, unsafe = false } = {}) {
+function sampleReport(concurrency, { resource = false, unsafe = false, rtoTargetMs = null } = {}) {
   const phaseLatencyMs = Object.fromEntries(['backup', 'backup_integrity', 'catalog', 'restore', 'restore_verification'].map((phase) => [phase, { count: concurrency, p50: 1, p95: 2, p99: 3, max: 4, mean: 2 }]))
   const report = {
     reportKind: 'local_disposable_recovery_stress',
@@ -22,7 +22,9 @@ function sampleReport(concurrency, { resource = false, unsafe = false } = {}) {
     throughputPerSecond: concurrency,
     sequenceElapsedMs: { count: concurrency, p50: 10, p95: 12, p99: 13, max: 14, mean: 11 },
     phaseLatencyMs,
-    rto: { targetMs: null, targetConfigured: false, withinTarget: null, basis: 'not_configured' },
+    rto: rtoTargetMs === null
+      ? { targetMs: null, targetConfigured: false, withinTarget: null, basis: 'not_configured' }
+      : { targetMs: rtoTargetMs, targetConfigured: true, withinTarget: 14 <= rtoTargetMs, basis: 'operator_supplied_target' },
     releaseEligible: unsafe ? true : false,
     settlementAuthority: false,
     mutation: 'read_only',
@@ -71,6 +73,29 @@ describe('recovery stress baseline verification', () => {
       expect(report.releaseEligible).toBe(false)
       expect(report.settlementAuthority).toBe(false)
       expect(report.mutation).toBe('read_only')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('validates operator RTO target and withinTarget=true when every sequence is within target', async () => {
+    const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency, { resource: true, rtoTargetMs: 20 })))
+    try {
+      const report = await validateRecoveryStressBaseline({ reportPaths: fixture.paths, expectedCommit: COMMIT, expectedRtoTargetMs: 20 })
+      expect(report.levels.every((level) => level.rto.withinTarget === true)).toBe(true)
+      expect(report.levels.every((level) => level.rto.targetConfigured === true)).toBe(true)
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('validates operator RTO target and withinTarget=false when sequence max exceeds target', async () => {
+    const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency, { resource: true, rtoTargetMs: 10 })))
+    try {
+      const report = await validateRecoveryStressBaseline({ reportPaths: fixture.paths, expectedCommit: COMMIT, expectedRtoTargetMs: 10 })
+      expect(report.levels.every((level) => level.rto.withinTarget === false)).toBe(true)
+      expect(report.releaseEligible).toBe(false)
+      expect(report.settlementAuthority).toBe(false)
     } finally {
       await fs.rm(fixture.directory, { recursive: true, force: true })
     }

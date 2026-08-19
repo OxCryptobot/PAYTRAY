@@ -14,6 +14,7 @@
     "backend:lint": "npm run lint --workspace=@paytray/backend",
     "backend:migrations:check": "node packages/backend/scripts/verify-migrations.mjs",
     "backend:recovery:check": "node packages/backend/scripts/verify-recovery-evidence.mjs",
+    "backend:recovery:stress": "node packages/backend/scripts/stress-recovery-sequence.mjs",
     "backend:verifier:operations:check": "node packages/backend/scripts/inspect-verifier-operations.mjs",
     "backend:outbox:health:check": "node packages/backend/scripts/inspect-outbox-health.mjs",
     "backend:idempotency:cleanup": "node packages/backend/scripts/cleanup-idempotency-records.mjs",

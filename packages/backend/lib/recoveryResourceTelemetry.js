@@ -86,6 +86,9 @@ export function summarizeRecoveryResourceUsage(values) {
       peakRssKb: samples.length ? Math.max(...samples.map((value) => nonnegativeInteger(value.peakRssKb))) : null,
       maxRssBytes: samples.length ? Math.max(...samples.map((value) => nonnegativeInteger(value.rssBytes))) : null,
       maxHeapUsedBytes: samples.length ? Math.max(...samples.map((value) => nonnegativeInteger(value.heapUsedBytes))) : null
-    }
+    },
+    perWorkerPeakRssKb: samples.map((value) => nonnegativeInteger(value.peakRssKb)),
+    perWorkerRssBytes: samples.map((value) => nonnegativeInteger(value.rssBytes)),
+    perWorkerHeapUsedBytes: samples.map((value) => nonnegativeInteger(value.heapUsedBytes))
   }
 }

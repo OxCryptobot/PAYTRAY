@@ -102,7 +102,9 @@ Run multiple independent repetitions at c2, c4, and c8 and compute confidence in
 
 ### Batch 5 — CI artifact and observability integration
 
-Upload redacted baseline reports, resource summaries, and fingerprints from a disposable CI job. Add artifact retention and a read-only comparison step. Keep the six-job workflow fail-closed on test, integrity, audit, lockfile, and schema failures, while keeping performance comparisons informational unless a separately approved threshold contract exists.
+**Status:** implemented in the current working batch. The GitHub Actions workflow now includes a disposable PostgreSQL `recovery-baseline` job that runs real c2/c4/c8 stress with `RECOVERY_CAPTURE_DATABASE_TELEMETRY=true` and `RECOVERY_CAPTURE_CHILD_RESOURCE=true`. It writes redacted per-level JSON reports, validates exact commit binding and required `postgresql_observability`/`local_disposable_backup_file` blocks, fingerprints all reports with a SHA-256 sidecar, retains artifacts for seven days, and fails the job unless the baseline verifier emits `status=verified`.
+
+The baseline verifier now supports `RECOVERY_STRESS_REQUIRE_DATABASE_TELEMETRY=true`. In that mode it requires one database summary and one storage/telemetry record per worker, at least two database samples per worker, bounded wait-event observations, nonnegative connection metrics, empty error arrays, and immutable false/read-only fields. The c8 artifacts currently saved before this CI job was added remain Node/resource-only; a fresh CI run is required before interpreting actual c8 wait-event or connection-containment values.
 
 **Milestone:** every CI baseline artifact is bound to the exact commit, has a sidecar SHA-256, contains no credentials or raw data, and preserves `releaseEligible=false` and `settlementAuthority=false`.
 

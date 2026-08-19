@@ -156,6 +156,9 @@ async function executeWorker({ sourceUrl, restoreUrl, backupFile, commit, rtoTar
     env.RECOVERY_RESTORE_EXPERIMENT = 'local_disposable'
     env.RECOVERY_CAPTURE_CHILD_RESOURCE = 'true'
   }
+  if (process.env.RECOVERY_CAPTURE_CHILD_RESOURCE === 'true') {
+    env.RECOVERY_CAPTURE_CHILD_RESOURCE = 'true'
+  }
   if (process.env.RECOVERY_CAPTURE_DATABASE_TELEMETRY === 'true') {
     env.RECOVERY_CAPTURE_DATABASE_TELEMETRY = 'true'
     env.RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS = process.env.RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS || '25'

@@ -547,3 +547,84 @@ jobs:
             artifacts/recovery-evidence.sha256
           if-no-files-found: error
           retention-days: 7
+
+
+  recovery-baseline:
+    name: Disposable c2/c4/c8 recovery baseline artifacts
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: paytray_ci
+          POSTGRES_PASSWORD: paytray_ci
+          POSTGRES_DB: paytray_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paytray_ci -d paytray_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run c2/c4/c8 recovery stress with bounded observability
+        run: |
+          mkdir -p artifacts
+          overall=0
+          for concurrency in 2 4 8; do
+            set +e
+            RECOVERY_STRESS_ENVIRONMENT=local_disposable \
+            RECOVERY_STRESS_RELEASE_COMMIT=${{ github.sha }} \
+            RECOVERY_STRESS_ADMIN_URL=postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/postgres \
+            RECOVERY_STRESS_CONCURRENCY=${concurrency} \
+            RECOVERY_CAPTURE_CHILD_RESOURCE=true \
+            RECOVERY_CAPTURE_DATABASE_TELEMETRY=true \
+            RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS=25 \
+            RECOVERY_DATABASE_TELEMETRY_MAX_SAMPLES=120 \
+            node packages/backend/scripts/stress-recovery-sequence.mjs > artifacts/recovery-stress-c${concurrency}.json 2>&1
+            status=$?
+            cat artifacts/recovery-stress-c${concurrency}.json
+            if [ "$status" -ne 0 ]; then overall=$status; fi
+          done
+          exit $overall
+      - name: Validate c2/c4/c8 baseline and telemetry contracts
+        if: always()
+        run: |
+          set +e
+          RECOVERY_STRESS_EXPECTED_COMMIT=${{ github.sha }} \
+          RECOVERY_STRESS_REPORTS=artifacts/recovery-stress-c2.json,artifacts/recovery-stress-c4.json,artifacts/recovery-stress-c8.json \
+          RECOVERY_STRESS_REQUIRE_DATABASE_TELEMETRY=true \
+          node packages/backend/scripts/verify-recovery-stress-baseline.mjs > artifacts/recovery-stress-baseline.json
+          status=$?
+          cat artifacts/recovery-stress-baseline.json
+          exit 0
+      - name: Fingerprint recovery baseline artifacts
+        if: always()
+        run: sha256sum artifacts/recovery-stress-c2.json artifacts/recovery-stress-c4.json artifacts/recovery-stress-c8.json artifacts/recovery-stress-baseline.json | tee artifacts/recovery-stress-baseline.sha256
+      - name: Upload redacted recovery baseline artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: recovery-stress-baseline-${{ github.run_id }}
+          path: |
+            artifacts/recovery-stress-c2.json
+            artifacts/recovery-stress-c4.json
+            artifacts/recovery-stress-c8.json
+            artifacts/recovery-stress-baseline.json
+            artifacts/recovery-stress-baseline.sha256
+          if-no-files-found: error
+          retention-days: 7
+      - name: Enforce verified baseline status
+        if: always()
+        run: |
+          test -s artifacts/recovery-stress-baseline.json
+          grep -q '"status": "verified"' artifacts/recovery-stress-baseline.json

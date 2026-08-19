@@ -6,7 +6,7 @@ import { validateRecoveryStressBaseline } from '../scripts/verify-recovery-stres
 
 const COMMIT = 'f488f6db0d77a0414c6061f7a1b3e50ca08be105'
 
-function sampleReport(concurrency, { resource = false, unsafe = false, rtoTargetMs = null } = {}) {
+function sampleReport(concurrency, { resource = false, database = false, unsafe = false, rtoTargetMs = null } = {}) {
   const phaseLatencyMs = Object.fromEntries(['backup', 'backup_integrity', 'catalog', 'restore', 'restore_verification'].map((phase) => [phase, { count: concurrency, p50: 1, p95: 2, p99: 3, max: 4, mean: 2 }]))
   const report = {
     reportKind: 'local_disposable_recovery_stress',
@@ -30,6 +30,41 @@ function sampleReport(concurrency, { resource = false, unsafe = false, rtoTarget
     mutation: 'read_only',
     deploymentPerformed: false,
     settlementMutationPerformed: false
+  }
+  if (database) {
+    const workerDatabaseTelemetry = {
+      basis: 'postgresql_observability',
+      sampleCount: 2,
+      connectionAcquisitionMs: { count: 2, p50: 1, p95: 2, p99: 2, max: 2, mean: 1.5 },
+      waitEvents: { sampleCount: 2, observations: [] },
+      databaseStats: { deltas: { tempBytes: 0, tempFiles: 0 } },
+      temporaryStorage: { tempBytesDelta: 0, tempFilesDelta: 0, operationElapsedMs: 10, throughputBytesPerSecond: 0 },
+      errors: []
+    }
+    report.databaseTelemetry = {
+      basis: 'postgresql_observability',
+      workerCount: concurrency,
+      sampleCount: concurrency * 2,
+      connectionAcquisitionMs: {
+        perWorker: Array.from({ length: concurrency }, () => ({ count: 2, p50: 1, p95: 2, p99: 2, max: 2, mean: 1.5 })),
+        max: 2
+      },
+      waitEvents: { sampleCount: concurrency * 2, observations: [] },
+      databaseStats: { deltas: { tempBytes: 0, tempFiles: 0 } },
+      temporaryStorage: { tempBytesDelta: 0, tempFilesDelta: 0, operationElapsedMs: 10, throughputBytesPerSecond: 0 },
+      errors: []
+    }
+    report.workers = Array.from({ length: concurrency }, (_, index) => ({
+      workerId: `worker-${index + 1}`,
+      status: 'verified',
+      databaseTelemetry: workerDatabaseTelemetry,
+      storageTelemetry: {
+        basis: 'local_disposable_backup_file',
+        backupBytes: 1000,
+        backupDurationMs: 10,
+        backupWriteThroughputBytesPerSecond: 100000
+      }
+    }))
   }
   if (resource) {
     report.resourceTelemetry = {
@@ -73,6 +108,40 @@ describe('recovery stress baseline verification', () => {
       expect(report.releaseEligible).toBe(false)
       expect(report.settlementAuthority).toBe(false)
       expect(report.mutation).toBe('read_only')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts required PostgreSQL and backup-storage telemetry for every c2/c4/c8 worker', async () => {
+    const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency, { resource: true, database: true })))
+    try {
+      const report = await validateRecoveryStressBaseline({ reportPaths: fixture.paths, expectedCommit: COMMIT, requireDatabaseTelemetry: true })
+      expect(report.databaseTelemetry).toBe(true)
+      expect(report.databaseLevels).toHaveLength(3)
+      expect(report.levels[2].database).toMatchObject({ basis: 'postgresql_observability', workerCount: 8, sampleCount: 16, connectionAcquisitionMaxMs: 2 })
+      expect(report.releaseEligible).toBe(false)
+      expect(report.settlementAuthority).toBe(false)
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks malformed connection-acquisition telemetry in a required c8 baseline', async () => {
+    const reports = [2, 4, 8].map((concurrency) => sampleReport(concurrency, { resource: true, database: true }))
+    reports[2].databaseTelemetry.connectionAcquisitionMs.perWorker[0].max = -1
+    const fixture = await writeReports(reports)
+    try {
+      await expect(validateRecoveryStressBaseline({ reportPaths: fixture.paths, expectedCommit: COMMIT, requireDatabaseTelemetry: true })).rejects.toThrow('connectionAcquisitionMs.perWorker[0].max must be a nonnegative number')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks a required PostgreSQL baseline when c8 telemetry is absent', async () => {
+    const fixture = await writeReports([2, 4].map((concurrency) => sampleReport(concurrency, { resource: true, database: true })).concat(sampleReport(8, { resource: true })))
+    try {
+      await expect(validateRecoveryStressBaseline({ reportPaths: fixture.paths, expectedCommit: COMMIT, requireDatabaseTelemetry: true })).rejects.toThrow('concurrency 8.databaseTelemetry must be an object')
     } finally {
       await fs.rm(fixture.directory, { recursive: true, force: true })
     }

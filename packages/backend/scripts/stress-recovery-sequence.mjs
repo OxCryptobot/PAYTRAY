@@ -6,7 +6,7 @@ import { promisify } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import pg from 'pg'
 import { runMigrations } from '../lib/migrations.js'
-import { summarizeRecoveryResourceUsage } from '../lib/recoveryResourceTelemetry.js'
+import { summarizeChildProcessUsage, summarizeRecoveryResourceUsage } from '../lib/recoveryResourceTelemetry.js'
 
 const execFile = promisify(execFileCallback)
 const { Pool } = pg
@@ -141,7 +141,7 @@ async function initializeSource(sourceUrl) {
   }
 }
 
-async function executeWorker({ sourceUrl, restoreUrl, backupFile, commit, rtoTargetMs }) {
+async function executeWorker({ sourceUrl, restoreUrl, backupFile, commit, rtoTargetMs, restoreJobs }) {
   const env = {
     DATABASE_URL: sourceUrl,
     RECOVERY_BACKUP_FILE: backupFile,
@@ -150,6 +150,11 @@ async function executeWorker({ sourceUrl, restoreUrl, backupFile, commit, rtoTar
     RELEASE_COMMIT: commit
   }
   if (rtoTargetMs !== null) env.RECOVERY_RTO_TARGET_MS = String(rtoTargetMs)
+  if (restoreJobs !== null) {
+    env.RECOVERY_RESTORE_JOBS = String(restoreJobs)
+    env.RECOVERY_RESTORE_EXPERIMENT = 'local_disposable'
+    env.RECOVERY_CAPTURE_CHILD_RESOURCE = 'true'
+  }
   const startedAt = Date.now()
   const result = await runCommand(process.execPath, [RECOVERY_SCRIPT], env)
   const report = JSON.parse(String(result.stdout).trim())
@@ -159,7 +164,7 @@ async function executeWorker({ sourceUrl, restoreUrl, backupFile, commit, rtoTar
   }
 }
 
-export function buildStressReport({ commit, concurrency, requestedSequences, workerResults, orchestrationElapsedMs, targetMs = null }) {
+export function buildStressReport({ commit, concurrency, requestedSequences, workerResults, orchestrationElapsedMs, targetMs = null, restoreJobs = null }) {
   const successful = workerResults.filter((worker) => worker.report?.status === 'verified')
   const failed = workerResults.length - successful.length
   const integrityFailures = workerResults.filter((worker) => worker.report?.restore?.status !== 'verified').length
@@ -169,6 +174,7 @@ export function buildStressReport({ commit, concurrency, requestedSequences, wor
   ]))
   const durations = successful.map((worker) => worker.report?.timing?.elapsedMs).filter(Number.isFinite)
   const resourceTelemetry = summarizeRecoveryResourceUsage(successful.map((worker) => worker.report?.timing?.resource?.process))
+  const childProcessTelemetry = summarizeChildProcessUsage(successful.map((worker) => worker.report?.timing?.childProcesses?.restore))
   const withinTarget = targetMs === null
     ? null
     : successful.length === workerResults.length && durations.every((duration) => duration <= targetMs)
@@ -187,6 +193,8 @@ export function buildStressReport({ commit, concurrency, requestedSequences, wor
     sequenceElapsedMs: summarize(durations),
     phaseLatencyMs,
     resourceTelemetry,
+    childProcessTelemetry,
+    restoreJobs,
     rto: {
       targetMs,
       targetConfigured: targetMs !== null,
@@ -209,7 +217,7 @@ export function buildStressReport({ commit, concurrency, requestedSequences, wor
   }
 }
 
-export async function runStress({ adminUrl, concurrency, commit, targetMs = null }) {
+export async function runStress({ adminUrl, concurrency, commit, targetMs = null, restoreJobs = null }) {
   const admin = assertDisposableUrl(adminUrl, 'RECOVERY_STRESS_ADMIN_URL')
   const baseName = `paytray_recovery_stress_${process.pid}_${Date.now()}`
   const sourceName = `${baseName}_source`
@@ -233,7 +241,8 @@ export async function runStress({ adminUrl, concurrency, commit, targetMs = null
         restoreUrl: databaseUrl(admin.toString(), restoreName),
         backupFile,
         commit,
-        rtoTargetMs: targetMs
+        rtoTargetMs: targetMs,
+        restoreJobs
       })
       workerResults.push({ workerId, ...result })
     })
@@ -245,7 +254,8 @@ export async function runStress({ adminUrl, concurrency, commit, targetMs = null
       requestedSequences: concurrency,
       workerResults,
       orchestrationElapsedMs: Date.now() - startedAt,
-      targetMs
+      targetMs,
+      restoreJobs
     })
   } finally {
     for (const databaseName of [...databases].reverse()) {
@@ -266,11 +276,16 @@ export async function main() {
   const targetMsRaw = process.env.RECOVERY_RTO_TARGET_MS
   const targetMs = targetMsRaw === undefined ? null : Number.parseInt(targetMsRaw, 10)
   if (targetMs !== null && (!Number.isInteger(targetMs) || targetMs < 1)) throw new Error('RECOVERY_RTO_TARGET_MS must be a positive integer when supplied')
+  const restoreJobsRaw = process.env.RECOVERY_RESTORE_JOBS
+  const restoreJobs = restoreJobsRaw === undefined ? null : Number.parseInt(restoreJobsRaw, 10)
+  if (restoreJobs !== null && (!Number.isInteger(restoreJobs) || restoreJobs < 1 || restoreJobs > 4)) throw new Error('RECOVERY_RESTORE_JOBS must be an integer between 1 and 4')
+  if (restoreJobs !== null && process.env.RECOVERY_RESTORE_EXPERIMENT !== 'local_disposable') throw new Error('RECOVERY_RESTORE_EXPERIMENT=local_disposable is required for restore jobs')
   const report = await runStress({
     adminUrl: requiredEnv('RECOVERY_STRESS_ADMIN_URL'),
     concurrency,
     commit,
-    targetMs
+    targetMs,
+    restoreJobs
   })
   console.log(JSON.stringify(report, null, 2))
   if (report.status !== 'verified') process.exitCode = 1

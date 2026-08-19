@@ -9,6 +9,15 @@ describe('recovery stress report aggregation', () => {
       status,
       timing: {
         elapsedMs,
+        childProcesses: {
+          restore: {
+            basis: 'gnu_time_child_process',
+            elapsedMs: 100,
+            userCpuTimeMs: 20,
+            systemCpuTimeMs: 10,
+            peakRssKb: 200
+          }
+        },
         resource: {
           process: {
             basis: 'node_process_resource_usage',
@@ -44,7 +53,8 @@ describe('recovery stress report aggregation', () => {
       requestedSequences: 2,
       workerResults: [worker('worker-1', 500), worker('worker-2', 600, 10)],
       orchestrationElapsedMs: 1000,
-      targetMs: 700
+      targetMs: 700,
+      restoreJobs: 2
     })
 
     expect(report.status).toBe('verified')
@@ -54,6 +64,13 @@ describe('recovery stress report aggregation', () => {
     expect(report.throughputPerSecond).toBe(2)
     expect(report.sequenceElapsedMs.p50).toBe(550)
     expect(report.phaseLatencyMs.backup.max).toBe(210)
+    expect(report.childProcessTelemetry).toMatchObject({
+      basis: 'gnu_time_child_process',
+      sampleCount: 2,
+      totals: { userCpuTimeMs: 40, systemCpuTimeMs: 20, elapsedMs: 200 },
+      peakRssKb: 200
+    })
+    expect(report.restoreJobs).toBe(2)
     expect(report.resourceTelemetry).toMatchObject({
       basis: 'node_process_resource_usage',
       sampleCount: 2,

@@ -75,6 +75,21 @@ export function createRecoveryResourceTelemetry({ capture = captureRecoveryResou
   return { measure, snapshot }
 }
 
+export function summarizeChildProcessUsage(values) {
+  const samples = values.filter((value) => value && value.basis === 'gnu_time_child_process')
+  return {
+    basis: 'gnu_time_child_process',
+    sampleCount: samples.length,
+    totals: {
+      userCpuTimeMs: Number(samples.reduce((sum, value) => sum + Number(value.userCpuTimeMs || 0), 0).toFixed(2)),
+      systemCpuTimeMs: Number(samples.reduce((sum, value) => sum + Number(value.systemCpuTimeMs || 0), 0).toFixed(2)),
+      elapsedMs: Number(samples.reduce((sum, value) => sum + Number(value.elapsedMs || 0), 0).toFixed(2))
+    },
+    peakRssKb: samples.length ? Math.max(...samples.map((value) => nonnegativeInteger(value.peakRssKb))) : null,
+    perWorkerPeakRssKb: samples.map((value) => nonnegativeInteger(value.peakRssKb))
+  }
+}
+
 export function summarizeRecoveryResourceUsage(values) {
   const samples = values.filter((value) => value && value.basis === 'node_process_resource_usage')
   const totals = Object.fromEntries(RESOURCE_FIELDS.map((field) => [field, samples.reduce((sum, value) => sum + nonnegativeInteger(value[field]), 0)]))

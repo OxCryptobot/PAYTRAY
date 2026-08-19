@@ -72,6 +72,27 @@ async function runCommand(binary, args) {
   }
 }
 
+function parseTimedResource(stderr) {
+  const line = String(stderr).split(/\r?\n/).find((value) => value.startsWith('PAYTRAY_TIME '))
+  if (!line) return null
+  const [, elapsedSeconds, userSeconds, systemSeconds, peakRssKb] = line.split(/\s+/)
+  const values = [elapsedSeconds, userSeconds, systemSeconds, peakRssKb].map(Number)
+  if (values.some((value) => !Number.isFinite(value) || value < 0)) throw new Error('invalid pg_restore resource timing output')
+  return {
+    basis: 'gnu_time_child_process',
+    elapsedMs: Number((values[0] * 1000).toFixed(2)),
+    userCpuTimeMs: Number((values[1] * 1000).toFixed(2)),
+    systemCpuTimeMs: Number((values[2] * 1000).toFixed(2)),
+    peakRssKb: Math.round(values[3])
+  }
+}
+
+async function runMeasuredCommand(binary, args) {
+  if (process.env.RECOVERY_CAPTURE_CHILD_RESOURCE !== 'true') return { ...(await runCommand(binary, args)), resource: null }
+  const timed = await runCommand(process.env.RECOVERY_TIME_BIN || '/usr/bin/time', ['-f', 'PAYTRAY_TIME %e %U %S %M', binary, ...args])
+  return { ...timed, resource: parseTimedResource(timed.stderr) }
+}
+
 async function sha256File(filePath) {
   return new Promise((resolve, reject) => {
     const hash = createHash('sha256')
@@ -114,7 +135,12 @@ async function verifyRestoredDatabase(connectionString) {
 
 const recoveryTiming = createRecoveryTiming()
 const recoveryResourceTelemetry = createRecoveryResourceTelemetry()
-const configuredRtoMs = Number.parseInt(process.env.RECOVERY_RTO_TARGET_MS || '', 10)
+  const configuredRtoMs = Number.parseInt(process.env.RECOVERY_RTO_TARGET_MS || '', 10)
+  const restoreJobsRaw = process.env.RECOVERY_RESTORE_JOBS
+  const restoreJobs = restoreJobsRaw === undefined ? null : Number.parseInt(restoreJobsRaw, 10)
+  if (restoreJobs !== null && (!Number.isInteger(restoreJobs) || restoreJobs < 1 || restoreJobs > 4)) throw new Error('RECOVERY_RESTORE_JOBS must be an integer between 1 and 4')
+  if (restoreJobs !== null && process.env.RECOVERY_RESTORE_EXPERIMENT !== 'local_disposable') throw new Error('RECOVERY_RESTORE_EXPERIMENT=local_disposable is required for restore jobs')
+  let restoreResource = null
 
 async function measurePhase(name, operation) {
   return recoveryTiming.measure(name, () => recoveryResourceTelemetry.measure(name, operation))
@@ -145,14 +171,20 @@ try {
   let restore = { status: 'not_requested' }
   if (restoreUrl) {
     assertIsolatedTarget(sourceUrl, restoreUrl)
-    await measurePhase('restore', () => runCommand(process.env.PG_RESTORE_BIN || 'pg_restore', [
-      '--exit-on-error',
-      '--no-owner',
-      '--no-privileges',
-      '--dbname',
-      restoreUrl,
-      backupFile
-    ]))
+    await measurePhase('restore', async () => {
+      const args = [
+        '--exit-on-error',
+        '--no-owner',
+        '--no-privileges',
+        ...(restoreJobs === null ? [] : [`--jobs=${restoreJobs}`]),
+        '--dbname',
+        restoreUrl,
+        backupFile
+      ]
+      const result = await runMeasuredCommand(process.env.PG_RESTORE_BIN || 'pg_restore', args)
+      restoreResource = result.resource
+      return result
+    })
     restore = await measurePhase('restore_verification', () => verifyRestoredDatabase(restoreUrl))
   }
 
@@ -178,7 +210,8 @@ try {
     settlementMutationPerformed: false,
     timing: {
       ...recoveryTiming.snapshot({ rtoTargetMs: configuredRtoMs }),
-      resource: recoveryResourceTelemetry.snapshot()
+      resource: recoveryResourceTelemetry.snapshot(),
+      ...(restoreResource ? { childProcesses: { restore: restoreResource } } : {})
     },
     ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))
@@ -196,7 +229,8 @@ try {
     settlementMutationPerformed: false,
     timing: {
       ...recoveryTiming.snapshot({ rtoTargetMs: configuredRtoMs }),
-      resource: recoveryResourceTelemetry.snapshot()
+      resource: recoveryResourceTelemetry.snapshot(),
+      ...(restoreResource ? { childProcesses: { restore: restoreResource } } : {})
     },
     ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))

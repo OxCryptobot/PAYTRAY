@@ -76,9 +76,9 @@ export function createRecoveryResourceTelemetry({ capture = captureRecoveryResou
 }
 
 export function summarizeChildProcessUsage(values) {
-  const samples = values.filter((value) => value && value.basis === 'gnu_time_child_process')
+  const samples = values.filter((value) => value && value.basis === 'procfs_child_process')
   return {
-    basis: 'gnu_time_child_process',
+    basis: 'procfs_child_process',
     sampleCount: samples.length,
     totals: {
       userCpuTimeMs: Number(samples.reduce((sum, value) => sum + Number(value.userCpuTimeMs || 0), 0).toFixed(2)),

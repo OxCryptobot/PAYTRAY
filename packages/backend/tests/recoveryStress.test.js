@@ -11,7 +11,7 @@ describe('recovery stress report aggregation', () => {
         elapsedMs,
         childProcesses: {
           restore: {
-            basis: 'gnu_time_child_process',
+            basis: 'procfs_child_process',
             elapsedMs: 100,
             userCpuTimeMs: 20,
             systemCpuTimeMs: 10,
@@ -65,7 +65,7 @@ describe('recovery stress report aggregation', () => {
     expect(report.sequenceElapsedMs.p50).toBe(550)
     expect(report.phaseLatencyMs.backup.max).toBe(210)
     expect(report.childProcessTelemetry).toMatchObject({
-      basis: 'gnu_time_child_process',
+      basis: 'procfs_child_process',
       sampleCount: 2,
       totals: { userCpuTimeMs: 40, systemCpuTimeMs: 20, elapsedMs: 200 },
       peakRssKb: 200

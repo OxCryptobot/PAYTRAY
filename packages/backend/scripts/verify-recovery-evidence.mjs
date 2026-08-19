@@ -10,6 +10,7 @@ import { createRecoveryResourceTelemetry } from '../lib/recoveryResourceTelemetr
 
 const execFile = promisify(execFileCallback)
 const { Pool } = pg
+const CHILD_PROCESS_MEASURER = path.resolve(new URL('./measure-child-process.mjs', import.meta.url).pathname)
 
 const EXPECTED_TABLES = [
   'users',
@@ -72,25 +73,22 @@ async function runCommand(binary, args) {
   }
 }
 
-function parseTimedResource(stderr) {
-  const line = String(stderr).split(/\r?\n/).find((value) => value.startsWith('PAYTRAY_TIME '))
+function parseChildResource(stderr) {
+  const line = String(stderr).split(/\r?\n/).find((value) => value.startsWith('PAYTRAY_CHILD_RESOURCE '))
   if (!line) return null
-  const [, elapsedSeconds, userSeconds, systemSeconds, peakRssKb] = line.split(/\s+/)
-  const values = [elapsedSeconds, userSeconds, systemSeconds, peakRssKb].map(Number)
-  if (values.some((value) => !Number.isFinite(value) || value < 0)) throw new Error('invalid pg_restore resource timing output')
-  return {
-    basis: 'gnu_time_child_process',
-    elapsedMs: Number((values[0] * 1000).toFixed(2)),
-    userCpuTimeMs: Number((values[1] * 1000).toFixed(2)),
-    systemCpuTimeMs: Number((values[2] * 1000).toFixed(2)),
-    peakRssKb: Math.round(values[3])
+  try {
+    const resource = JSON.parse(line.slice('PAYTRAY_CHILD_RESOURCE '.length))
+    if (resource.basis !== 'procfs_child_process') throw new Error('invalid child resource basis')
+    return resource
+  } catch (error) {
+    throw new Error(`invalid child process resource output: ${error.message}`)
   }
 }
 
 async function runMeasuredCommand(binary, args) {
   if (process.env.RECOVERY_CAPTURE_CHILD_RESOURCE !== 'true') return { ...(await runCommand(binary, args)), resource: null }
-  const timed = await runCommand(process.env.RECOVERY_TIME_BIN || '/usr/bin/time', ['-f', 'PAYTRAY_TIME %e %U %S %M', binary, ...args])
-  return { ...timed, resource: parseTimedResource(timed.stderr) }
+  const measured = await runCommand(process.execPath, [CHILD_PROCESS_MEASURER, binary, ...args])
+  return { ...measured, resource: parseChildResource(measured.stderr) }
 }
 
 async function sha256File(filePath) {

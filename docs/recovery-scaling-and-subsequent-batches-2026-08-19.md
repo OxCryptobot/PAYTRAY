@@ -82,6 +82,20 @@ Evaluate bounded `pg_restore` parallelism only on disposable infrastructure. Com
 
 ### Batch 4 — Repeated-run confidence and regression thresholds
 
+**Status:** runner and aggregation contract implemented in the current working batch. `repeat-recovery-stress.mjs` executes real local-disposable c2/c4/c8 repetitions, requires exact concurrency coverage, aggregates p95/p99, restore p95, throughput, RSS, CPU, database temporary bytes, and connection-acquisition metrics, and reports two-sided Student-t 95% intervals for the bounded sample sizes. It stops on the first failed or integrity-blocked run, emits a stable SHA-256 fingerprint, and preserves `releaseEligible=false`, `settlementAuthority=false`, and `mutation=read_only`.
+
+Run it only with authenticated local-disposable PostgreSQL configuration:
+
+```bash
+RECOVERY_STRESS_ENVIRONMENT=local_disposable \\
+RECOVERY_STRESS_RELEASE_COMMIT=<40-hex-commit> \\
+RECOVERY_STRESS_ADMIN_URL=postgresql://...@127.0.0.1:5432/postgres \\
+RECOVERY_STRESS_REPETITIONS=3 \\
+RECOVERY_STRESS_REPEAT_CONCURRENCIES=2,4,8 \\
+RECOVERY_CAPTURE_DATABASE_TELEMETRY=true \\
+npm run backend:recovery:stress:repeat
+```
+
 Run multiple independent repetitions at c2, c4, and c8 and compute confidence intervals or robust dispersion metrics. Establish engineering-only warning thresholds for p95/p99 growth, peak RSS, CPU per sequence, and integrity failures. The thresholds must be reviewable configuration, not hidden release-authority logic.
 
 **Milestone:** publish a baseline envelope with repeated-run counts and variance. Block the batch on any integrity failure or unexplained worker collision; do not convert the envelope into a production SLO without an explicit operator-approved contract.

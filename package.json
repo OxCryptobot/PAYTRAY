@@ -15,6 +15,7 @@
     "backend:migrations:check": "node packages/backend/scripts/verify-migrations.mjs",
     "backend:recovery:check": "node packages/backend/scripts/verify-recovery-evidence.mjs",
     "backend:recovery:stress": "node packages/backend/scripts/stress-recovery-sequence.mjs",
+    "backend:recovery:stress:repeat": "node packages/backend/scripts/repeat-recovery-stress.mjs",
     "backend:recovery:stress:baseline:check": "node packages/backend/scripts/verify-recovery-stress-baseline.mjs",
     "backend:dependencies:lockfile:check": "node packages/backend/scripts/verify-lockfile-drift.mjs",
     "backend:verifier:operations:check": "node packages/backend/scripts/inspect-verifier-operations.mjs",

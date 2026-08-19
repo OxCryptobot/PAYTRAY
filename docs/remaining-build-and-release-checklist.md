@@ -324,3 +324,11 @@ Simulation output is not release evidence and cannot clear migrations, Railway, 
 | Bounded telemetry performance metrics | Add sample count, minimum-sample sufficiency, aggregate p95 ingestion lag, configured target comparison, and immutable read-only safety fields without changing release or settlement authority | Implemented locally, pending validation | Focused telemetry and release-readiness tests must preserve 394-test baseline or improve it; insufficient samples report `withinTarget=null`. |
 
 Telemetry performance metrics are diagnostic context only. They cannot clear operational blockers, substitute for authenticated target evidence, promote AI ranking, or grant payment, deployment, settlement, or release authority.
+
+## 10. PostgreSQL recovery timing and RTO evidence
+
+| Batch | Scope | Status | Evidence |
+|---|---|---|---|
+| Phase-bound recovery timing | Measure backup, backup-integrity, catalog, restore, and restored-database verification phases; validate optional operator RTO target consistency; preserve isolated recovery-only authority | Implemented locally, pending full validation and CI | `RECOVERY_RTO_TARGET_MS` is optional; absent target yields `withinTarget=null`. Existing 173a017 run had 71-second recovery job wall-clock duration but no phase-bound RTO result. |
+
+Recovery timing is engineering evidence only. It does not establish production RTO, clear the recovery blocker, grant release authority, or authorize production database restoration.

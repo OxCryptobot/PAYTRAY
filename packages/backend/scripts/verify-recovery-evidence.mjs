@@ -5,6 +5,7 @@ import path from 'node:path'
 import { execFile as execFileCallback } from 'node:child_process'
 import { promisify } from 'node:util'
 import pg from 'pg'
+import { createRecoveryTiming } from '../lib/recoveryTiming.js'
 
 const execFile = promisify(execFileCallback)
 const { Pool } = pg
@@ -110,38 +111,43 @@ async function verifyRestoredDatabase(connectionString) {
   }
 }
 
+const recoveryTiming = createRecoveryTiming()
+const configuredRtoMs = Number.parseInt(process.env.RECOVERY_RTO_TARGET_MS || '', 10)
+
 try {
   const sourceUrl = requiredEnv('DATABASE_URL')
   const backupFile = path.resolve(requiredEnv('RECOVERY_BACKUP_FILE'))
   const restoreUrl = process.env.RECOVERY_RESTORE_DATABASE_URL || null
   await fs.mkdir(path.dirname(backupFile), { recursive: true })
 
-  await runCommand(process.env.PG_DUMP_BIN || 'pg_dump', [
+  await recoveryTiming.measure('backup', () => runCommand(process.env.PG_DUMP_BIN || 'pg_dump', [
     sourceUrl,
     '--format=custom',
     '--no-owner',
     '--no-privileges',
     '--file',
     backupFile
-  ])
+  ]))
   await fs.chmod(backupFile, 0o600)
-  const backupStat = await fs.stat(backupFile)
-  const backupSha256 = await sha256File(backupFile)
-  const catalog = await runCommand(process.env.PG_RESTORE_BIN || 'pg_restore', ['--list', backupFile])
+  const { backupStat, backupSha256 } = await recoveryTiming.measure('backup_integrity', async () => ({
+    backupStat: await fs.stat(backupFile),
+    backupSha256: await sha256File(backupFile)
+  }))
+  const catalog = await recoveryTiming.measure('catalog', () => runCommand(process.env.PG_RESTORE_BIN || 'pg_restore', ['--list', backupFile]))
   const catalogEntries = String(catalog.stdout).split('\n').filter((line) => line && !line.startsWith(';')).length
 
   let restore = { status: 'not_requested' }
   if (restoreUrl) {
     assertIsolatedTarget(sourceUrl, restoreUrl)
-    await runCommand(process.env.PG_RESTORE_BIN || 'pg_restore', [
+    await recoveryTiming.measure('restore', () => runCommand(process.env.PG_RESTORE_BIN || 'pg_restore', [
       '--exit-on-error',
       '--no-owner',
       '--no-privileges',
       '--dbname',
       restoreUrl,
       backupFile
-    ])
-    restore = await verifyRestoredDatabase(restoreUrl)
+    ]))
+    restore = await recoveryTiming.measure('restore_verification', () => verifyRestoredDatabase(restoreUrl))
   }
 
   const recoveryStatus = restore.status === 'verified' ? 'verified' : 'schema_catalog_only'
@@ -164,6 +170,7 @@ try {
     mutation: restore.status === 'verified' ? 'isolated_recovery_only' : 'backup_only',
     deploymentPerformed: false,
     settlementMutationPerformed: false,
+    timing: recoveryTiming.snapshot({ rtoTargetMs: configuredRtoMs }),
     ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))
   process.exitCode = recoveryStatus === 'verified' ? 0 : 1
@@ -178,6 +185,7 @@ try {
     mutation: 'none',
     deploymentPerformed: false,
     settlementMutationPerformed: false,
+    timing: recoveryTiming.snapshot({ rtoTargetMs: configuredRtoMs }),
     ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))
   process.exitCode = 1

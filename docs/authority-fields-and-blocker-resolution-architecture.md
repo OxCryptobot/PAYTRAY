@@ -125,3 +125,7 @@ The backend now exposes `/livez` and `/api/health/liveness` as process-only live
 ## Performance telemetry observability contract
 
 Telemetry health now exposes bounded, non-authoritative performance context: total sample count, configured minimum sample count, sample sufficiency, aggregate p95 ingestion lag, and the configured p95 target. `withinTarget` is `null` until the minimum sample count exists; it is never inferred from an empty or insufficient dataset. The output also carries `releaseEligible: false`, `settlementAuthority: false`, `mutation: 'read_only'`, `deploymentPerformed: false`, and `settlementMutationPerformed: false`. These metrics are for diagnostics and release-readiness context only; they do not grant deployment, payment, settlement, AI-promotion, or release authority.
+
+## PostgreSQL recovery timing and RTO evidence
+
+Disposable recovery evidence now supports phase-bound timing for backup, backup-integrity hashing, restore, catalog inspection, and restored-database verification. The optional `RECOVERY_RTO_TARGET_MS` value is operator-supplied planning context; when absent, `timing.rto.withinTarget` remains `null` and a CI job wall-clock duration must not be called an RTO pass. The recovery artifact verifier checks timestamp shape, nonnegative durations, phase status, target consistency, and false/read-only authority fields. Recovery integrity still requires distinct local disposable databases, 19 ordered migrations, ready-PostgreSQL contracts, redacted artifact SHA-256 sidecars, and no deployment or settlement mutation.

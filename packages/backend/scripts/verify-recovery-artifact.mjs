@@ -111,6 +111,29 @@ function assertLocalDisposableDatabaseUrl(value, label) {
   return `${url.protocol}//${url.hostname}${url.pathname}`
 }
 
+function validateTiming(timing, label) {
+  if (timing === undefined) return null
+  assertObject(timing, label)
+  if (typeof timing.startedAt !== 'string' || Number.isNaN(Date.parse(timing.startedAt))) fail(`${label}.startedAt must be an ISO timestamp`)
+  if (typeof timing.completedAt !== 'string' || Number.isNaN(Date.parse(timing.completedAt))) fail(`${label}.completedAt must be an ISO timestamp`)
+  if (!Number.isSafeInteger(timing.elapsedMs) || timing.elapsedMs < 0) fail(`${label}.elapsedMs must be a nonnegative integer`)
+  assertObject(timing.phases, `${label}.phases`)
+  for (const [phaseName, phase] of Object.entries(timing.phases)) {
+    assertObject(phase, `${label}.phases.${phaseName}`)
+    if (!['ok', 'blocked'].includes(phase.status)) fail(`${label}.phases.${phaseName}.status is invalid`)
+    if (!Number.isSafeInteger(phase.durationMs) || phase.durationMs < 0) fail(`${label}.phases.${phaseName}.durationMs must be a nonnegative integer`)
+  }
+  assertObject(timing.rto, `${label}.rto`)
+  const targetConfigured = timing.rto.targetMs !== null
+  if (targetConfigured && (!Number.isSafeInteger(timing.rto.targetMs) || timing.rto.targetMs <= 0)) fail(`${label}.rto.targetMs must be null or a positive integer`)
+  if (timing.rto.targetConfigured !== targetConfigured) fail(`${label}.rto.targetConfigured is inconsistent`)
+  if (timing.rto.withinTarget !== null && typeof timing.rto.withinTarget !== 'boolean') fail(`${label}.rto.withinTarget must be null or boolean`)
+  if (targetConfigured && timing.rto.withinTarget !== timing.elapsedMs <= timing.rto.targetMs) fail(`${label}.rto.withinTarget is inconsistent with elapsedMs`)
+  if (!targetConfigured && timing.rto.withinTarget !== null) fail(`${label}.rto.withinTarget must be null when targetMs is null`)
+  if (!['not_configured', 'operator_supplied'].includes(timing.rto.basis)) fail(`${label}.rto.basis is invalid`)
+  return { elapsedMs: timing.elapsedMs, phaseCount: Object.keys(timing.phases).length, targetConfigured, withinTarget: timing.rto.withinTarget }
+}
+
 function validateRecoveryEvidence(artifact) {
   assertObject(artifact, 'recovery-evidence')
   if (!RECOVERY_STATUSES.has(artifact.status)) fail('recovery-evidence.status is invalid')
@@ -133,10 +156,10 @@ function validateRecoveryEvidence(artifact) {
     if (!Number.isSafeInteger(artifact.restore.tableCount) || artifact.restore.tableCount < 1) fail('recovery-evidence.restore.tableCount is invalid')
     if (artifact.restore.migrationCount !== 19) fail('recovery-evidence.restore.migrationCount must be 19')
     const restoreDatabase = assertLocalDisposableDatabaseUrl(artifact.restore.database, 'recovery-evidence.restore.database')
-    return { status: artifact.status, authority: artifact.authority, sourceDatabase, restoreDatabase, migrationCount: 19 }
+    return { status: artifact.status, authority: artifact.authority, sourceDatabase, restoreDatabase, migrationCount: 19, timing: validateTiming(artifact.timing, 'recovery-evidence.timing') }
   }
   if (artifact.restore.database !== undefined) assertLocalDisposableDatabaseUrl(artifact.restore.database, 'recovery-evidence.restore.database')
-  return { status: artifact.status, authority: artifact.authority, sourceDatabase, restoreDatabase: null, migrationCount: null }
+  return { status: artifact.status, authority: artifact.authority, sourceDatabase, restoreDatabase: null, migrationCount: null, timing: validateTiming(artifact.timing, 'recovery-evidence.timing') }
 }
 
 function validateRestoredMigrations(artifact) {

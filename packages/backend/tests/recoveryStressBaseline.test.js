@@ -101,6 +101,24 @@ describe('recovery stress baseline verification', () => {
     }
   })
 
+  it('blocks an operator target mismatch with a redacted validation error', async () => {
+    const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency, { resource: true, rtoTargetMs: 1 })))
+    try {
+      await expect(validateRecoveryStressBaseline({ reportPaths: fixture.paths, expectedCommit: COMMIT, expectedRtoTargetMs: 2 })).rejects.toThrow('concurrency 2 has inconsistent operator RTO target fields')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks a target-bound report when the verifier expects null-target semantics', async () => {
+    const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency, { resource: true, rtoTargetMs: 1 })))
+    try {
+      await expect(validateRecoveryStressBaseline({ reportPaths: fixture.paths, expectedCommit: COMMIT })).rejects.toThrow('concurrency 2 must preserve null RTO semantics without an operator target')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
   it('blocks unsafe authority fields even when recovery is otherwise verified', async () => {
     const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency, { resource: true, unsafe: concurrency === 4 })))
     try {

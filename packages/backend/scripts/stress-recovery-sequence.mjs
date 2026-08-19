@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import pg from 'pg'
 import { runMigrations } from '../lib/migrations.js'
+import { summarizeRecoveryResourceUsage } from '../lib/recoveryResourceTelemetry.js'
 
 const execFile = promisify(execFileCallback)
 const { Pool } = pg
@@ -82,6 +83,7 @@ function safeFailureReport(commit, concurrency, requestedSequences, startedAt, r
     orchestrationElapsedMs: Math.max(0, Date.now() - startedAt),
     throughputPerSecond: 0,
     phaseLatencyMs: Object.fromEntries(PHASES.map((phase) => [phase, summarize([])])),
+    resourceTelemetry: summarizeRecoveryResourceUsage([]),
     rto: {
       targetMs: null,
       targetConfigured: false,
@@ -165,7 +167,8 @@ export function buildStressReport({ commit, concurrency, requestedSequences, wor
     phase,
     summarize(successful.map((worker) => worker.report.timing?.phases?.[phase]?.durationMs).filter(Number.isFinite))
   ]))
-  const durations = successful.map((worker) => worker.report.timing?.elapsedMs).filter(Number.isFinite)
+  const durations = successful.map((worker) => worker.report?.timing?.elapsedMs).filter(Number.isFinite)
+  const resourceTelemetry = summarizeRecoveryResourceUsage(successful.map((worker) => worker.report?.timing?.resource?.process))
   const withinTarget = targetMs === null
     ? null
     : successful.length === workerResults.length && durations.every((duration) => duration <= targetMs)
@@ -183,6 +186,7 @@ export function buildStressReport({ commit, concurrency, requestedSequences, wor
     throughputPerSecond: orchestrationElapsedMs > 0 ? Number((successful.length / (orchestrationElapsedMs / 1000)).toFixed(3)) : 0,
     sequenceElapsedMs: summarize(durations),
     phaseLatencyMs,
+    resourceTelemetry,
     rto: {
       targetMs,
       targetConfigured: targetMs !== null,
@@ -194,7 +198,8 @@ export function buildStressReport({ commit, concurrency, requestedSequences, wor
       status: worker.report?.status || 'blocked',
       recoveryElapsedMs: worker.report?.timing?.elapsedMs ?? null,
       orchestrationElapsedMs: worker.orchestrationElapsedMs,
-      restoreStatus: worker.report?.restore?.status || 'unknown'
+      restoreStatus: worker.report?.restore?.status || 'unknown',
+      resource: worker.report?.timing?.resource?.process || null
     })),
     releaseEligible: false,
     settlementAuthority: false,

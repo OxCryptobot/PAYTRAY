@@ -75,3 +75,68 @@ describe('recovery artifact timing contract', () => {
     }
   })
 })
+
+
+describe('recovery artifact resource telemetry contract', () => {
+  const resourceSample = {
+    basis: 'node_process_resource_usage',
+    rssBytes: 1000,
+    rssDeltaBytes: 100,
+    heapUsedBytes: 500,
+    externalBytes: 50,
+    arrayBuffersBytes: 20,
+    peakRssKb: 200,
+    userCpuTimeUs: 30,
+    systemCpuTimeUs: 10,
+    fsReadOps: 2,
+    fsWriteOps: 3,
+    voluntaryContextSwitches: 1,
+    involuntaryContextSwitches: 0
+  }
+
+  it('accepts process and phase resource telemetry', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-resource-'))
+    try {
+      const artifactPath = path.join(directory, 'recovery-evidence.json')
+      await fs.writeFile(artifactPath, JSON.stringify(recoveryArtifact({
+        startedAt: '2026-08-18T23:00:00.000Z',
+        completedAt: '2026-08-18T23:00:02.000Z',
+        elapsedMs: 2000,
+        phases: { restore: { status: 'ok', durationMs: 2000 } },
+        rto: { targetMs: null, targetConfigured: false, withinTarget: null, basis: 'not_configured' },
+        resource: {
+          basis: 'node_process_resource_usage',
+          process: resourceSample,
+          phases: { restore: resourceSample }
+        }
+      })))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['recovery-evidence.json'].timing.resource.phases.restore.fieldCount).toBe(12)
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a resource sample with a negative metric', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-resource-'))
+    try {
+      const artifactPath = path.join(directory, 'recovery-evidence.json')
+      await fs.writeFile(artifactPath, JSON.stringify(recoveryArtifact({
+        startedAt: '2026-08-18T23:00:00.000Z',
+        completedAt: '2026-08-18T23:00:02.000Z',
+        elapsedMs: 2000,
+        phases: { restore: { status: 'ok', durationMs: 2000 } },
+        rto: { targetMs: null, targetConfigured: false, withinTarget: null, basis: 'not_configured' },
+        resource: {
+          basis: 'node_process_resource_usage',
+          process: { ...resourceSample, rssBytes: -1 },
+          phases: { restore: resourceSample }
+        }
+      })))
+      await expect(validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })).rejects.toThrow('rssBytes must be a nonnegative integer')
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+})

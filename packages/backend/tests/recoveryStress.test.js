@@ -9,6 +9,22 @@ describe('recovery stress report aggregation', () => {
       status,
       timing: {
         elapsedMs,
+        resource: {
+          process: {
+            basis: 'node_process_resource_usage',
+            rssBytes: 1000 + elapsedMs,
+            heapUsedBytes: 500,
+            externalBytes: 100,
+            arrayBuffersBytes: 50,
+            peakRssKb: 100 + elapsedMs,
+            userCpuTimeUs: 20,
+            systemCpuTimeUs: 10,
+            fsReadOps: 3,
+            fsWriteOps: 4,
+            voluntaryContextSwitches: 2,
+            involuntaryContextSwitches: 1
+          }
+        },
         phases: {
           backup: { durationMs: 200 + phaseOffset },
           backup_integrity: { durationMs: 2 },
@@ -38,6 +54,22 @@ describe('recovery stress report aggregation', () => {
     expect(report.throughputPerSecond).toBe(2)
     expect(report.sequenceElapsedMs.p50).toBe(550)
     expect(report.phaseLatencyMs.backup.max).toBe(210)
+    expect(report.resourceTelemetry).toMatchObject({
+      basis: 'node_process_resource_usage',
+      sampleCount: 2,
+      totals: {
+        userCpuTimeUs: 40,
+        systemCpuTimeUs: 20,
+        fsReadOps: 6,
+        fsWriteOps: 8,
+        voluntaryContextSwitches: 4,
+        involuntaryContextSwitches: 2
+      },
+      memory: {
+        peakRssKb: 700,
+        maxRssBytes: 1600
+      }
+    })
     expect(report.rto).toEqual({
       targetMs: 700,
       targetConfigured: true,

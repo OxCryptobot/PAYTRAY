@@ -44,6 +44,8 @@ jobs:
         run: npm ci
       - name: Audit high-severity dependencies
         run: npm audit --audit-level=high
+      - name: Verify workspace lockfile drift
+        run: npm run backend:dependencies:lockfile:check
       - name: Run shared quality gate
         run: npm run backend:quality:check
         env:

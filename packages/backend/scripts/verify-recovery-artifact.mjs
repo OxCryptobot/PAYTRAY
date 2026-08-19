@@ -111,6 +111,39 @@ function assertLocalDisposableDatabaseUrl(value, label) {
   return `${url.protocol}//${url.hostname}${url.pathname}`
 }
 
+const RESOURCE_FIELDS = [
+  'rssBytes',
+  'rssDeltaBytes',
+  'heapUsedBytes',
+  'externalBytes',
+  'arrayBuffersBytes',
+  'peakRssKb',
+  'userCpuTimeUs',
+  'systemCpuTimeUs',
+  'fsReadOps',
+  'fsWriteOps',
+  'voluntaryContextSwitches',
+  'involuntaryContextSwitches'
+]
+
+function validateResourceSample(sample, label) {
+  assertObject(sample, label)
+  if (sample.basis !== 'node_process_resource_usage') fail(`${label}.basis is invalid`)
+  for (const field of RESOURCE_FIELDS) {
+    if (!Number.isSafeInteger(sample[field]) || sample[field] < 0) fail(`${label}.${field} must be a nonnegative integer`)
+  }
+  return { basis: sample.basis, fieldCount: RESOURCE_FIELDS.length }
+}
+
+function validateResourceTelemetry(resource, label) {
+  if (resource === undefined) return null
+  assertObject(resource, label)
+  const process = validateResourceSample(resource.process, `${label}.process`)
+  assertObject(resource.phases, `${label}.phases`)
+  const phases = Object.fromEntries(Object.entries(resource.phases).map(([phaseName, phase]) => [phaseName, validateResourceSample(phase, `${label}.phases.${phaseName}`)]))
+  return { basis: resource.basis, process, phases }
+}
+
 function validateTiming(timing, label) {
   if (timing === undefined) return null
   assertObject(timing, label)
@@ -131,7 +164,14 @@ function validateTiming(timing, label) {
   if (targetConfigured && timing.rto.withinTarget !== timing.elapsedMs <= timing.rto.targetMs) fail(`${label}.rto.withinTarget is inconsistent with elapsedMs`)
   if (!targetConfigured && timing.rto.withinTarget !== null) fail(`${label}.rto.withinTarget must be null when targetMs is null`)
   if (!['not_configured', 'operator_supplied'].includes(timing.rto.basis)) fail(`${label}.rto.basis is invalid`)
-  return { elapsedMs: timing.elapsedMs, phaseCount: Object.keys(timing.phases).length, targetConfigured, withinTarget: timing.rto.withinTarget }
+  const resource = validateResourceTelemetry(timing.resource, `${label}.resource`)
+  return {
+    elapsedMs: timing.elapsedMs,
+    phaseCount: Object.keys(timing.phases).length,
+    targetConfigured,
+    withinTarget: timing.rto.withinTarget,
+    ...(resource ? { resource } : {})
+  }
 }
 
 function validateRecoveryEvidence(artifact) {

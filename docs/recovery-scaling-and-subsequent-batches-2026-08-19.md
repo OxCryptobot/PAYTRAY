@@ -55,6 +55,21 @@ CPU and context-switch totals rise faster than concurrency, especially from 4 to
 
 ### Batch 2 — Database and storage resource attribution
 
+**Status:** implemented in the current working batch. `recoveryDatabaseTelemetry.js` captures bounded `pg_stat_activity` wait-event groups, connection-acquisition percentiles, `pg_stat_database` temporary-byte/file and block deltas, and redacted database-size snapshots. `verify-recovery-evidence.mjs` optionally emits this block when `RECOVERY_CAPTURE_DATABASE_TELEMETRY=true`, measures `pg_dump`/`pg_restore` child resources when enabled, and emits bounded backup-file bytes/write throughput. `verify-recovery-artifact.mjs` validates the new `postgresql_observability` and `local_disposable_backup_file` contracts. These measurements remain engineering-only and preserve all false/read-only safety fields.
+
+Enable the batch only for an isolated local disposable run:
+
+```bash
+RECOVERY_CAPTURE_DATABASE_TELEMETRY=true \\
+RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS=25 \\
+RECOVERY_DATABASE_TELEMETRY_MAX_SAMPLES=120 \\
+RECOVERY_STRESS_ENVIRONMENT=local_disposable \\
+RECOVERY_STRESS_RELEASE_COMMIT=<40-hex-commit> \\
+RECOVERY_STRESS_ADMIN_URL=postgresql://...@127.0.0.1:5432/postgres \\
+RECOVERY_STRESS_CONCURRENCY=8 \\
+npm run backend:recovery:stress
+```
+
 Add PostgreSQL-side and filesystem-side measurements to the disposable harness: `pg_stat_activity` wait events, connection acquisition time, database size before/after, temporary backup bytes, `pg_dump`/`pg_restore` subprocess timing, and storage read/write throughput. Keep all measurements bounded and redacted.
 
 **Milestone:** identify whether the c4→c8 restore p95 increase is associated with database waits, connection pressure, temporary-storage throughput, or restore process CPU. Acceptance requires zero integrity failures, no cross-worker collisions, and unchanged migration count.

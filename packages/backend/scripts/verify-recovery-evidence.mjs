@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import pg from 'pg'
 import { createRecoveryTiming } from '../lib/recoveryTiming.js'
 import { createRecoveryResourceTelemetry } from '../lib/recoveryResourceTelemetry.js'
+import { createDatabaseTelemetryCollector } from '../lib/recoveryDatabaseTelemetry.js'
 
 const execFile = promisify(execFileCallback)
 const { Pool } = pg
@@ -138,7 +139,23 @@ const recoveryResourceTelemetry = createRecoveryResourceTelemetry()
   const restoreJobs = restoreJobsRaw === undefined ? null : Number.parseInt(restoreJobsRaw, 10)
   if (restoreJobs !== null && (!Number.isInteger(restoreJobs) || restoreJobs < 1 || restoreJobs > 4)) throw new Error('RECOVERY_RESTORE_JOBS must be an integer between 1 and 4')
   if (restoreJobs !== null && process.env.RECOVERY_RESTORE_EXPERIMENT !== 'local_disposable') throw new Error('RECOVERY_RESTORE_EXPERIMENT=local_disposable is required for restore jobs')
+  let backupResource = null
   let restoreResource = null
+  let databaseTelemetry = null
+  let databaseTelemetryPool = null
+  let databaseTelemetryCollector = null
+
+async function finishDatabaseTelemetry(operationElapsedMs) {
+  if (!databaseTelemetryCollector) return
+  const collector = databaseTelemetryCollector
+  databaseTelemetryCollector = null
+  try {
+    databaseTelemetry = await collector.stop(operationElapsedMs)
+  } finally {
+    if (databaseTelemetryPool) await databaseTelemetryPool.end().catch(() => {})
+    databaseTelemetryPool = null
+  }
+}
 
 async function measurePhase(name, operation) {
   return recoveryTiming.measure(name, () => recoveryResourceTelemetry.measure(name, operation))
@@ -150,14 +167,18 @@ try {
   const restoreUrl = process.env.RECOVERY_RESTORE_DATABASE_URL || null
   await fs.mkdir(path.dirname(backupFile), { recursive: true })
 
-  await measurePhase('backup', () => runCommand(process.env.PG_DUMP_BIN || 'pg_dump', [
-    sourceUrl,
-    '--format=custom',
-    '--no-owner',
-    '--no-privileges',
-    '--file',
-    backupFile
-  ]))
+  await measurePhase('backup', async () => {
+    const result = await runMeasuredCommand(process.env.PG_DUMP_BIN || 'pg_dump', [
+      sourceUrl,
+      '--format=custom',
+      '--no-owner',
+      '--no-privileges',
+      '--file',
+      backupFile
+    ])
+    backupResource = result.resource
+    return result
+  })
   await fs.chmod(backupFile, 0o600)
   const { backupStat, backupSha256 } = await measurePhase('backup_integrity', async () => ({
     backupStat: await fs.stat(backupFile),
@@ -169,6 +190,14 @@ try {
   let restore = { status: 'not_requested' }
   if (restoreUrl) {
     assertIsolatedTarget(sourceUrl, restoreUrl)
+    if (process.env.RECOVERY_CAPTURE_DATABASE_TELEMETRY === 'true') {
+      const intervalMs = Number.parseInt(process.env.RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS || '25', 10)
+      const maxSamples = Number.parseInt(process.env.RECOVERY_DATABASE_TELEMETRY_MAX_SAMPLES || '120', 10)
+      databaseTelemetryPool = new Pool({ connectionString: restoreUrl, max: 2, connectionTimeoutMillis: 5000 })
+      databaseTelemetryCollector = createDatabaseTelemetryCollector({ pool: databaseTelemetryPool, intervalMs, maxSamples })
+      await databaseTelemetryCollector.start()
+    }
+    const restoreStartedAt = performance.now()
     await measurePhase('restore', async () => {
       const args = [
         '--exit-on-error',
@@ -183,10 +212,20 @@ try {
       restoreResource = result.resource
       return result
     })
+    await finishDatabaseTelemetry(performance.now() - restoreStartedAt)
     restore = await measurePhase('restore_verification', () => verifyRestoredDatabase(restoreUrl))
   }
 
   const recoveryStatus = restore.status === 'verified' ? 'verified' : 'schema_catalog_only'
+  const timingSnapshot = recoveryTiming.snapshot({ rtoTargetMs: configuredRtoMs })
+  const storageTelemetry = {
+    basis: 'local_disposable_backup_file',
+    backupBytes: backupStat.size,
+    backupDurationMs: timingSnapshot.phases.backup?.durationMs ?? null,
+    backupWriteThroughputBytesPerSecond: timingSnapshot.phases.backup?.durationMs > 0
+      ? Number((backupStat.size / (timingSnapshot.phases.backup.durationMs / 1000)).toFixed(2))
+      : 0
+  }
   console.log(JSON.stringify({
     reportKind: 'recovery_evidence',
     status: recoveryStatus,
@@ -207,14 +246,22 @@ try {
     deploymentPerformed: false,
     settlementMutationPerformed: false,
     timing: {
-      ...recoveryTiming.snapshot({ rtoTargetMs: configuredRtoMs }),
+      ...timingSnapshot,
       resource: recoveryResourceTelemetry.snapshot(),
-      ...(restoreResource ? { childProcesses: { restore: restoreResource } } : {})
+      ...(databaseTelemetry ? { database: databaseTelemetry } : {}),
+      storage: storageTelemetry,
+      ...((backupResource || restoreResource) ? {
+        childProcesses: {
+          ...(backupResource ? { backup: backupResource } : {}),
+          ...(restoreResource ? { restore: restoreResource } : {})
+        }
+      } : {})
     },
     ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))
   process.exitCode = recoveryStatus === 'verified' ? 0 : 1
 } catch (error) {
+  await finishDatabaseTelemetry(null).catch(() => {})
   console.error(JSON.stringify({
     reportKind: 'recovery_evidence',
     status: 'blocked',
@@ -228,7 +275,13 @@ try {
     timing: {
       ...recoveryTiming.snapshot({ rtoTargetMs: configuredRtoMs }),
       resource: recoveryResourceTelemetry.snapshot(),
-      ...(restoreResource ? { childProcesses: { restore: restoreResource } } : {})
+      ...(databaseTelemetry ? { database: databaseTelemetry } : {}),
+      ...((backupResource || restoreResource) ? {
+        childProcesses: {
+          ...(backupResource ? { backup: backupResource } : {}),
+          ...(restoreResource ? { restore: restoreResource } : {})
+        }
+      } : {})
     },
     ...(process.env.RELEASE_COMMIT ? { releaseCommit: process.env.RELEASE_COMMIT } : {})
   }, null, 2))

@@ -34,6 +34,24 @@ describe('recovery stress report aggregation', () => {
             involuntaryContextSwitches: 1
           }
         },
+        database: {
+          basis: 'postgresql_observability',
+          sampleCount: 2,
+          connectionAcquisitionMs: { count: 2, p50: 2, p95: 3, p99: 3, max: 3, mean: 2.5 },
+          waitEvents: {
+            sampleCount: 2,
+            observations: [{ waitEventType: 'IO', waitEvent: 'DataFileRead', state: 'active', observations: 2, observedBackendCount: 3 }]
+          },
+          databaseStats: { deltas: { tempBytes: 4, tempFiles: 1 } },
+          temporaryStorage: { tempBytesDelta: 4, tempFilesDelta: 1, operationElapsedMs: 100, throughputBytesPerSecond: 40 },
+          errors: []
+        },
+        storage: {
+          basis: 'local_disposable_backup_file',
+          backupBytes: 1000,
+          backupDurationMs: 20,
+          backupWriteThroughputBytesPerSecond: 50000
+        },
         phases: {
           backup: { durationMs: 200 + phaseOffset },
           backup_integrity: { durationMs: 2 },
@@ -64,6 +82,14 @@ describe('recovery stress report aggregation', () => {
     expect(report.throughputPerSecond).toBe(2)
     expect(report.sequenceElapsedMs.p50).toBe(550)
     expect(report.phaseLatencyMs.backup.max).toBe(210)
+    expect(report.databaseTelemetry).toMatchObject({
+      basis: 'postgresql_observability',
+      workerCount: 2,
+      sampleCount: 4,
+      temporaryStorage: { tempBytesDelta: 8, tempFilesDelta: 2 },
+      waitEvents: { observations: [{ waitEventType: 'IO', waitEvent: 'DataFileRead', observedBackendCount: 6 }] }
+    })
+    expect(report.workers[0].storageTelemetry).toMatchObject({ basis: 'local_disposable_backup_file', backupBytes: 1000 })
     expect(report.childProcessTelemetry).toMatchObject({
       basis: 'procfs_child_process',
       sampleCount: 2,

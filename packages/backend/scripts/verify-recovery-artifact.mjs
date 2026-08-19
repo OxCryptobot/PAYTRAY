@@ -152,6 +152,66 @@ function validateChildProcessTelemetry(childProcesses, label) {
   return reports
 }
 
+function validateNullableNonnegativeNumber(value, label) {
+  if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) fail(`${label} must be null or a nonnegative number`)
+}
+
+function validateDatabaseStats(stats, label) {
+  if (stats === null) return null
+  assertObject(stats, label)
+  for (const field of ['databaseSizeBytes', 'tempBytes', 'tempFiles', 'blocksRead', 'blocksHit']) {
+    if (!Number.isSafeInteger(stats[field]) || stats[field] < 0) fail(`${label}.${field} must be a nonnegative integer`)
+  }
+  return true
+}
+
+function validateDatabaseTelemetry(database, label) {
+  if (database === undefined) return null
+  assertObject(database, label)
+  if (database.basis !== 'postgresql_observability') fail(`${label}.basis is invalid`)
+  for (const field of ['sampleCount']) {
+    if (!Number.isSafeInteger(database[field]) || database[field] < 2) fail(`${label}.${field} must be an integer >= 2`)
+  }
+  assertObject(database.connectionAcquisitionMs, `${label}.connectionAcquisitionMs`)
+  for (const field of ['count']) {
+    if (!Number.isSafeInteger(database.connectionAcquisitionMs[field]) || database.connectionAcquisitionMs[field] < 0) fail(`${label}.connectionAcquisitionMs.${field} must be a nonnegative integer`)
+  }
+  for (const field of ['p50', 'p95', 'p99', 'max', 'mean']) validateNullableNonnegativeNumber(database.connectionAcquisitionMs[field], `${label}.connectionAcquisitionMs.${field}`)
+  assertObject(database.waitEvents, `${label}.waitEvents`)
+  if (!Number.isSafeInteger(database.waitEvents.sampleCount) || database.waitEvents.sampleCount < 2) fail(`${label}.waitEvents.sampleCount must be an integer >= 2`)
+  if (!Array.isArray(database.waitEvents.observations) || database.waitEvents.observations.length > 32) fail(`${label}.waitEvents.observations must contain at most 32 rows`)
+  database.waitEvents.observations.forEach((event, index) => {
+    assertObject(event, `${label}.waitEvents.observations[${index}]`)
+    for (const field of ['waitEventType', 'waitEvent', 'state']) {
+      if (typeof event[field] !== 'string' || event[field].length > 80) fail(`${label}.waitEvents.observations[${index}].${field} is invalid`)
+    }
+    for (const field of ['observations', 'observedBackendCount']) {
+      if (!Number.isSafeInteger(event[field]) || event[field] < 0) fail(`${label}.waitEvents.observations[${index}].${field} must be a nonnegative integer`)
+    }
+  })
+  assertObject(database.databaseStats, `${label}.databaseStats`)
+  validateDatabaseStats(database.databaseStats.before, `${label}.databaseStats.before`)
+  validateDatabaseStats(database.databaseStats.after, `${label}.databaseStats.after`)
+  validateDatabaseStats(database.databaseStats.deltas, `${label}.databaseStats.deltas`)
+  assertObject(database.temporaryStorage, `${label}.temporaryStorage`)
+  for (const field of ['tempBytesDelta', 'tempFilesDelta']) {
+    if (!Number.isSafeInteger(database.temporaryStorage[field]) || database.temporaryStorage[field] < 0) fail(`${label}.temporaryStorage.${field} must be a nonnegative integer`)
+  }
+  for (const field of ['throughputBytesPerSecond', 'operationElapsedMs']) validateNullableNonnegativeNumber(database.temporaryStorage[field], `${label}.temporaryStorage.${field}`)
+  if (!Array.isArray(database.errors) || database.errors.some((error) => typeof error !== 'string' || error.length > 200)) fail(`${label}.errors must contain bounded strings`)
+  return { basis: database.basis, sampleCount: database.sampleCount, waitEventCount: database.waitEvents.observations.length }
+}
+
+function validateStorageTelemetry(storage, label) {
+  if (storage === undefined) return null
+  assertObject(storage, label)
+  if (storage.basis !== 'local_disposable_backup_file') fail(`${label}.basis is invalid`)
+  if (!Number.isSafeInteger(storage.backupBytes) || storage.backupBytes < 0) fail(`${label}.backupBytes must be a nonnegative integer`)
+  validateNullableNonnegativeNumber(storage.backupDurationMs, `${label}.backupDurationMs`)
+  if (typeof storage.backupWriteThroughputBytesPerSecond !== 'number' || !Number.isFinite(storage.backupWriteThroughputBytesPerSecond) || storage.backupWriteThroughputBytesPerSecond < 0) fail(`${label}.backupWriteThroughputBytesPerSecond must be a nonnegative number`)
+  return { basis: storage.basis, backupBytes: storage.backupBytes }
+}
+
 function validateResourceTelemetry(resource, label) {
   if (resource === undefined) return null
   assertObject(resource, label)
@@ -182,6 +242,8 @@ function validateTiming(timing, label) {
   if (!targetConfigured && timing.rto.withinTarget !== null) fail(`${label}.rto.withinTarget must be null when targetMs is null`)
   if (!['not_configured', 'operator_supplied'].includes(timing.rto.basis)) fail(`${label}.rto.basis is invalid`)
   const resource = validateResourceTelemetry(timing.resource, `${label}.resource`)
+  const database = validateDatabaseTelemetry(timing.database, `${label}.database`)
+  const storage = validateStorageTelemetry(timing.storage, `${label}.storage`)
   const childProcesses = validateChildProcessTelemetry(timing.childProcesses, `${label}.childProcesses`)
   return {
     elapsedMs: timing.elapsedMs,
@@ -189,6 +251,8 @@ function validateTiming(timing, label) {
     targetConfigured,
     withinTarget: timing.rto.withinTarget,
     ...(resource ? { resource } : {}),
+    ...(database ? { database } : {}),
+    ...(storage ? { storage } : {}),
     ...(childProcesses ? { childProcesses } : {})
   }
 }

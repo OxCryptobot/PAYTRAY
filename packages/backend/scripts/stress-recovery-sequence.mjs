@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 import pg from 'pg'
 import { runMigrations } from '../lib/migrations.js'
 import { summarizeChildProcessUsage, summarizeRecoveryResourceUsage } from '../lib/recoveryResourceTelemetry.js'
+import { mergeDatabaseTelemetry } from '../lib/recoveryDatabaseTelemetry.js'
 
 const execFile = promisify(execFileCallback)
 const { Pool } = pg
@@ -155,6 +156,11 @@ async function executeWorker({ sourceUrl, restoreUrl, backupFile, commit, rtoTar
     env.RECOVERY_RESTORE_EXPERIMENT = 'local_disposable'
     env.RECOVERY_CAPTURE_CHILD_RESOURCE = 'true'
   }
+  if (process.env.RECOVERY_CAPTURE_DATABASE_TELEMETRY === 'true') {
+    env.RECOVERY_CAPTURE_DATABASE_TELEMETRY = 'true'
+    env.RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS = process.env.RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS || '25'
+    env.RECOVERY_DATABASE_TELEMETRY_MAX_SAMPLES = process.env.RECOVERY_DATABASE_TELEMETRY_MAX_SAMPLES || '120'
+  }
   const startedAt = Date.now()
   const result = await runCommand(process.execPath, [RECOVERY_SCRIPT], env)
   const report = JSON.parse(String(result.stdout).trim())
@@ -175,6 +181,8 @@ export function buildStressReport({ commit, concurrency, requestedSequences, wor
   const durations = successful.map((worker) => worker.report?.timing?.elapsedMs).filter(Number.isFinite)
   const resourceTelemetry = summarizeRecoveryResourceUsage(successful.map((worker) => worker.report?.timing?.resource?.process))
   const childProcessTelemetry = summarizeChildProcessUsage(successful.map((worker) => worker.report?.timing?.childProcesses?.restore))
+  const databaseTelemetrySamples = successful.map((worker) => worker.report?.timing?.database).filter(Boolean)
+  const databaseTelemetry = databaseTelemetrySamples.length ? mergeDatabaseTelemetry(databaseTelemetrySamples) : null
   const withinTarget = targetMs === null
     ? null
     : successful.length === workerResults.length && durations.every((duration) => duration <= targetMs)
@@ -194,6 +202,7 @@ export function buildStressReport({ commit, concurrency, requestedSequences, wor
     phaseLatencyMs,
     resourceTelemetry,
     childProcessTelemetry,
+    ...(databaseTelemetry ? { databaseTelemetry } : {}),
     restoreJobs,
     rto: {
       targetMs,
@@ -207,7 +216,9 @@ export function buildStressReport({ commit, concurrency, requestedSequences, wor
       recoveryElapsedMs: worker.report?.timing?.elapsedMs ?? null,
       orchestrationElapsedMs: worker.orchestrationElapsedMs,
       restoreStatus: worker.report?.restore?.status || 'unknown',
-      resource: worker.report?.timing?.resource?.process || null
+      resource: worker.report?.timing?.resource?.process || null,
+      databaseTelemetry: worker.report?.timing?.database || null,
+      storageTelemetry: worker.report?.timing?.storage || null
     })),
     releaseEligible: false,
     settlementAuthority: false,

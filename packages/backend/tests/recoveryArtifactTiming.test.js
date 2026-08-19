@@ -94,6 +94,30 @@ describe('recovery artifact resource telemetry contract', () => {
     involuntaryContextSwitches: 0
   }
 
+  const databaseTelemetry = {
+    basis: 'postgresql_observability',
+    sampleCount: 2,
+    connectionAcquisitionMs: { count: 2, p50: 2, p95: 3, p99: 3, max: 3, mean: 2.5 },
+    waitEvents: {
+      sampleCount: 2,
+      observations: [{ waitEventType: 'IO', waitEvent: 'DataFileRead', state: 'active', observations: 2, observedBackendCount: 3 }]
+    },
+    databaseStats: {
+      before: { databaseSizeBytes: 100, tempBytes: 10, tempFiles: 1, blocksRead: 2, blocksHit: 3 },
+      after: { databaseSizeBytes: 120, tempBytes: 110, tempFiles: 3, blocksRead: 7, blocksHit: 9 },
+      deltas: { databaseSizeBytes: 20, tempBytes: 100, tempFiles: 2, blocksRead: 5, blocksHit: 6 }
+    },
+    temporaryStorage: { tempBytesDelta: 100, tempFilesDelta: 2, throughputBytesPerSecond: 1000, operationElapsedMs: 100 },
+    errors: []
+  }
+
+  const storageTelemetry = {
+    basis: 'local_disposable_backup_file',
+    backupBytes: 1000,
+    backupDurationMs: 20,
+    backupWriteThroughputBytesPerSecond: 50000
+  }
+
   it('accepts process and phase resource telemetry', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-resource-'))
     try {
@@ -113,6 +137,52 @@ describe('recovery artifact resource telemetry contract', () => {
       const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
       expect(result.status).toBe('verified')
       expect(result.artifacts['recovery-evidence.json'].timing.resource.phases.restore.fieldCount).toBe(12)
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts PostgreSQL and backup-storage telemetry with bounded fields', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-database-'))
+    try {
+      const artifactPath = path.join(directory, 'recovery-evidence.json')
+      await fs.writeFile(artifactPath, JSON.stringify(recoveryArtifact({
+        startedAt: '2026-08-18T23:00:00.000Z',
+        completedAt: '2026-08-18T23:00:02.000Z',
+        elapsedMs: 2000,
+        phases: { restore: { status: 'ok', durationMs: 2000 } },
+        rto: { targetMs: null, targetConfigured: false, withinTarget: null, basis: 'not_configured' },
+        database: databaseTelemetry,
+        storage: storageTelemetry
+      })))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['recovery-evidence.json'].timing.database).toMatchObject({ basis: 'postgresql_observability', waitEventCount: 1 })
+      expect(result.artifacts['recovery-evidence.json'].timing.storage.backupBytes).toBe(1000)
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a database telemetry observation with a negative count', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-database-'))
+    try {
+      const artifactPath = path.join(directory, 'recovery-evidence.json')
+      await fs.writeFile(artifactPath, JSON.stringify(recoveryArtifact({
+        startedAt: '2026-08-18T23:00:00.000Z',
+        completedAt: '2026-08-18T23:00:02.000Z',
+        elapsedMs: 2000,
+        phases: { restore: { status: 'ok', durationMs: 2000 } },
+        rto: { targetMs: null, targetConfigured: false, withinTarget: null, basis: 'not_configured' },
+        database: {
+          ...databaseTelemetry,
+          waitEvents: {
+            ...databaseTelemetry.waitEvents,
+            observations: [{ ...databaseTelemetry.waitEvents.observations[0], observedBackendCount: -1 }]
+          }
+        }
+      })))
+      await expect(validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })).rejects.toThrow('observedBackendCount must be a nonnegative integer')
     } finally {
       await fs.rm(directory, { recursive: true, force: true })
     }

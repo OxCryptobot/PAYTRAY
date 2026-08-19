@@ -135,6 +135,23 @@ function validateResourceSample(sample, label) {
   return { basis: sample.basis, fieldCount: RESOURCE_FIELDS.length }
 }
 
+function validateChildProcessTelemetry(childProcesses, label) {
+  if (childProcesses === undefined) return null
+  assertObject(childProcesses, label)
+  const reports = Object.fromEntries(Object.entries(childProcesses).map(([name, report]) => {
+    assertObject(report, `${label}.${name}`)
+    if (report.basis !== 'procfs_child_process') fail(`${label}.${name}.basis is invalid`)
+    if (!Number.isSafeInteger(report.clockTickHz) || report.clockTickHz < 1) fail(`${label}.${name}.clockTickHz must be a positive integer`)
+    for (const field of ['elapsedMs', 'userCpuTimeMs', 'systemCpuTimeMs']) {
+      if (typeof report[field] !== 'number' || !Number.isFinite(report[field]) || report[field] < 0) fail(`${label}.${name}.${field} must be a nonnegative number`)
+    }
+    if (!Number.isSafeInteger(report.peakRssKb) || report.peakRssKb < 0) fail(`${label}.${name}.peakRssKb must be a nonnegative integer`)
+    if (report.exitCode !== 0 || report.signal !== null) fail(`${label}.${name} must have a successful process exit`)
+    return [name, { basis: report.basis, elapsedMs: report.elapsedMs, peakRssKb: report.peakRssKb }]
+  }))
+  return reports
+}
+
 function validateResourceTelemetry(resource, label) {
   if (resource === undefined) return null
   assertObject(resource, label)
@@ -165,12 +182,14 @@ function validateTiming(timing, label) {
   if (!targetConfigured && timing.rto.withinTarget !== null) fail(`${label}.rto.withinTarget must be null when targetMs is null`)
   if (!['not_configured', 'operator_supplied'].includes(timing.rto.basis)) fail(`${label}.rto.basis is invalid`)
   const resource = validateResourceTelemetry(timing.resource, `${label}.resource`)
+  const childProcesses = validateChildProcessTelemetry(timing.childProcesses, `${label}.childProcesses`)
   return {
     elapsedMs: timing.elapsedMs,
     phaseCount: Object.keys(timing.phases).length,
     targetConfigured,
     withinTarget: timing.rto.withinTarget,
-    ...(resource ? { resource } : {})
+    ...(resource ? { resource } : {}),
+    ...(childProcesses ? { childProcesses } : {})
   }
 }
 

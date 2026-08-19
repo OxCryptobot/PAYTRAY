@@ -140,3 +140,55 @@ describe('recovery artifact resource telemetry contract', () => {
     }
   })
 })
+
+
+describe('recovery artifact child-process telemetry contract', () => {
+  const timingWithChild = (overrides = {}) => ({
+    startedAt: '2026-08-18T23:00:00.000Z',
+    completedAt: '2026-08-18T23:00:02.000Z',
+    elapsedMs: 2000,
+    phases: { restore: { status: 'ok', durationMs: 2000 } },
+    rto: { targetMs: null, targetConfigured: false, withinTarget: null, basis: 'not_configured' },
+    childProcesses: {
+      restore: {
+        basis: 'procfs_child_process',
+        clockTickHz: 100,
+        elapsedMs: 400.25,
+        userCpuTimeMs: 30.5,
+        systemCpuTimeMs: 4.25,
+        peakRssKb: 12000,
+        exitCode: 0,
+        signal: null,
+        ...overrides
+      }
+    }
+  })
+
+  it('accepts a successful procfs restore child report', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-child-'))
+    try {
+      const artifactPath = path.join(directory, 'recovery-evidence.json')
+      await fs.writeFile(artifactPath, JSON.stringify(recoveryArtifact(timingWithChild())))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['recovery-evidence.json'].timing.childProcesses.restore).toMatchObject({
+        basis: 'procfs_child_process',
+        elapsedMs: 400.25,
+        peakRssKb: 12000
+      })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a child report with a nonzero exit code', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-child-'))
+    try {
+      const artifactPath = path.join(directory, 'recovery-evidence.json')
+      await fs.writeFile(artifactPath, JSON.stringify(recoveryArtifact(timingWithChild({ exitCode: 1 }))))
+      await expect(validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })).rejects.toThrow('must have a successful process exit')
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+})

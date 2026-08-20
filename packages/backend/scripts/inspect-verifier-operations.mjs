@@ -2,7 +2,7 @@ import { closeDatabase, getDatabaseStatus, initializeDatabase, transaction } fro
 import config from '../lib/config.js'
 import { buildVerifierOperationsEvidence } from '../lib/verifierOperationsEvidence.js'
 
-let exitCode = 0
+let exitCode
 try {
   await initializeDatabase()
   if (getDatabaseStatus() !== 'ready') {

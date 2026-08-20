@@ -1,11 +1,9 @@
 import fs from 'node:fs'
-import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { validateEvidencePath } from './verify-human-evidence-custody.mjs'
 
 const COMMIT40 = /^[0-9a-f]{40}$/
-const SHA256 = /^[0-9a-f]{64}$/
 const TARGETS = new Set(['local_disposable', 'authenticated_target'])
 const SENSITIVE_KEY = /(?:private.?key|secret|password|authorization|cookie|jwt|token|signature|raw.?content|reviewer.?notes|transcript|recording|audio|video)/i
 const EXPECTED_MIGRATIONS = ['001_init', '002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims', '015_verified_trust_signals', '016_webhook_inbox', '017_extension_hooks', '018_operations_quality_runs', '019_reviewer_attestations']

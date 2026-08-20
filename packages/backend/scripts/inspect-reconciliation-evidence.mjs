@@ -4,7 +4,7 @@ import { closeDatabase, getDatabaseStatus, initializeDatabase, transaction } fro
 import { buildDurableReconciliationReport } from '../lib/payments/reconciliationService.js'
 import { buildReconciliationEvidence } from '../lib/reconciliationEvidenceService.js'
 
-let exitCode = 1
+let exitCode
 try {
   await initializeDatabase()
   if (getDatabaseStatus() !== 'ready') throw new Error('reconciliation evidence requires a ready PostgreSQL database')

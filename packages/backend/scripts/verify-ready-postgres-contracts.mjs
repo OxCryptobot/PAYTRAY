@@ -5,7 +5,7 @@ import app from '../server.js'
 import { closeDatabase, getDatabaseStatus, initializeDatabase } from '../lib/database.js'
 
 const isolated = process.env.READY_POSTGRES_DATABASE_ISOLATED === 'true'
-let exitCode = 1
+let exitCode
 
 if (!isolated) {
   console.error(JSON.stringify({

@@ -57,7 +57,7 @@ function summarizeJsonReport(report) {
 export async function profileRecoveryPostgresTests({ testFiles = DEFAULT_TESTS, outputPath = '/tmp/paytray-test-profile.json' } = {}) {
   const vitestReportPath = `${outputPath}.vitest.json`
   const result = await runVitest(testFiles, vitestReportPath)
-  let vitestReport = null
+  let vitestReport
   try {
     vitestReport = JSON.parse(await fs.readFile(vitestReportPath, 'utf8'))
   } catch {

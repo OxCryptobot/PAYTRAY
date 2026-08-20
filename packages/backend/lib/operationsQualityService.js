@@ -52,7 +52,7 @@ export function getOperationsCheckClearanceCriteria(name) {
 
 export function classifyOperationsCheck({ name, exitCode, output = '', strict = false } = {}) {
   const raw = String(output || '')
-  let parsed = null
+  let parsed
   try {
     parsed = JSON.parse(raw)
   } catch {

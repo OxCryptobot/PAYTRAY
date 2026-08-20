@@ -70,7 +70,7 @@ async function runCommand(binary, args) {
     return await execFile(binary, args, { maxBuffer: 16 * 1024 * 1024 })
   } catch (error) {
     const detail = error.stderr ? String(error.stderr).trim().slice(0, 500) : error.message
-    throw new Error(`${binary} failed: ${detail}`)
+    throw new Error(`${binary} failed: ${detail}`, { cause: error })
   }
 }
 
@@ -82,7 +82,7 @@ function parseChildResource(stderr) {
     if (resource.basis !== 'procfs_child_process') throw new Error('invalid child resource basis')
     return resource
   } catch (error) {
-    throw new Error(`invalid child process resource output: ${error.message}`)
+    throw new Error(`invalid child process resource output: ${error.message}`, { cause: error })
   }
 }
 

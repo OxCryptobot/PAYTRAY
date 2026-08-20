@@ -108,7 +108,7 @@ async function runCommand(binary, args, env = {}) {
     })
   } catch (error) {
     const detail = error.stderr ? String(error.stderr).trim().slice(0, 500) : error.message
-    throw new Error(`${binary} failed: ${detail}`)
+    throw new Error(`${binary} failed: ${detail}`, { cause: error })
   }
 }
 

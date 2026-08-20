@@ -11,7 +11,7 @@ const EXPECTED_RUN_IDS = [
   '7b0f934d-8bda-4b10-aa4c-d7fc019078e4'
 ]
 
-let exitCode = 1
+let exitCode
 try {
   await initializeDatabase()
   if (getDatabaseStatus() !== 'ready') throw new Error('shadow review status requires a ready PostgreSQL database')

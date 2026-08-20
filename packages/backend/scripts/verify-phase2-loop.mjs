@@ -9,7 +9,7 @@ import { parseTokenRegistry } from '../lib/payments/tokenRegistry.js'
 const client = Wallet.createRandom()
 const provider = Wallet.createRandom()
 const operator = Wallet.createRandom()
-let tokenAddress = null
+let tokenAddress
 
 async function login(wallet) {
   const challenge = await request(app).post('/api/auth/challenge').send({ wallet: wallet.address, chainId: 84532 })

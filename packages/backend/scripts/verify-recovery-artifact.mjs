@@ -72,7 +72,7 @@ function loadJson(artifactPath) {
     const value = JSON.parse(raw)
     assertObject(value, artifactPath)
     assertNoSensitiveKeys(value)
-    return { value, raw }
+    return value
   } catch (error) {
     if (error instanceof SyntaxError) fail(`recovery artifact is not valid JSON: ${artifactPath}`)
     throw error
@@ -305,7 +305,7 @@ function validateReadyPostgres(artifact) {
   return { status: artifact.status, checkCount: Object.keys(artifact.checks).length, routeCount: Object.keys(artifact.routeStatuses).length }
 }
 
-function validateOperationsQuality(artifactPath, artifact) {
+function validateOperationsQuality(artifactPath) {
   const result = validateOperationsQualityArtifact({ artifactPath, requireAudit: true })
   return { status: result.status, reportStatus: result.reportStatus, checkCount: result.checkCount, auditStatus: result.audit.status }
 }
@@ -328,12 +328,12 @@ function validateContract(artifact, label, expectedMigration = null) {
   return { status: artifact.status, migration: artifact.migration || null, databaseIsolation: true, cleanupPerformed: artifact.cleanupPerformed ?? artifact.cleanupRuns ?? artifact.cleanupCommits ?? null }
 }
 
-function classifyArtifact(artifactPath, artifact, raw) {
+function classifyArtifact(artifactPath, artifact) {
   const name = path.basename(artifactPath)
   if (name === 'recovery-evidence.json') return validateRecoveryEvidence(artifact)
   if (name === 'restored-migrations.json') return validateRestoredMigrations(artifact)
   if (name === 'restored-ready-postgres.json') return validateReadyPostgres(artifact)
-  if (name === 'restored-operations-quality.json') return validateOperationsQuality(artifactPath, artifact)
+  if (name === 'restored-operations-quality.json') return validateOperationsQuality(artifactPath)
   if (name === 'restored-operations-quality-verification.json') return validateOperationsQualityVerification(artifact)
   if (name === 'restored-migration-018-constraints.json') return validateContract(artifact, name, '018_operations_quality_runs')
   if (name === 'restored-migration-016-webhook-inbox.json') return validateContract(artifact, name, '016_webhook_inbox')
@@ -381,8 +381,8 @@ export async function validateRecoveryArtifactBundle({ artifactPaths = DEFAULT_A
   const normalizedPaths = artifactPaths.map((artifactPath) => path.resolve(String(artifactPath)))
   const reports = {}
   for (const artifactPath of normalizedPaths) {
-    const { value, raw } = loadJson(artifactPath)
-    reports[path.basename(artifactPath)] = classifyArtifact(artifactPath, value, raw)
+    const value = loadJson(artifactPath)
+    reports[path.basename(artifactPath)] = classifyArtifact(artifactPath, value)
   }
   const sidecar = sidecarPath ? await validateSidecar(normalizedPaths, path.resolve(sidecarPath)) : { status: 'not_checked', reason: 'no sidecar path supplied' }
   return {

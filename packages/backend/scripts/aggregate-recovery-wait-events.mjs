@@ -23,7 +23,11 @@ function assertNonnegativeNumber(value, label) {
 }
 
 function assertLabel(value, label) {
-  if (typeof value !== 'string' || value.length > MAX_LABEL_LENGTH || /[\u0000-\u001f\u007f]/.test(value)) fail(`${label} is invalid`)
+  const hasControlCharacter = typeof value === 'string' && [...value].some((character) => {
+    const code = character.charCodeAt(0)
+    return code <= 0x1f || code === 0x7f
+  })
+  if (typeof value !== 'string' || value.length > MAX_LABEL_LENGTH || hasControlCharacter) fail(`${label} is invalid`)
 }
 
 function percentile(values, p) {

@@ -74,7 +74,7 @@ export function buildDurableWorkerEvidence({ outboxHealth, outboxWorker, idempot
     status: blockers.length ? 'operator_blocked' : 'verified',
     evidenceTarget,
     authenticatedTarget,
-    checks: checks.map(({ details, ...check }) => check),
+    checks: checks.map((check) => Object.fromEntries(Object.entries(check).filter(([key]) => key !== 'details'))),
     blockers,
     releaseEligible: false,
     settlementAuthority: false,

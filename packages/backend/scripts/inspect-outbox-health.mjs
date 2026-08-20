@@ -2,7 +2,7 @@ import { closeDatabase, getDatabaseStatus, initializeDatabase, transaction } fro
 import config from '../lib/config.js'
 import { getOutboxHealth, listOutboxEvents } from '../lib/outboxDeliveryService.js'
 
-let exitCode = 0
+let exitCode
 try {
   await initializeDatabase()
   if (getDatabaseStatus() !== 'ready') throw new Error('outbox health requires a ready PostgreSQL database')

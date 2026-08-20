@@ -86,7 +86,7 @@ async function recordAudit(report, completedAt) {
       reportHash: result.reportHash,
       ...safety
     }
-  } catch (error) {
+  } catch {
     return { status: 'not_recorded', reason: 'durable audit persistence was unavailable', ...safety }
   } finally {
     await closeDatabase().catch(() => {})

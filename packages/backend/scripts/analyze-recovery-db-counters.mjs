@@ -73,7 +73,11 @@ function summarizeWaits(telemetry) {
   for (const event of observations) {
     assertObject(event, 'waitEvent')
     for (const key of ['waitEventType', 'waitEvent', 'state']) {
-      if (typeof event[key] !== 'string' || event[key].length === 0 || event[key].length > 100 || /[\u0000-\u001f\u007f]/.test(event[key])) fail(`waitEvent.${key} is invalid`)
+      const hasControlCharacter = typeof event[key] === 'string' && [...event[key]].some((character) => {
+        const code = character.charCodeAt(0)
+        return code <= 0x1f || code === 0x7f
+      })
+      if (typeof event[key] !== 'string' || event[key].length === 0 || event[key].length > 100 || hasControlCharacter) fail(`waitEvent.${key} is invalid`)
     }
     assertNonnegativeInteger(event.observations, 'waitEvent.observations')
     assertNonnegativeInteger(event.observedBackendCount, 'waitEvent.observedBackendCount')

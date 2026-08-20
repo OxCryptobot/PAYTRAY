@@ -151,9 +151,11 @@ The existing disposable CI `recovery-baseline` and dependent `recovery-confidenc
 
 No human review decisions, operator signing keys, target settings, Railway configuration, production deployment, live funds, mainnet transactions, or real user data were used or inferred.
 
-### Batch 10 — ESLint v9 migration
+### Batch 10 — Direct ESLint v10 flat-config migration
 
-**Status:** queued for a separate toolchain batch. The current batch deliberately avoids changing the lint major version while extending recovery evidence, so the existing clean ESLint contract remains stable. The migration must preserve flat-config coverage, test counts, CI parity, and fail-closed release checks before it is pushed.
+**Status:** implemented locally in the current batch. The original v9-only queue was superseded because ESLint v9 reached end-of-life on 2026-08-06; the repository now migrates directly from ESLint 8.57.1 to ESLint 10.8.1 with an explicit `eslint.config.mjs`, `@eslint/js` recommended rules, and Node globals. The legacy `.eslintrc.cjs` file was removed. The CI workflow and production container already use Node 22, satisfying the ESLint v10 tooling requirement; the backend runtime declaration remains unchanged at Node >=18, so lint/install environments must use the supported ESLint v10 Node line.
+
+The migration surfaced and fixed 24 findings rather than weakening the new recommended rules: redundant assignments, unused bindings/imports, control-character regex checks, and missing error causes. Focused lint passes cleanly after the conversion. The remaining release, payment, AI-promotion, and human-review invariants are unaffected because the batch changes only development tooling, source hygiene, and diagnostic validation code.
 
 ### Batch 11 — Five-repetition confidence CI integration
 

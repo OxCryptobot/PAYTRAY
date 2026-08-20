@@ -3,7 +3,7 @@ import { parseTokenRegistry } from '../lib/payments/tokenRegistry.js'
 import { BASE_SEPOLIA_SABLIER_FLOW_V3, createBaseSepoliaFlowVerifier } from '../lib/payments/sablierFlowV3.js'
 import { validateTokenRegistryMetadata } from '../lib/payments/tokenMetadataProbe.js'
 
-let exitCode = 0
+let exitCode
 try {
   if (!config.payments.rpcUrl) throw new Error('PAYMENT_RPC_URL is required for read-only token metadata validation')
   const verifier = createBaseSepoliaFlowVerifier({

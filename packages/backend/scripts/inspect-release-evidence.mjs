@@ -3,7 +3,7 @@ import { closeDatabase, getDatabaseStatus, initializeDatabase, transaction } fro
 import { buildTargetOperationsPreflight } from '../lib/targetOperationsPreflight.js'
 import { collectReleaseEvidence } from '../lib/releaseEvidenceService.js'
 
-let exitCode = 1
+let exitCode
 try {
   const targetOperations = buildTargetOperationsPreflight({ config })
   await initializeDatabase()

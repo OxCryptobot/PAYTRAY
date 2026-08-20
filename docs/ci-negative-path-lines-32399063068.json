@@ -1,0 +1,1303 @@
+{
+  "run": "32399063068",
+  "commit": "b401cdc62ac9a73920101cbc26b1c951ccfa1782",
+  "source": "/tmp/paytray-deliverables/paytray-ci-32399063068-full.log",
+  "classifier": {
+    "precedence": [
+      "errorHandlerNegativePath",
+      "postgresConstraintNegativePath",
+      "expectedTestStderr",
+      "expectedArtifactStatus",
+      "processFailureSignal",
+      "otherErrorLike"
+    ],
+    "routePattern": "ErrorHandler|Database service error|Missing required scopes|Requested scope|Rate limit exceeded|Cannot view this stream|Only the stream recipient|Search query is required|challenge is invalid|LiveKit token service is not configured",
+    "postgresPattern": "violates (?:check|foreign key|not-null)|duplicate key value",
+    "processFailurePattern": "Process completed with (?:exit )?code [1-9]|Job failed|Unhandled|FATAL",
+    "errorLikePattern": "\\b(error|failure|failed|exception)\\b"
+  },
+  "totalErrorLikeLines": 164,
+  "processFailureFree": true,
+  "categories": {
+    "errorHandlerNegativePath": {
+      "count": 67,
+      "byJobStep": [
+        {
+          "jobStep": "Unit, lint, and contract checks :: Run shared quality gate",
+          "count": 60
+        },
+        {
+          "jobStep": "Read-only release-gate inspection :: Capture verifier and reconciliation evidence",
+          "count": 2
+        },
+        {
+          "jobStep": "Read-only release-gate inspection :: Compose durable-worker evidence",
+          "count": 2
+        },
+        {
+          "jobStep": "Read-only release-gate inspection :: Verify verifier cursor evidence",
+          "count": 2
+        },
+        {
+          "jobStep": "Read-only release-gate inspection :: Capture durable-worker component evidence",
+          "count": 1
+        }
+      ],
+      "lines": [
+        {
+          "logLine": 897,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.4707710Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.465Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Signature verification failed: invalid raw signature length (argument=\\\"signature\\\", value=\\\"0x1234\\\", code=INVALID_ARGUMENT, version=6.17.0)\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.4707710Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.465Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Signature verification failed: invalid raw signature length (argument=\\\"signature\\\", value=\\\"0x1234\\\", code=INVALID_ARGUMENT, version=6.17.0)\"}}"
+        },
+        {
+          "logLine": 906,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.5750218Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.565Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/users/me\",\"data\":{\"error\":\"Access token required\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.5750218Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.565Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/users/me\",\"data\":{\"error\":\"Access token required\"}}"
+        },
+        {
+          "logLine": 923,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6174148Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.610Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Auth challenge is invalid or expired\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6174148Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.610Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Auth challenge is invalid or expired\"}}"
+        },
+        {
+          "logLine": 935,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6308138Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.629Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/ops/slo\",\"data\":{\"error\":\"Missing required scopes: ops:*\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6308138Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.629Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/ops/slo\",\"data\":{\"error\":\"Missing required scopes: ops:*\"}}"
+        },
+        {
+          "logLine": 947,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6480479Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.644Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/ops/slo\",\"data\":{\"error\":\"Missing required scopes: ops:*\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6480479Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.644Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/ops/slo\",\"data\":{\"error\":\"Missing required scopes: ops:*\"}}"
+        },
+        {
+          "logLine": 963,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6696184Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.662Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/audit/events\",\"data\":{\"error\":\"Database service error: financial audit events require a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6696184Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.662Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/audit/events\",\"data\":{\"error\":\"Database service error: financial audit events require a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 972,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6829595Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.673Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/discovery/lineage\",\"data\":{\"error\":\"Database service error: discovery lineage requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6829595Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.673Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/discovery/lineage\",\"data\":{\"error\":\"Database service error: discovery lineage requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 975,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6835575Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.677Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/verifier/operations\",\"data\":{\"error\":\"Database service error: verifier operations evidence requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6835575Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.677Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/verifier/operations\",\"data\":{\"error\":\"Database service error: verifier operations evidence requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 978,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6842712Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.680Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/runtime/health\",\"data\":{\"error\":\"Database service error: runtime health requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6842712Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.680Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/runtime/health\",\"data\":{\"error\":\"Database service error: runtime health requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 982,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6875352Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.683Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/evidence\",\"data\":{\"error\":\"Database service error: unified operator evidence requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6875352Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.683Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/evidence\",\"data\":{\"error\":\"Database service error: unified operator evidence requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 985,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6880407Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.686Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/release-evidence\",\"data\":{\"error\":\"Database service error: release evidence requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6880407Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.686Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/release-evidence\",\"data\":{\"error\":\"Database service error: release evidence requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 998,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6912960Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.688Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/reconciliation/evidence\",\"data\":{\"error\":\"Database service error: reconciliation evidence requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6912960Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.688Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/reconciliation/evidence\",\"data\":{\"error\":\"Database service error: reconciliation evidence requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1004,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6937014Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.691Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/health/dashboard\",\"data\":{\"error\":\"Database service error: operator health dashboard requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6937014Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.691Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/health/dashboard\",\"data\":{\"error\":\"Database service error: operator health dashboard requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1011,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.6973009Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.693Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/evidence/bundle\",\"data\":{\"error\":\"Database service error: operator evidence bundle requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.6973009Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.693Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/evidence/bundle\",\"data\":{\"error\":\"Database service error: operator evidence bundle requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1016,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7040224Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.697Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/release-gates/latest\",\"data\":{\"error\":\"Database service error: latest release-gates audit requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7040224Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.697Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/release-gates/latest\",\"data\":{\"error\":\"Database service error: latest release-gates audit requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1020,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7070699Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.699Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/operations-quality/runs\",\"data\":{\"error\":\"Database service error: operations-quality audit requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7070699Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.699Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/operations-quality/runs\",\"data\":{\"error\":\"Database service error: operations-quality audit requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1026,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7087417Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.703Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/operations-quality/runs/11111111-1111-4111-8111-111111111111\",\"data\":{\"error\":\"Database service error: operations-quality audit requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7087417Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.703Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/operations-quality/runs/11111111-1111-4111-8111-111111111111\",\"data\":{\"error\":\"Database service error: operations-quality audit requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1032,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7098114Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.705Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/outbox/health\",\"data\":{\"error\":\"Database service error: outbox health requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7098114Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.705Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/outbox/health\",\"data\":{\"error\":\"Database service error: outbox health requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1043,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7144255Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.708Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/outbox/events\",\"data\":{\"error\":\"Database service error: outbox event inspection requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7144255Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.708Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/outbox/events\",\"data\":{\"error\":\"Database service error: outbox event inspection requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1049,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7155080Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.713Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/webhook-inbox/health\",\"data\":{\"error\":\"Database service error: webhook inbox health requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7155080Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.713Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/webhook-inbox/health\",\"data\":{\"error\":\"Database service error: webhook inbox health requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1054,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7190420Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.715Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/reviewer-attestations\",\"data\":{\"error\":\"Database service error: reviewer attestation inspection requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7190420Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.715Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/ops/reviewer-attestations\",\"data\":{\"error\":\"Database service error: reviewer attestation inspection requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1061,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7212976Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.718Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/v2/ops/reviewer-attestations/challenge\",\"data\":{\"error\":\"Database service error: reviewer attestation challenge requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7212976Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.718Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/v2/ops/reviewer-attestations/challenge\",\"data\":{\"error\":\"Database service error: reviewer attestation challenge requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1066,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7232749Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.721Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/v2/ops/reviewer-attestations/verify\",\"data\":{\"error\":\"Database service error: reviewer attestation verification requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7232749Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.721Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/v2/ops/reviewer-attestations/verify\",\"data\":{\"error\":\"Database service error: reviewer attestation verification requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1071,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7256410Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.724Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/engagements/11111111-1111-4111-8111-111111111111/payment-state\",\"data\":{\"error\":\"Database service error: engagement payment state requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7256410Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.724Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/v2/engagements/11111111-1111-4111-8111-111111111111/payment-state\",\"data\":{\"error\":\"Database service error: engagement payment state requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1078,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7286810Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.727Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/v2/ops/outbox/process\",\"data\":{\"error\":\"Database service error: outbox processing requires a ready PostgreSQL database\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7286810Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.727Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/v2/ops/outbox/process\",\"data\":{\"error\":\"Database service error: outbox processing requires a ready PostgreSQL database\"}}"
+        },
+        {
+          "logLine": 1096,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7490842Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.746Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/v2/intelligence/advisory\",\"data\":{\"error\":\"subject.message cannot cross the persisted advisory-AI boundary\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7490842Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.746Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/v2/intelligence/advisory\",\"data\":{\"error\":\"subject.message cannot cross the persisted advisory-AI boundary\"}}"
+        },
+        {
+          "logLine": 1115,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7700083Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.763Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/ops/slo\",\"data\":{\"error\":\"Missing required scopes: ops:*\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7700083Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.763Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/ops/slo\",\"data\":{\"error\":\"Missing required scopes: ops:*\"}}"
+        },
+        {
+          "logLine": 1122,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7766499Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.775Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/intelligence/ranking/train\",\"data\":{\"error\":\"Missing required scopes: intelligence:*\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7766499Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.775Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/intelligence/ranking/train\",\"data\":{\"error\":\"Missing required scopes: intelligence:*\"}}"
+        },
+        {
+          "logLine": 1130,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.7926203Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.788Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scope is not allowed: admin:*\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.7926203Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.788Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scope is not allowed: admin:*\"}}"
+        },
+        {
+          "logLine": 1140,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.8018231Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.798Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scopes must be an array\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.8018231Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.798Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scopes must be an array\"}}"
+        },
+        {
+          "logLine": 1149,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.8320097Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.819Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scopes must include at least one scope\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.8320097Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.819Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scopes must include at least one scope\"}}"
+        },
+        {
+          "logLine": 1158,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.8592404Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.854Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scopes must not contain empty values\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.8592404Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.854Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scopes must not contain empty values\"}}"
+        },
+        {
+          "logLine": 1167,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.8800186Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.873Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scopes must contain only strings\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.8800186Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.873Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Requested scopes must contain only strings\"}}"
+        },
+        {
+          "logLine": 1172,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.8841511Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.881Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Auth challenge is invalid or expired\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.8841511Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.881Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Auth challenge is invalid or expired\"}}"
+        },
+        {
+          "logLine": 1177,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.8969951Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.888Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/challenge\",\"data\":{\"error\":\"Rate limit exceeded. Retry after 60s\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.8969951Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.888Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/challenge\",\"data\":{\"error\":\"Rate limit exceeded. Retry after 60s\"}}"
+        },
+        {
+          "logLine": 1197,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.9144177Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.908Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Rate limit exceeded. Retry after 60s\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.9144177Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.908Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/auth/login\",\"data\":{\"error\":\"Rate limit exceeded. Retry after 60s\"}}"
+        },
+        {
+          "logLine": 1203,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.9319053Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.923Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/livekit/token\",\"data\":{\"error\":\"LiveKit token service is not configured\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.9319053Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.923Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/livekit/token\",\"data\":{\"error\":\"LiveKit token service is not configured\"}}"
+        },
+        {
+          "logLine": 1217,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.9674596Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.958Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/wallet/verify\",\"data\":{\"error\":\"Wallet verification challenge is required\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.9674596Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.958Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/wallet/verify\",\"data\":{\"error\":\"Wallet verification challenge is required\"}}"
+        },
+        {
+          "logLine": 1228,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:52.9949729Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.988Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/wallet/verify\",\"data\":{\"error\":\"Wallet verification challenge is invalid or expired\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:52.9949729Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.988Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/wallet/verify\",\"data\":{\"error\":\"Wallet verification challenge is invalid or expired\"}}"
+        },
+        {
+          "logLine": 1235,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.0069823Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.997Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/wallet/verify/challenge\",\"data\":{\"error\":\"Chain not supported\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.0069823Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:52.997Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/wallet/verify/challenge\",\"data\":{\"error\":\"Chain not supported\"}}"
+        },
+        {
+          "logLine": 1254,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.0580037Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.048Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/payments/streams/1/stats\",\"data\":{\"error\":\"Cannot view this stream\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.0580037Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.048Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/payments/streams/1/stats\",\"data\":{\"error\":\"Cannot view this stream\"}}"
+        },
+        {
+          "logLine": 1266,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.0819610Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.077Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/2/withdraw\",\"data\":{\"error\":\"Only the stream recipient can withdraw from this stream\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.0819610Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.077Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/2/withdraw\",\"data\":{\"error\":\"Only the stream recipient can withdraw from this stream\"}}"
+        },
+        {
+          "logLine": 1269,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.0852162Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.079Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/profiles/search\",\"data\":{\"error\":\"Search query is required\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.0852162Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.079Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/profiles/search\",\"data\":{\"error\":\"Search query is required\"}}"
+        },
+        {
+          "logLine": 1327,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.1441242Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.140Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/profiles/0xEcC631CEDe4D0bfF0e896Ce109c435752d70Ffe0\",\"data\":{\"error\":\"Can only update your own profile\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.1441242Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.140Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/profiles/0xEcC631CEDe4D0bfF0e896Ce109c435752d70Ffe0\",\"data\":{\"error\":\"Can only update your own profile\"}}"
+        },
+        {
+          "logLine": 1365,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.1993466Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.197Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams\",\"data\":{\"error\":\"Idempotency key reuse with different payment request\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.1993466Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.197Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams\",\"data\":{\"error\":\"Idempotency key reuse with different payment request\"}}"
+        },
+        {
+          "logLine": 1435,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.2733584Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.269Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/7/confirm\",\"data\":{\"error\":\"Cannot transition from submitted to reflected\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.2733584Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.269Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/7/confirm\",\"data\":{\"error\":\"Cannot transition from submitted to reflected\"}}"
+        },
+        {
+          "logLine": 1440,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.2799929Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.273Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/7/confirm\",\"data\":{\"error\":\"Cannot transition from included to included\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.2799929Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.273Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/7/confirm\",\"data\":{\"error\":\"Cannot transition from included to included\"}}"
+        },
+        {
+          "logLine": 1449,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.2919892Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.277Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/7/confirm\",\"data\":{\"error\":\"Stream is already reflected\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.2919892Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.277Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/7/confirm\",\"data\":{\"error\":\"Stream is already reflected\"}}"
+        },
+        {
+          "logLine": 1506,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.3679705Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.361Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/ops/chains/enable\",\"data\":{\"error\":\"Reliability target not met: 25% < 99%\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.3679705Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.361Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/ops/chains/enable\",\"data\":{\"error\":\"Reliability target not met: 25% < 99%\"}}"
+        },
+        {
+          "logLine": 1526,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.4010061Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.392Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/public/experts\",\"data\":{\"error\":\"Public API is not configured\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.4010061Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.392Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/public/experts\",\"data\":{\"error\":\"Public API is not configured\"}}"
+        },
+        {
+          "logLine": 1537,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.4110811Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.395Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/public/payments/streams/123\",\"data\":{\"error\":\"Public API is not configured\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.4110811Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.395Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/public/payments/streams/123\",\"data\":{\"error\":\"Public API is not configured\"}}"
+        },
+        {
+          "logLine": 1545,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.4295559Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.423Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/ops/chains/enable\",\"data\":{\"error\":\"Insufficient reliability evidence: 8 streams < 9007199254740991 required\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.4295559Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.423Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/ops/chains/enable\",\"data\":{\"error\":\"Insufficient reliability evidence: 8 streams < 9007199254740991 required\"}}"
+        },
+        {
+          "logLine": 1576,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.4670504Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.463Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/public/experts\",\"data\":{\"error\":\"Invalid API key\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.4670504Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.463Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/public/experts\",\"data\":{\"error\":\"Invalid API key\"}}"
+        },
+        {
+          "logLine": 1802,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.9201564Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.918Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/contracts/5/dispute\",\"data\":{\"error\":\"Cannot dispute a contract in status: disputed\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.9201564Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.918Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/contracts/5/dispute\",\"data\":{\"error\":\"Cannot dispute a contract in status: disputed\"}}"
+        },
+        {
+          "logLine": 1822,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.9518413Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.950Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/contracts/6\",\"data\":{\"error\":\"Cannot view this contract\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.9518413Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.950Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/contracts/6\",\"data\":{\"error\":\"Cannot view this contract\"}}"
+        },
+        {
+          "logLine": 1843,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.9962035Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.993Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/trust/signals\",\"data\":{\"error\":\"Missing required scopes: admin:*\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.9962035Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:53.993Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/trust/signals\",\"data\":{\"error\":\"Missing required scopes: admin:*\"}}"
+        },
+        {
+          "logLine": 1935,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:54.1350003Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:54.129Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/ledger/0x33e0F539E31B35170FAaA062af703b76a8282bf7\",\"data\":{\"error\":\"Cannot view ledger for another wallet\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:54.1350003Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:54.129Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/ledger/0x33e0F539E31B35170FAaA062af703b76a8282bf7\",\"data\":{\"error\":\"Cannot view ledger for another wallet\"}}"
+        },
+        {
+          "logLine": 1959,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:54.1710019Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:54.164Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/11/dispute\",\"data\":{\"error\":\"Stream already has an open dispute\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:54.1710019Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:54.164Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/payments/streams/11/dispute\",\"data\":{\"error\":\"Stream already has an open dispute\"}}"
+        },
+        {
+          "logLine": 1984,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:54.2199665Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:54.213Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/identity/link\",\"data\":{\"error\":\"github identity already linked\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:54.2199665Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:54.213Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"POST /api/identity/link\",\"data\":{\"error\":\"github identity already linked\"}}"
+        },
+        {
+          "logLine": 2064,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:54.2984498Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:54.296Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/sessions/4/artifacts\",\"data\":{\"error\":\"Cannot view artifacts for this thread\"}}",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:54.2984498Z ^[[22m^[[39m{\"timestamp\":\"2026-08-20T17:42:54.296Z\",\"level\":\"ERROR\",\"context\":\"ErrorHandler\",\"message\":\"GET /api/sessions/4/artifacts\",\"data\":{\"error\":\"Cannot view artifacts for this thread\"}}"
+        },
+        {
+          "logLine": 14247,
+          "job": "Read-only release-gate inspection",
+          "step": "Capture durable-worker component evidence",
+          "message": "2026-08-20T17:42:36.1310550Z   \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\",",
+          "raw": "Read-only release-gate inspection\tCapture durable-worker component evidence\t2026-08-20T17:42:36.1310550Z   \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\","
+        },
+        {
+          "logLine": 14301,
+          "job": "Read-only release-gate inspection",
+          "step": "Compose durable-worker evidence",
+          "message": "2026-08-20T17:42:36.1897909Z       \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\",",
+          "raw": "Read-only release-gate inspection\tCompose durable-worker evidence\t2026-08-20T17:42:36.1897909Z       \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\","
+        },
+        {
+          "logLine": 14345,
+          "job": "Read-only release-gate inspection",
+          "step": "Compose durable-worker evidence",
+          "message": "2026-08-20T17:42:36.1910289Z       \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\"",
+          "raw": "Read-only release-gate inspection\tCompose durable-worker evidence\t2026-08-20T17:42:36.1910289Z       \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\""
+        },
+        {
+          "logLine": 14383,
+          "job": "Read-only release-gate inspection",
+          "step": "Capture verifier and reconciliation evidence",
+          "message": "2026-08-20T17:42:36.3787122Z   \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\",",
+          "raw": "Read-only release-gate inspection\tCapture verifier and reconciliation evidence\t2026-08-20T17:42:36.3787122Z   \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\","
+        },
+        {
+          "logLine": 14391,
+          "job": "Read-only release-gate inspection",
+          "step": "Capture verifier and reconciliation evidence",
+          "message": "2026-08-20T17:42:36.3793690Z   \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\",",
+          "raw": "Read-only release-gate inspection\tCapture verifier and reconciliation evidence\t2026-08-20T17:42:36.3793690Z   \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\","
+        },
+        {
+          "logLine": 14489,
+          "job": "Read-only release-gate inspection",
+          "step": "Verify verifier cursor evidence",
+          "message": "2026-08-20T17:42:36.5539821Z       \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\"",
+          "raw": "Read-only release-gate inspection\tVerify verifier cursor evidence\t2026-08-20T17:42:36.5539821Z       \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\""
+        },
+        {
+          "logLine": 14519,
+          "job": "Read-only release-gate inspection",
+          "step": "Verify verifier cursor evidence",
+          "message": "2026-08-20T17:42:36.5547556Z       \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\"",
+          "raw": "Read-only release-gate inspection\tVerify verifier cursor evidence\t2026-08-20T17:42:36.5547556Z       \"reason\": \"Database service error: connect ECONNREFUSED 127.0.0.1:5432\""
+        }
+      ]
+    },
+    "postgresConstraintNegativePath": {
+      "count": 64,
+      "byJobStep": [
+        {
+          "jobStep": "Disposable backup and isolated recovery contract :: Stop containers",
+          "count": 32
+        },
+        {
+          "jobStep": "Isolated PostgreSQL route contract :: Stop containers",
+          "count": 32
+        }
+      ],
+      "lines": [
+        {
+          "logLine": 3936,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3178217Z  2026-08-20 17:43:25.245 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_status_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3178217Z  2026-08-20 17:43:25.245 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_status_check\""
+        },
+        {
+          "logLine": 3945,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3188582Z  2026-08-20 17:43:25.247 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3188582Z  2026-08-20 17:43:25.247 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_check\""
+        },
+        {
+          "logLine": 3954,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3196167Z  2026-08-20 17:43:25.249 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3196167Z  2026-08-20 17:43:25.249 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_check\""
+        },
+        {
+          "logLine": 3963,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3202267Z  2026-08-20 17:43:25.251 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3202267Z  2026-08-20 17:43:25.251 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check\""
+        },
+        {
+          "logLine": 3972,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3208607Z  2026-08-20 17:43:25.252 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check1\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3208607Z  2026-08-20 17:43:25.252 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check1\""
+        },
+        {
+          "logLine": 3981,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3214586Z  2026-08-20 17:43:25.253 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check3\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3214586Z  2026-08-20 17:43:25.253 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check3\""
+        },
+        {
+          "logLine": 3990,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3220720Z  2026-08-20 17:43:25.255 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check4\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3220720Z  2026-08-20 17:43:25.255 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check4\""
+        },
+        {
+          "logLine": 3999,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3226597Z  2026-08-20 17:43:25.256 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check2\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3226597Z  2026-08-20 17:43:25.256 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check2\""
+        },
+        {
+          "logLine": 4008,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3232856Z  2026-08-20 17:43:25.257 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_hash_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3232856Z  2026-08-20 17:43:25.257 UTC [187] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_hash_check\""
+        },
+        {
+          "logLine": 4017,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3238773Z  2026-08-20 17:43:25.258 UTC [187] ERROR:  duplicate key value violates unique constraint \"operations_quality_runs_run_id_key\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3238773Z  2026-08-20 17:43:25.258 UTC [187] ERROR:  duplicate key value violates unique constraint \"operations_quality_runs_run_id_key\""
+        },
+        {
+          "logLine": 4026,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3242832Z  2026-08-20 17:43:25.463 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_role_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3242832Z  2026-08-20 17:43:25.463 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_role_check\""
+        },
+        {
+          "logLine": 4033,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3250408Z  2026-08-20 17:43:25.465 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_artifact_sha256_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3250408Z  2026-08-20 17:43:25.465 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_artifact_sha256_check\""
+        },
+        {
+          "logLine": 4040,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3257223Z  2026-08-20 17:43:25.466 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3257223Z  2026-08-20 17:43:25.466 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check\""
+        },
+        {
+          "logLine": 4047,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3264282Z  2026-08-20 17:43:25.469 UTC [190] ERROR:  insert or update on table \"reviewer_attestations\" violates foreign key constraint \"reviewer_attestations_challenge_id_fkey\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3264282Z  2026-08-20 17:43:25.469 UTC [190] ERROR:  insert or update on table \"reviewer_attestations\" violates foreign key constraint \"reviewer_attestations_challenge_id_fkey\""
+        },
+        {
+          "logLine": 4057,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3269902Z  2026-08-20 17:43:25.472 UTC [190] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_challenge_id_key\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3269902Z  2026-08-20 17:43:25.472 UTC [190] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_challenge_id_key\""
+        },
+        {
+          "logLine": 4067,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3274712Z  2026-08-20 17:43:25.476 UTC [190] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_role_commit_index\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3274712Z  2026-08-20 17:43:25.476 UTC [190] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_role_commit_index\""
+        },
+        {
+          "logLine": 4077,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3280111Z  2026-08-20 17:43:25.478 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_applied_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3280111Z  2026-08-20 17:43:25.478 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_applied_check\""
+        },
+        {
+          "logLine": 4087,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3289284Z  2026-08-20 17:43:25.479 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_release_eligible_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3289284Z  2026-08-20 17:43:25.479 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_release_eligible_check\""
+        },
+        {
+          "logLine": 4097,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3298653Z  2026-08-20 17:43:25.481 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_authority_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3298653Z  2026-08-20 17:43:25.481 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_authority_check\""
+        },
+        {
+          "logLine": 4107,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3307767Z  2026-08-20 17:43:25.482 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_deployment_performed_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3307767Z  2026-08-20 17:43:25.482 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_deployment_performed_check\""
+        },
+        {
+          "logLine": 4117,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3316892Z  2026-08-20 17:43:25.483 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_mutation_performed_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3316892Z  2026-08-20 17:43:25.483 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_mutation_performed_check\""
+        },
+        {
+          "logLine": 4127,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3326099Z  2026-08-20 17:43:25.484 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_mutation_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3326099Z  2026-08-20 17:43:25.484 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_mutation_check\""
+        },
+        {
+          "logLine": 4137,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3335280Z  2026-08-20 17:43:25.487 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_check2\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3335280Z  2026-08-20 17:43:25.487 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_check2\""
+        },
+        {
+          "logLine": 4147,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3344365Z  2026-08-20 17:43:25.489 UTC [190] ERROR:  null value in column \"reviewer_wallet\" of relation \"reviewer_attestations\" violates not-null constraint",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3344365Z  2026-08-20 17:43:25.489 UTC [190] ERROR:  null value in column \"reviewer_wallet\" of relation \"reviewer_attestations\" violates not-null constraint"
+        },
+        {
+          "logLine": 4157,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3353073Z  2026-08-20 17:43:25.490 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check1\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3353073Z  2026-08-20 17:43:25.490 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check1\""
+        },
+        {
+          "logLine": 4164,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3360364Z  2026-08-20 17:43:25.592 UTC [191] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_subject_user_id_fkey\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3360364Z  2026-08-20 17:43:25.592 UTC [191] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_subject_user_id_fkey\""
+        },
+        {
+          "logLine": 4172,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3364613Z  2026-08-20 17:43:25.594 UTC [191] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_engagement_id_fkey\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3364613Z  2026-08-20 17:43:25.594 UTC [191] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_engagement_id_fkey\""
+        },
+        {
+          "logLine": 4180,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3369008Z  2026-08-20 17:43:25.595 UTC [191] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_outcome_id_fkey\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3369008Z  2026-08-20 17:43:25.595 UTC [191] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_outcome_id_fkey\""
+        },
+        {
+          "logLine": 4188,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3373181Z  2026-08-20 17:43:25.596 UTC [191] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_polarity_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3373181Z  2026-08-20 17:43:25.596 UTC [191] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_polarity_check\""
+        },
+        {
+          "logLine": 4196,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3379746Z  2026-08-20 17:43:25.598 UTC [191] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_score_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3379746Z  2026-08-20 17:43:25.598 UTC [191] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_score_check\""
+        },
+        {
+          "logLine": 4204,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3385838Z  2026-08-20 17:43:25.599 UTC [191] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_eligible_for_ranking_check\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3385838Z  2026-08-20 17:43:25.599 UTC [191] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_eligible_for_ranking_check\""
+        },
+        {
+          "logLine": 4212,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:43:27.3406549Z  2026-08-20 17:43:25.600 UTC [191] ERROR:  duplicate key value violates unique constraint \"verified_trust_signals_subject_user_id_outcome_id_signal_ty_key\"",
+          "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3406549Z  2026-08-20 17:43:25.600 UTC [191] ERROR:  duplicate key value violates unique constraint \"verified_trust_signals_subject_user_id_outcome_id_signal_ty_key\""
+        },
+        {
+          "logLine": 15884,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9373628Z  2026-08-20 17:42:34.678 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_status_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9373628Z  2026-08-20 17:42:34.678 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_status_check\""
+        },
+        {
+          "logLine": 15893,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9383434Z  2026-08-20 17:42:34.680 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9383434Z  2026-08-20 17:42:34.680 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_check\""
+        },
+        {
+          "logLine": 15902,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9395521Z  2026-08-20 17:42:34.681 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9395521Z  2026-08-20 17:42:34.681 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_check\""
+        },
+        {
+          "logLine": 15911,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9403600Z  2026-08-20 17:42:34.683 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9403600Z  2026-08-20 17:42:34.683 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check\""
+        },
+        {
+          "logLine": 15920,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9409781Z  2026-08-20 17:42:34.684 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check1\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9409781Z  2026-08-20 17:42:34.684 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check1\""
+        },
+        {
+          "logLine": 15929,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9415480Z  2026-08-20 17:42:34.685 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check3\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9415480Z  2026-08-20 17:42:34.685 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check3\""
+        },
+        {
+          "logLine": 15938,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9421679Z  2026-08-20 17:42:34.687 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check4\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9421679Z  2026-08-20 17:42:34.687 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check4\""
+        },
+        {
+          "logLine": 15947,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9427366Z  2026-08-20 17:42:34.688 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check2\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9427366Z  2026-08-20 17:42:34.688 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_check2\""
+        },
+        {
+          "logLine": 16003,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9451682Z  2026-08-20 17:42:34.689 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_hash_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9451682Z  2026-08-20 17:42:34.689 UTC [85] ERROR:  new row for relation \"operations_quality_runs\" violates check constraint \"operations_quality_runs_report_hash_check\""
+        },
+        {
+          "logLine": 16012,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9457178Z  2026-08-20 17:42:34.690 UTC [85] ERROR:  duplicate key value violates unique constraint \"operations_quality_runs_run_id_key\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9457178Z  2026-08-20 17:42:34.690 UTC [85] ERROR:  duplicate key value violates unique constraint \"operations_quality_runs_run_id_key\""
+        },
+        {
+          "logLine": 16021,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9461424Z  2026-08-20 17:42:35.100 UTC [88] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_subject_user_id_fkey\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9461424Z  2026-08-20 17:42:35.100 UTC [88] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_subject_user_id_fkey\""
+        },
+        {
+          "logLine": 16029,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9465389Z  2026-08-20 17:42:35.102 UTC [88] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_engagement_id_fkey\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9465389Z  2026-08-20 17:42:35.102 UTC [88] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_engagement_id_fkey\""
+        },
+        {
+          "logLine": 16037,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9469743Z  2026-08-20 17:42:35.103 UTC [88] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_outcome_id_fkey\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9469743Z  2026-08-20 17:42:35.103 UTC [88] ERROR:  insert or update on table \"verified_trust_signals\" violates foreign key constraint \"verified_trust_signals_outcome_id_fkey\""
+        },
+        {
+          "logLine": 16045,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9473809Z  2026-08-20 17:42:35.104 UTC [88] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_polarity_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9473809Z  2026-08-20 17:42:35.104 UTC [88] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_polarity_check\""
+        },
+        {
+          "logLine": 16053,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9480199Z  2026-08-20 17:42:35.106 UTC [88] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_score_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9480199Z  2026-08-20 17:42:35.106 UTC [88] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_score_check\""
+        },
+        {
+          "logLine": 16061,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9486376Z  2026-08-20 17:42:35.106 UTC [88] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_eligible_for_ranking_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9486376Z  2026-08-20 17:42:35.106 UTC [88] ERROR:  new row for relation \"verified_trust_signals\" violates check constraint \"verified_trust_signals_eligible_for_ranking_check\""
+        },
+        {
+          "logLine": 16069,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9492615Z  2026-08-20 17:42:35.107 UTC [88] ERROR:  duplicate key value violates unique constraint \"verified_trust_signals_subject_user_id_outcome_id_signal_ty_key\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9492615Z  2026-08-20 17:42:35.107 UTC [88] ERROR:  duplicate key value violates unique constraint \"verified_trust_signals_subject_user_id_outcome_id_signal_ty_key\""
+        },
+        {
+          "logLine": 16077,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9497059Z  2026-08-20 17:42:35.319 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_role_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9497059Z  2026-08-20 17:42:35.319 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_role_check\""
+        },
+        {
+          "logLine": 16084,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9504605Z  2026-08-20 17:42:35.321 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_artifact_sha256_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9504605Z  2026-08-20 17:42:35.321 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_artifact_sha256_check\""
+        },
+        {
+          "logLine": 16091,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9511569Z  2026-08-20 17:42:35.322 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9511569Z  2026-08-20 17:42:35.322 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check\""
+        },
+        {
+          "logLine": 16098,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9518361Z  2026-08-20 17:42:35.325 UTC [89] ERROR:  insert or update on table \"reviewer_attestations\" violates foreign key constraint \"reviewer_attestations_challenge_id_fkey\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9518361Z  2026-08-20 17:42:35.325 UTC [89] ERROR:  insert or update on table \"reviewer_attestations\" violates foreign key constraint \"reviewer_attestations_challenge_id_fkey\""
+        },
+        {
+          "logLine": 16108,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9523762Z  2026-08-20 17:42:35.328 UTC [89] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_challenge_id_key\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9523762Z  2026-08-20 17:42:35.328 UTC [89] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_challenge_id_key\""
+        },
+        {
+          "logLine": 16118,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9528875Z  2026-08-20 17:42:35.332 UTC [89] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_role_commit_index\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9528875Z  2026-08-20 17:42:35.332 UTC [89] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_role_commit_index\""
+        },
+        {
+          "logLine": 16128,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9533821Z  2026-08-20 17:42:35.334 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_applied_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9533821Z  2026-08-20 17:42:35.334 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_applied_check\""
+        },
+        {
+          "logLine": 16138,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9543162Z  2026-08-20 17:42:35.335 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_release_eligible_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9543162Z  2026-08-20 17:42:35.335 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_release_eligible_check\""
+        },
+        {
+          "logLine": 16148,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9552196Z  2026-08-20 17:42:35.339 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_authority_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9552196Z  2026-08-20 17:42:35.339 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_authority_check\""
+        },
+        {
+          "logLine": 16158,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9561118Z  2026-08-20 17:42:35.340 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_deployment_performed_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9561118Z  2026-08-20 17:42:35.340 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_deployment_performed_check\""
+        },
+        {
+          "logLine": 16168,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9570291Z  2026-08-20 17:42:35.341 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_mutation_performed_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9570291Z  2026-08-20 17:42:35.341 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_mutation_performed_check\""
+        },
+        {
+          "logLine": 16178,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9579345Z  2026-08-20 17:42:35.343 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_mutation_check\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9579345Z  2026-08-20 17:42:35.343 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_mutation_check\""
+        },
+        {
+          "logLine": 16188,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9588213Z  2026-08-20 17:42:35.345 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_check2\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9588213Z  2026-08-20 17:42:35.345 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_check2\""
+        },
+        {
+          "logLine": 16198,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9597148Z  2026-08-20 17:42:35.348 UTC [89] ERROR:  null value in column \"reviewer_wallet\" of relation \"reviewer_attestations\" violates not-null constraint",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9597148Z  2026-08-20 17:42:35.348 UTC [89] ERROR:  null value in column \"reviewer_wallet\" of relation \"reviewer_attestations\" violates not-null constraint"
+        },
+        {
+          "logLine": 16208,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Stop containers",
+          "message": "2026-08-20T17:42:36.9606088Z  2026-08-20 17:42:35.350 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check1\"",
+          "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9606088Z  2026-08-20 17:42:35.350 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check1\""
+        }
+      ]
+    },
+    "expectedTestStderr": {
+      "count": 1,
+      "byJobStep": [
+        {
+          "jobStep": "Unit, lint, and contract checks :: Run shared quality gate",
+          "count": 1
+        }
+      ],
+      "lines": [
+        {
+          "logLine": 1268,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.0850158Z ^[[90mstderr^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mreturns explicit validation error when profile search query is missing",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.0850158Z ^[[90mstderr^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mreturns explicit validation error when profile search query is missing"
+        }
+      ]
+    },
+    "expectedArtifactStatus": {
+      "count": 5,
+      "byJobStep": [
+        {
+          "jobStep": "Disposable backup and isolated recovery contract :: Verify restored ready-PostgreSQL contracts",
+          "count": 2
+        },
+        {
+          "jobStep": "Disposable backup and isolated recovery contract :: Run restored operations-quality matrix",
+          "count": 1
+        },
+        {
+          "jobStep": "Disposable backup and isolated recovery contract :: Verify restored reviewer-attestation transaction race",
+          "count": 1
+        },
+        {
+          "jobStep": "Isolated PostgreSQL route contract :: Verify reviewer-attestation transaction race",
+          "count": 1
+        }
+      ],
+      "lines": [
+        {
+          "logLine": 2937,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Verify restored ready-PostgreSQL contracts",
+          "message": "﻿2026-08-20T17:42:36.6521206Z ##[group]Run LOG_LEVEL=error node packages/backend/scripts/verify-ready-postgres-contracts.mjs > artifacts/restored-ready-postgres.json",
+          "raw": "Disposable backup and isolated recovery contract\tVerify restored ready-PostgreSQL contracts\t﻿2026-08-20T17:42:36.6521206Z ##[group]Run LOG_LEVEL=error node packages/backend/scripts/verify-ready-postgres-contracts.mjs > artifacts/restored-ready-postgres.json"
+        },
+        {
+          "logLine": 2938,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Verify restored ready-PostgreSQL contracts",
+          "message": "2026-08-20T17:42:36.6523021Z ^[[36;1mLOG_LEVEL=error node packages/backend/scripts/verify-ready-postgres-contracts.mjs > artifacts/restored-ready-postgres.json^[[0m",
+          "raw": "Disposable backup and isolated recovery contract\tVerify restored ready-PostgreSQL contracts\t2026-08-20T17:42:36.6523021Z ^[[36;1mLOG_LEVEL=error node packages/backend/scripts/verify-ready-postgres-contracts.mjs > artifacts/restored-ready-postgres.json^[[0m"
+        },
+        {
+          "logLine": 2955,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Run restored operations-quality matrix",
+          "message": "2026-08-20T17:42:37.3722809Z ^[[36;1mLOG_LEVEL=error node packages/backend/scripts/verify-operations-quality.mjs > artifacts/restored-operations-quality.json^[[0m",
+          "raw": "Disposable backup and isolated recovery contract\tRun restored operations-quality matrix\t2026-08-20T17:42:37.3722809Z ^[[36;1mLOG_LEVEL=error node packages/backend/scripts/verify-operations-quality.mjs > artifacts/restored-operations-quality.json^[[0m"
+        },
+        {
+          "logLine": 3610,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Verify restored reviewer-attestation transaction race",
+          "message": "2026-08-20T17:43:25.9320991Z       \"status\": \"error\",",
+          "raw": "Disposable backup and isolated recovery contract\tVerify restored reviewer-attestation transaction race\t2026-08-20T17:43:25.9320991Z       \"status\": \"error\","
+        },
+        {
+          "logLine": 15737,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Verify reviewer-attestation transaction race",
+          "message": "2026-08-20T17:42:35.7990896Z       \"status\": \"error\",",
+          "raw": "Isolated PostgreSQL route contract\tVerify reviewer-attestation transaction race\t2026-08-20T17:42:35.7990896Z       \"status\": \"error\","
+        }
+      ]
+    },
+    "processFailureSignal": {
+      "count": 0,
+      "byJobStep": [],
+      "lines": []
+    },
+    "otherErrorLike": {
+      "count": 27,
+      "byJobStep": [
+        {
+          "jobStep": "Unit, lint, and contract checks :: Run shared quality gate",
+          "count": 15
+        },
+        {
+          "jobStep": "Read-only release-gate inspection :: Run release-gate matrix",
+          "count": 2
+        },
+        {
+          "jobStep": "Read-only release-gate inspection :: Track blocker resolution progress",
+          "count": 2
+        },
+        {
+          "jobStep": "Disposable backup and isolated recovery contract :: Upload redacted recovery evidence",
+          "count": 1
+        },
+        {
+          "jobStep": "Disposable backup and isolated recovery contract :: Verify restored reviewer-attestation transaction race",
+          "count": 1
+        },
+        {
+          "jobStep": "Disposable c2/c4/c8 recovery baseline artifacts :: UNKNOWN STEP",
+          "count": 1
+        },
+        {
+          "jobStep": "Isolated PostgreSQL route contract :: Verify reviewer-attestation transaction race",
+          "count": 1
+        },
+        {
+          "jobStep": "Operations quality matrix :: Upload operations-quality evidence",
+          "count": 1
+        },
+        {
+          "jobStep": "Read-only release-gate inspection :: Build blocker clearance plan",
+          "count": 1
+        },
+        {
+          "jobStep": "Read-only release-gate inspection :: Upload release-gate evidence",
+          "count": 1
+        },
+        {
+          "jobStep": "Repeated c2/c4/c8 confidence artifacts :: UNKNOWN STEP",
+          "count": 1
+        }
+      ],
+      "lines": [
+        {
+          "logLine": 518,
+          "job": "Operations quality matrix",
+          "step": "Upload operations-quality evidence",
+          "message": "2026-08-20T17:43:02.9258988Z   if-no-files-found: error",
+          "raw": "Operations quality matrix\tUpload operations-quality evidence\t2026-08-20T17:43:02.9258988Z   if-no-files-found: error"
+        },
+        {
+          "logLine": 1295,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.1038649Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mreturns explicit validation error when profile search query is missing",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.1038649Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mreturns explicit validation error when profile search query is missing"
+        },
+        {
+          "logLine": 1700,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.6717803Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.6717803Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint"
+        },
+        {
+          "logLine": 1703,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.6774042Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.6774042Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint"
+        },
+        {
+          "logLine": 1706,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.6809298Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.6809298Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint"
+        },
+        {
+          "logLine": 1709,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.6859633Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.6859633Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint"
+        },
+        {
+          "logLine": 1712,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.6864270Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.6864270Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed queue jobs through ops retry endpoint"
+        },
+        {
+          "logLine": 1715,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.6869327Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.6869327Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint"
+        },
+        {
+          "logLine": 1718,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.6941479Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.6941479Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint"
+        },
+        {
+          "logLine": 1721,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.7029647Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.7029647Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint"
+        },
+        {
+          "logLine": 1724,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.7199812Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.7199812Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint"
+        },
+        {
+          "logLine": 1727,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.7204880Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.7204880Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint"
+        },
+        {
+          "logLine": 1730,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.7209550Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.7209550Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint"
+        },
+        {
+          "logLine": 1734,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.8359814Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.8359814Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint"
+        },
+        {
+          "logLine": 1737,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.8401299Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.8401299Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint"
+        },
+        {
+          "logLine": 1740,
+          "job": "Unit, lint, and contract checks",
+          "step": "Run shared quality gate",
+          "message": "2026-08-20T17:42:53.8459869Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint",
+          "raw": "Unit, lint, and contract checks\tRun shared quality gate\t2026-08-20T17:42:53.8459869Z ^[[90mstdout^[[2m | tests/api.test.js^[[2m > ^[[22m^[[2mPayTray backend skeleton^[[2m > ^[[22m^[[2mretries failed webhook deliveries through ops retry endpoint"
+        },
+        {
+          "logLine": 3611,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Verify restored reviewer-attestation transaction race",
+          "message": "2026-08-20T17:43:25.9321361Z       \"error\": \"Reviewer attestation challenge was already consumed\"",
+          "raw": "Disposable backup and isolated recovery contract\tVerify restored reviewer-attestation transaction race\t2026-08-20T17:43:25.9321361Z       \"error\": \"Reviewer attestation challenge was already consumed\""
+        },
+        {
+          "logLine": 3838,
+          "job": "Disposable backup and isolated recovery contract",
+          "step": "Upload redacted recovery evidence",
+          "message": "2026-08-20T17:43:26.0231379Z   if-no-files-found: error",
+          "raw": "Disposable backup and isolated recovery contract\tUpload redacted recovery evidence\t2026-08-20T17:43:26.0231379Z   if-no-files-found: error"
+        },
+        {
+          "logLine": 11954,
+          "job": "Disposable c2/c4/c8 recovery baseline artifacts",
+          "step": "UNKNOWN STEP",
+          "message": "2026-08-20T17:42:42.8457251Z   if-no-files-found: error",
+          "raw": "Disposable c2/c4/c8 recovery baseline artifacts\tUNKNOWN STEP\t2026-08-20T17:42:42.8457251Z   if-no-files-found: error"
+        },
+        {
+          "logLine": 12597,
+          "job": "Read-only release-gate inspection",
+          "step": "Run release-gate matrix",
+          "message": "2026-08-20T17:42:35.1806806Z       \"reason\": \"1 enabled token metadata record(s) failed validation\",",
+          "raw": "Read-only release-gate inspection\tRun release-gate matrix\t2026-08-20T17:42:35.1806806Z       \"reason\": \"1 enabled token metadata record(s) failed validation\","
+        },
+        {
+          "logLine": 12754,
+          "job": "Read-only release-gate inspection",
+          "step": "Run release-gate matrix",
+          "message": "2026-08-20T17:42:35.1888026Z       \"reason\": \"1 enabled token metadata record(s) failed validation\",",
+          "raw": "Read-only release-gate inspection\tRun release-gate matrix\t2026-08-20T17:42:35.1888026Z       \"reason\": \"1 enabled token metadata record(s) failed validation\","
+        },
+        {
+          "logLine": 12965,
+          "job": "Read-only release-gate inspection",
+          "step": "Build blocker clearance plan",
+          "message": "2026-08-20T17:42:35.4129822Z       \"reason\": \"1 enabled token metadata record(s) failed validation\",",
+          "raw": "Read-only release-gate inspection\tBuild blocker clearance plan\t2026-08-20T17:42:35.4129822Z       \"reason\": \"1 enabled token metadata record(s) failed validation\","
+        },
+        {
+          "logLine": 13133,
+          "job": "Read-only release-gate inspection",
+          "step": "Track blocker resolution progress",
+          "message": "2026-08-20T17:42:35.5360995Z       \"reason\": \"1 enabled token metadata record(s) failed validation\",",
+          "raw": "Read-only release-gate inspection\tTrack blocker resolution progress\t2026-08-20T17:42:35.5360995Z       \"reason\": \"1 enabled token metadata record(s) failed validation\","
+        },
+        {
+          "logLine": 13594,
+          "job": "Read-only release-gate inspection",
+          "step": "Track blocker resolution progress",
+          "message": "2026-08-20T17:42:35.5637117Z       \"reason\": \"1 enabled token metadata record(s) failed validation\",",
+          "raw": "Read-only release-gate inspection\tTrack blocker resolution progress\t2026-08-20T17:42:35.5637117Z       \"reason\": \"1 enabled token metadata record(s) failed validation\","
+        },
+        {
+          "logLine": 14673,
+          "job": "Read-only release-gate inspection",
+          "step": "Upload release-gate evidence",
+          "message": "2026-08-20T17:42:36.9001735Z   if-no-files-found: error",
+          "raw": "Read-only release-gate inspection\tUpload release-gate evidence\t2026-08-20T17:42:36.9001735Z   if-no-files-found: error"
+        },
+        {
+          "logLine": 15738,
+          "job": "Isolated PostgreSQL route contract",
+          "step": "Verify reviewer-attestation transaction race",
+          "message": "2026-08-20T17:42:35.7991587Z       \"error\": \"Reviewer attestation challenge was already consumed\"",
+          "raw": "Isolated PostgreSQL route contract\tVerify reviewer-attestation transaction race\t2026-08-20T17:42:35.7991587Z       \"error\": \"Reviewer attestation challenge was already consumed\""
+        },
+        {
+          "logLine": 22452,
+          "job": "Repeated c2/c4/c8 confidence artifacts",
+          "step": "UNKNOWN STEP",
+          "message": "2026-08-20T17:43:58.2378625Z   if-no-files-found: error",
+          "raw": "Repeated c2/c4/c8 confidence artifacts\tUNKNOWN STEP\t2026-08-20T17:43:58.2378625Z   if-no-files-found: error"
+        }
+      ]
+    }
+  }
+}

@@ -114,6 +114,12 @@ The baseline verifier now supports `RECOVERY_STRESS_REQUIRE_DATABASE_TELEMETRY=t
 
 The disposable CI baseline job now runs this aggregation after baseline verification, includes the resulting JSON in the SHA-256 sidecar, uploads it with the redacted c2/c4/c8 artifacts, and fails closed unless both the baseline and distribution reports are `status=verified`. The distribution is diagnostic only; it cannot establish causal attribution, production SLOs, release eligibility, payment state, or settlement authority.
 
+### Batch 7 — Sustained-concurrency wait-signal and throughput analysis
+
+**Status:** implemented in the current working batch. The repository now exposes `backend:recovery:stress:wait-throughput:check`, which derives completed recovery sequences per second from `completedSequences / orchestrationElapsedMs` and compares DataFileImmediateSync and LWLock/WALWrite observations per 100 PostgreSQL samples across c2/c4/c8. It reports worker coverage, restore and sequence percentiles, connection-acquisition maxima, throughput change between levels, and efficiency versus linear scaling.
+
+The analyzer explicitly labels its output `descriptive_only` because the recovery harness does not measure application transaction TPS and sampled `pg_stat_activity` wait events are not causal attribution. It rejects target-bound RTO reports, commit mismatches, incomplete or failed levels, integrity failures, and unsafe authority fields. CI now fingerprints, uploads, and requires the new throughput artifact alongside the existing baseline and wait-event artifacts.
+
 ## Safety invariants
 
 ```json

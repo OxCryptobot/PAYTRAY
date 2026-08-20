@@ -18,6 +18,7 @@
     "backend:recovery:stress:repeat": "node packages/backend/scripts/repeat-recovery-stress.mjs",
     "backend:recovery:stress:baseline:check": "node packages/backend/scripts/verify-recovery-stress-baseline.mjs",
     "backend:recovery:stress:wait-events:check": "node packages/backend/scripts/aggregate-recovery-wait-events.mjs",
+    "backend:recovery:stress:wait-throughput:check": "node packages/backend/scripts/analyze-recovery-wait-throughput.mjs",
     "backend:dependencies:lockfile:check": "node packages/backend/scripts/verify-lockfile-drift.mjs",
     "backend:verifier:operations:check": "node packages/backend/scripts/inspect-verifier-operations.mjs",
     "backend:outbox:health:check": "node packages/backend/scripts/inspect-outbox-health.mjs",

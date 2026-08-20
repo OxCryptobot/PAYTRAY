@@ -1,0 +1,165 @@
+{
+  "status": "verified",
+  "challengeId": "35dad62e-fa96-4797-abfb-6537c881002a",
+  "releaseCommit": "33afd0037152fd69bab83f99cf2c72a4a3ad38cb",
+  "outcomes": [
+    {
+      "status": "verified",
+      "commitPerformed": true,
+      "rollbackPerformed": false,
+      "attestationId": "2d2fab0a-95aa-481b-a141-12e834135d9b",
+      "role": "security"
+    },
+    {
+      "status": "error",
+      "commitPerformed": false,
+      "rollbackPerformed": true,
+      "error": "Reviewer attestation challenge was already consumed"
+    }
+  ],
+  "attestationCount": 1,
+  "consumedChallengeCount": 1,
+  "auditEventCount": 1,
+  "releaseEligible": false,
+  "settlementAuthority": false,
+  "mutation": "read_only",
+  "repetitions": 5,
+  "rollbackVerifiedCount": 5,
+  "rollbackVerified": true,
+  "runs": [
+    {
+      "status": "verified",
+      "challengeId": "35dad62e-fa96-4797-abfb-6537c881002a",
+      "releaseCommit": "33afd0037152fd69bab83f99cf2c72a4a3ad38cb",
+      "outcomes": [
+        {
+          "status": "verified",
+          "commitPerformed": true,
+          "rollbackPerformed": false,
+          "attestationId": "2d2fab0a-95aa-481b-a141-12e834135d9b",
+          "role": "security"
+        },
+        {
+          "status": "error",
+          "commitPerformed": false,
+          "rollbackPerformed": true,
+          "error": "Reviewer attestation challenge was already consumed"
+        }
+      ],
+      "attestationCount": 1,
+      "consumedChallengeCount": 1,
+      "auditEventCount": 1,
+      "releaseEligible": false,
+      "settlementAuthority": false,
+      "mutation": "read_only"
+    },
+    {
+      "status": "verified",
+      "challengeId": "285ecffa-8628-42c2-b4d0-241ac5b87285",
+      "releaseCommit": "f4e397f6272190d564e2ff1eba136e42d0ab80b2",
+      "outcomes": [
+        {
+          "status": "verified",
+          "commitPerformed": true,
+          "rollbackPerformed": false,
+          "attestationId": "e0a6112a-fc70-4ce7-809f-b52dc2763d21",
+          "role": "security"
+        },
+        {
+          "status": "error",
+          "commitPerformed": false,
+          "rollbackPerformed": true,
+          "error": "Reviewer attestation challenge was already consumed"
+        }
+      ],
+      "attestationCount": 1,
+      "consumedChallengeCount": 1,
+      "auditEventCount": 1,
+      "releaseEligible": false,
+      "settlementAuthority": false,
+      "mutation": "read_only"
+    },
+    {
+      "status": "verified",
+      "challengeId": "0b792c07-24eb-421b-9ec0-68f9e066a24c",
+      "releaseCommit": "99f12b7ef0d0c0606e1f98b6574a278bbe022ea2",
+      "outcomes": [
+        {
+          "status": "verified",
+          "commitPerformed": true,
+          "rollbackPerformed": false,
+          "attestationId": "cf564339-d636-4b61-ae25-79dd562826d2",
+          "role": "security"
+        },
+        {
+          "status": "error",
+          "commitPerformed": false,
+          "rollbackPerformed": true,
+          "error": "Reviewer attestation challenge was already consumed"
+        }
+      ],
+      "attestationCount": 1,
+      "consumedChallengeCount": 1,
+      "auditEventCount": 1,
+      "releaseEligible": false,
+      "settlementAuthority": false,
+      "mutation": "read_only"
+    },
+    {
+      "status": "verified",
+      "challengeId": "df8d8943-d3bd-496b-883b-fa4fbe46240a",
+      "releaseCommit": "800d7c9dbe2defd8a630f6d97b6cc59adbed4cfc",
+      "outcomes": [
+        {
+          "status": "verified",
+          "commitPerformed": true,
+          "rollbackPerformed": false,
+          "attestationId": "6a17218b-c1e4-4c01-a780-4cd8dab59697",
+          "role": "security"
+        },
+        {
+          "status": "error",
+          "commitPerformed": false,
+          "rollbackPerformed": true,
+          "error": "Reviewer attestation challenge was already consumed"
+        }
+      ],
+      "attestationCount": 1,
+      "consumedChallengeCount": 1,
+      "auditEventCount": 1,
+      "releaseEligible": false,
+      "settlementAuthority": false,
+      "mutation": "read_only"
+    },
+    {
+      "status": "verified",
+      "challengeId": "2894d29f-f32a-44e7-bc67-138f00a2f616",
+      "releaseCommit": "5675c7adec9643d2e5bb99dc819530cd63807331",
+      "outcomes": [
+        {
+          "status": "verified",
+          "commitPerformed": true,
+          "rollbackPerformed": false,
+          "attestationId": "8fd04494-e077-498c-be4b-6886dc2a7bb2",
+          "role": "security"
+        },
+        {
+          "status": "error",
+          "commitPerformed": false,
+          "rollbackPerformed": true,
+          "error": "Reviewer attestation challenge was already consumed"
+        }
+      ],
+      "attestationCount": 1,
+      "consumedChallengeCount": 1,
+      "auditEventCount": 1,
+      "releaseEligible": false,
+      "settlementAuthority": false,
+      "mutation": "read_only"
+    }
+  ],
+  "databaseIsolation": true,
+  "cleanupPerformed": true,
+  "deploymentPerformed": false,
+  "settlementMutationPerformed": false
+}

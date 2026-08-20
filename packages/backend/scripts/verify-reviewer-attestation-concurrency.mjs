@@ -12,6 +12,13 @@ import {
 const { Pool } = pg
 const DATABASE_URL = process.env.ATTESTATION_RACE_DATABASE_URL || process.env.DATABASE_URL || ''
 const ISOLATED = process.env.ATTESTATION_RACE_ISOLATED === 'true'
+const REPETITIONS = Number.parseInt(process.env.ATTESTATION_RACE_REPETITIONS || '3', 10)
+
+function assertRepetitions() {
+  if (!Number.isInteger(REPETITIONS) || REPETITIONS < 1 || REPETITIONS > 10) {
+    throw new Error('ATTESTATION_RACE_REPETITIONS must be an integer between 1 and 10')
+  }
+}
 
 function json(value) {
   return JSON.stringify(value, null, 2)
@@ -75,11 +82,19 @@ async function verifyWithHeldTransaction(client, { challengeId, signature, authe
       authenticatedWallet
     })
     await client.query('COMMIT')
-    return { status: 'verified', result }
+    return { status: 'verified', commitPerformed: true, rollbackPerformed: false, result }
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {})
+    let rollbackPerformed = false
+    try {
+      await client.query('ROLLBACK')
+      rollbackPerformed = true
+    } catch {
+      // The final database-state assertions still fail closed if rollback cannot be confirmed.
+    }
     return {
       status: 'error',
+      commitPerformed: false,
+      rollbackPerformed,
       error: {
         name: error.name,
         message: error.message,
@@ -136,9 +151,9 @@ async function cleanup(pool, challengeId) {
   })
 }
 
-async function runRace(pool) {
+async function runRace(pool, repetition) {
   const wallet = Wallet.createRandom()
-  const releaseCommit = sha256(`attestation-race:${Date.now()}`).slice(0, 40)
+  const releaseCommit = sha256(`attestation-race:${Date.now()}:${repetition}`).slice(0, 40)
   const artifactSha256 = sha256(`artifact:${releaseCommit}`)
   const publicKeyFingerprintSha256 = sha256(`fingerprint:${releaseCommit}`)
   const challenge = await issueChallenge(pool, {
@@ -182,6 +197,7 @@ async function runRace(pool) {
     const rejected = outcomes.filter((outcome) => outcome.status === 'error')
     assert.equal(verified.length, 1, `exactly one transaction must verify: ${json(outcomes)}`)
     assert.equal(rejected.length, 1, `exactly one transaction must be rejected: ${json(outcomes)}`)
+    assert.equal(rejected[0].rollbackPerformed, true, `losing transaction must roll back: ${json(outcomes)}`)
     assert.match(rejected[0].error.message, /already consumed|consumed concurrently/)
 
     const attestationId = verified[0].result.attestationId
@@ -205,8 +221,8 @@ async function runRace(pool) {
       challengeId: challenge.challengeId,
       releaseCommit,
       outcomes: outcomes.map((outcome) => outcome.status === 'verified'
-        ? { status: outcome.status, attestationId: outcome.result.attestationId, role: outcome.result.role }
-        : { status: outcome.status, error: outcome.error.message }),
+        ? { status: outcome.status, commitPerformed: outcome.commitPerformed, rollbackPerformed: outcome.rollbackPerformed, attestationId: outcome.result.attestationId, role: outcome.result.role }
+        : { status: outcome.status, commitPerformed: outcome.commitPerformed, rollbackPerformed: outcome.rollbackPerformed, error: outcome.error.message }),
       attestationCount: counts.attestationRows.length,
       consumedChallengeCount: counts.challengeRows.filter((row) => row.consumed_at).length,
       auditEventCount: counts.auditRows[0].count,
@@ -220,6 +236,7 @@ async function runRace(pool) {
 }
 
 async function main() {
+  assertRepetitions()
   if (!ISOLATED) {
     console.error(json({ status: 'blocked', reason: 'ATTESTATION_RACE_ISOLATED=true is required', mutation: 'read_only', releaseEligible: false, settlementAuthority: false }))
     process.exitCode = 1
@@ -229,9 +246,18 @@ async function main() {
   const pool = new Pool({ connectionString: DATABASE_URL, max: 4, min: 0, connectionTimeoutMillis: 5000 })
   try {
     await withTransaction(pool, (client) => runMigrations(client))
-    const report = await runRace(pool)
+    const reports = []
+    for (let repetition = 1; repetition <= REPETITIONS; repetition += 1) {
+      reports.push(await runRace(pool, repetition))
+    }
+    const rollbackVerifiedCount = reports.filter((report) => report.outcomes.filter((outcome) => outcome.status === 'error' && outcome.rollbackPerformed).length === 1).length
+    assert.equal(rollbackVerifiedCount, REPETITIONS, `every repetition must confirm losing-transaction rollback: ${json(reports)}`)
     console.log(json({
-      ...report,
+      ...reports[0],
+      repetitions: REPETITIONS,
+      rollbackVerifiedCount,
+      rollbackVerified: rollbackVerifiedCount === REPETITIONS,
+      runs: reports,
       databaseIsolation: true,
       cleanupPerformed: true,
       deploymentPerformed: false,

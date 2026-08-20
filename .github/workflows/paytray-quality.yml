@@ -365,6 +365,7 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           ATTESTATION_RACE_ISOLATED: 'true'
+          ATTESTATION_RACE_REPETITIONS: '3'
       - name: Verify ready-PostgreSQL route contracts
         run: npm run backend:ready:postgres:check
         env:
@@ -514,6 +515,7 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           ATTESTATION_RACE_ISOLATED: 'true'
+          ATTESTATION_RACE_REPETITIONS: '3'
       - name: Prepare recovery artifact SHA-256 sidecar
         if: always()
         run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-019-constraints.json artifacts/restored-attestation-concurrency.json | tee artifacts/recovery-evidence.sha256

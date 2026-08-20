@@ -377,11 +377,14 @@ export function mergeDatabaseTelemetry(values) {
       max: connectionSummaries.length ? Math.max(...connectionSummaries.map((value) => nonnegativeNumber(value.max))) : null
     },
     poolPressure: {
-      perWorker: poolSummaries,
+      sampleCount: poolSummaries.reduce((sum, value) => sum + nonnegativeInteger(value.sampleCount), 0),
+      maxTotalCount: poolSummaries.length ? Math.max(...poolSummaries.map((value) => nonnegativeInteger(value.maxTotalCount))) : 0,
       maxWaitingCount: poolSummaries.length ? Math.max(...poolSummaries.map((value) => nonnegativeInteger(value.maxWaitingCount))) : 0,
       maxActiveCount: poolSummaries.length ? Math.max(...poolSummaries.map((value) => nonnegativeInteger(value.maxActiveCount))) : 0,
       maxUtilizationRatio: poolSummaries.length ? Math.max(...poolSummaries.map((value) => nonnegativeNumber(value.maxUtilizationRatio))) : 0,
-      meanWaitingCount: poolSummaries.length ? Number((poolSummaries.reduce((sum, value) => sum + nonnegativeNumber(value.meanWaitingCount), 0) / poolSummaries.length).toFixed(3)) : 0
+      meanWaitingCount: poolSummaries.length ? Number((poolSummaries.reduce((sum, value) => sum + nonnegativeNumber(value.meanWaitingCount), 0) / poolSummaries.length).toFixed(3)) : 0,
+      meanUtilizationRatio: poolSummaries.length ? Number((poolSummaries.reduce((sum, value) => sum + nonnegativeNumber(value.meanUtilizationRatio), 0) / poolSummaries.length).toFixed(4)) : 0,
+      perWorker: poolSummaries
     },
     waitEvents: {
       sampleCount,

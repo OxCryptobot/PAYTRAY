@@ -1,0 +1,50 @@
+{
+  "workers": 4,
+  "racesPerWorker": 10,
+  "totalRaces": 40,
+  "totalConcurrentAttempts": 80,
+  "summary": [
+    {
+      "worker": "worker-1",
+      "repetitions": 10,
+      "rollbackVerifiedCount": 10,
+      "databaseIsolation": true,
+      "cleanupPerformed": true,
+      "releaseEligible": false,
+      "settlementAuthority": false,
+      "mutation": "read_only"
+    },
+    {
+      "worker": "worker-2",
+      "repetitions": 10,
+      "rollbackVerifiedCount": 10,
+      "databaseIsolation": true,
+      "cleanupPerformed": true,
+      "releaseEligible": false,
+      "settlementAuthority": false,
+      "mutation": "read_only"
+    },
+    {
+      "worker": "worker-3",
+      "repetitions": 10,
+      "rollbackVerifiedCount": 10,
+      "databaseIsolation": true,
+      "cleanupPerformed": true,
+      "releaseEligible": false,
+      "settlementAuthority": false,
+      "mutation": "read_only"
+    },
+    {
+      "worker": "worker-4",
+      "repetitions": 10,
+      "rollbackVerifiedCount": 10,
+      "databaseIsolation": true,
+      "cleanupPerformed": true,
+      "releaseEligible": false,
+      "settlementAuthority": false,
+      "mutation": "read_only"
+    }
+  ],
+  "failures": [],
+  "valid": true
+}

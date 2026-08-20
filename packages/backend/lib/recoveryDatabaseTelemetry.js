@@ -398,6 +398,7 @@ export function mergeDatabaseTelemetry(values) {
     }
   }
   const connectionSummaries = summaries.map((summary) => summary.connectionAcquisitionMs).filter(Boolean)
+  const snapshotQuerySummaries = summaries.map((summary) => summary.snapshotQueryElapsedMs).filter(Boolean)
   const poolSummaries = summaries.map((summary) => summary.poolPressure).filter(Boolean)
   return {
     basis: DATABASE_TELEMETRY_BASIS,
@@ -428,8 +429,8 @@ export function mergeDatabaseTelemetry(values) {
       }
     },
     snapshotQueryElapsedMs: {
-      perWorker: summaries.map((summary) => summary.snapshotQueryElapsedMs).filter(Boolean),
-      max: summaries.length ? Math.max(...summaries.map((summary) => nonnegativeNumber(summary.snapshotQueryElapsedMs?.max))) : null
+      ...summarizeDurations(snapshotQuerySummaries.map((summary) => summary.max)),
+      perWorker: snapshotQuerySummaries
     },
     wal: mergeCounterDeltas(summaries, 'wal', ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs'], 'pg_stat_wal'),
     bgwriter: mergeCounterDeltas(summaries, 'bgwriter', ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs'], 'pg_stat_bgwriter'),

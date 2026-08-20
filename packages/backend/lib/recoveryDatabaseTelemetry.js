@@ -2,6 +2,9 @@ const DATABASE_TELEMETRY_BASIS = 'postgresql_observability'
 const MAX_WAIT_EVENT_ROWS = 32
 const DEFAULT_INTERVAL_MS = 25
 const DEFAULT_MAX_SAMPLES = 120
+const WAL_FIELDS = ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs']
+const BGWRITER_FIELDS = ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs']
+const IO_FIELDS = ['ioReads', 'ioWrites', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtends', 'ioExtendTimeMs']
 
 function nonnegativeNumber(value, fallback = 0) {
   const number = typeof value === 'number' ? value : Number(value)
@@ -281,9 +284,9 @@ export function summarizeDatabaseTelemetry(samples, { operationElapsedMs = null,
   const blocksReadDelta = diffStat(after, before, 'blocksRead')
   const blocksHitDelta = diffStat(after, before, 'blocksHit')
   const snapshotQueryElapsedMs = summarizeDurations(normalizedSamples.map((sample) => sample.snapshotQueryElapsedMs))
-  const wal = summarizeCounterTelemetry(normalizedSamples, 'wal', ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs'], 'pg_stat_wal')
-  const bgwriter = summarizeCounterTelemetry(normalizedSamples, 'bgwriter', ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs'], 'pg_stat_bgwriter')
-  const io = summarizeCounterTelemetry(normalizedSamples, 'io', ['ioReads', 'ioWrites', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtends', 'ioExtendTimeMs'], 'pg_stat_io')
+  const wal = summarizeCounterTelemetry(normalizedSamples, 'wal', WAL_FIELDS, 'pg_stat_wal')
+  const bgwriter = summarizeCounterTelemetry(normalizedSamples, 'bgwriter', BGWRITER_FIELDS, 'pg_stat_bgwriter')
+  const io = summarizeCounterTelemetry(normalizedSamples, 'io', IO_FIELDS, 'pg_stat_io')
   const poolSamples = normalizedSamples.flatMap((sample) => [sample.poolPressure?.before, sample.poolPressure?.after]).filter(Boolean)
 
   return {
@@ -310,6 +313,7 @@ export function summarizeDatabaseTelemetry(samples, { operationElapsedMs = null,
     wal,
     bgwriter,
     io,
+    phaseBoundWriteSyncTiming: summarizePhaseBoundWriteSyncTiming(normalizedSamples, { operationElapsedMs, phase: 'restore' }),
     temporaryStorage: {
       tempBytesDelta,
       tempFilesDelta,
@@ -366,6 +370,101 @@ function mergeCounterDeltas(summaries, field, fields, basis) {
   return {
     basis,
     deltas: Object.fromEntries(fields.map((metric) => [metric, summaries.reduce((sum, value) => sum + nonnegativeNumber(value?.[field]?.deltas?.[metric]), 0)]))
+  }
+}
+
+function ratePerSecond(value, elapsedMs) {
+  return elapsedMs > 0 ? Number((value / (elapsedMs / 1000)).toFixed(3)) : null
+}
+
+export function summarizePhaseBoundWriteSyncTiming(samples, { operationElapsedMs = null, phase = 'restore' } = {}) {
+  const normalized = samples.filter((sample) => sample?.wal && sample?.io)
+  const first = normalized[0]
+  const last = normalized[normalized.length - 1] || first
+  const elapsedMs = operationElapsedMs === null ? null : nonnegativeNumber(operationElapsedMs)
+  const wal = diffCounters(last?.wal, first?.wal, WAL_FIELDS)
+  const io = diffCounters(last?.io, first?.io, IO_FIELDS)
+  return {
+    basis: 'phase_bound_postgresql_write_sync_timing',
+    phase,
+    boundary: 'first_and_last_pg_stat_snapshot',
+    sampleCount: normalized.length,
+    elapsedMs,
+    wal: {
+      walRecords: wal.walRecords,
+      walBytes: wal.walBytes,
+      walWriteCalls: wal.walWrite,
+      walSyncCalls: wal.walSync,
+      walWriteTimeMs: wal.walWriteTimeMs,
+      walSyncTimeMs: wal.walSyncTimeMs
+    },
+    io: {
+      ioWriteCalls: io.ioWrites,
+      ioWriteTimeMs: io.ioWriteTimeMs,
+      ioFsyncs: io.ioFsyncs,
+      ioFsyncTimeMs: io.ioFsyncTimeMs,
+      ioExtendCalls: io.ioExtends,
+      ioExtendTimeMs: io.ioExtendTimeMs
+    },
+    ratesPerSecond: {
+      walWriteCalls: elapsedMs === null ? null : ratePerSecond(wal.walWrite, elapsedMs),
+      walSyncCalls: elapsedMs === null ? null : ratePerSecond(wal.walSync, elapsedMs),
+      walWriteTimeMs: elapsedMs === null ? null : ratePerSecond(wal.walWriteTimeMs, elapsedMs),
+      walSyncTimeMs: elapsedMs === null ? null : ratePerSecond(wal.walSyncTimeMs, elapsedMs),
+      ioWriteCalls: elapsedMs === null ? null : ratePerSecond(io.ioWrites, elapsedMs),
+      ioFsyncs: elapsedMs === null ? null : ratePerSecond(io.ioFsyncs, elapsedMs),
+      ioWriteTimeMs: elapsedMs === null ? null : ratePerSecond(io.ioWriteTimeMs, elapsedMs),
+      ioFsyncTimeMs: elapsedMs === null ? null : ratePerSecond(io.ioFsyncTimeMs, elapsedMs)
+    },
+    interpretation: 'diagnostic_phase_bound_counter_timing_not_physical_fsync_proof'
+  }
+}
+
+function mergePhaseBoundWriteSyncTiming(summaries) {
+  const values = summaries.map((summary) => summary?.phaseBoundWriteSyncTiming).filter(Boolean)
+  const elapsedMs = values.reduce((sum, value) => sum + nonnegativeNumber(value.elapsedMs), 0)
+  const aggregate = (path) => values.reduce((sum, value) => sum + nonnegativeNumber(path(value)), 0)
+  const walWriteCalls = aggregate((value) => value.wal?.walWriteCalls)
+  const walSyncCalls = aggregate((value) => value.wal?.walSyncCalls)
+  const walWriteTimeMs = aggregate((value) => value.wal?.walWriteTimeMs)
+  const walSyncTimeMs = aggregate((value) => value.wal?.walSyncTimeMs)
+  const ioWriteCalls = aggregate((value) => value.io?.ioWriteCalls)
+  const ioFsyncs = aggregate((value) => value.io?.ioFsyncs)
+  const ioWriteTimeMs = aggregate((value) => value.io?.ioWriteTimeMs)
+  const ioFsyncTimeMs = aggregate((value) => value.io?.ioFsyncTimeMs)
+  return {
+    basis: 'phase_bound_postgresql_write_sync_timing',
+    phase: 'restore',
+    boundary: 'worker_summary_aggregation',
+    sampleCount: values.reduce((sum, value) => sum + nonnegativeInteger(value.sampleCount), 0),
+    elapsedMs,
+    wal: {
+      walRecords: aggregate((value) => value.wal?.walRecords),
+      walBytes: aggregate((value) => value.wal?.walBytes),
+      walWriteCalls,
+      walSyncCalls,
+      walWriteTimeMs,
+      walSyncTimeMs
+    },
+    io: {
+      ioWriteCalls,
+      ioWriteTimeMs,
+      ioFsyncs,
+      ioFsyncTimeMs,
+      ioExtendCalls: aggregate((value) => value.io?.ioExtendCalls),
+      ioExtendTimeMs: aggregate((value) => value.io?.ioExtendTimeMs)
+    },
+    ratesPerSecond: {
+      walWriteCalls: ratePerSecond(walWriteCalls, elapsedMs),
+      walSyncCalls: ratePerSecond(walSyncCalls, elapsedMs),
+      walWriteTimeMs: ratePerSecond(walWriteTimeMs, elapsedMs),
+      walSyncTimeMs: ratePerSecond(walSyncTimeMs, elapsedMs),
+      ioWriteCalls: ratePerSecond(ioWriteCalls, elapsedMs),
+      ioFsyncs: ratePerSecond(ioFsyncs, elapsedMs),
+      ioWriteTimeMs: ratePerSecond(ioWriteTimeMs, elapsedMs),
+      ioFsyncTimeMs: ratePerSecond(ioFsyncTimeMs, elapsedMs)
+    },
+    interpretation: 'diagnostic_phase_bound_counter_timing_not_physical_fsync_proof'
   }
 }
 
@@ -434,7 +533,8 @@ export function mergeDatabaseTelemetry(values) {
     },
     wal: mergeCounterDeltas(summaries, 'wal', ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs'], 'pg_stat_wal'),
     bgwriter: mergeCounterDeltas(summaries, 'bgwriter', ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs'], 'pg_stat_bgwriter'),
-    io: mergeCounterDeltas(summaries, 'io', ['ioReads', 'ioWrites', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtends', 'ioExtendTimeMs'], 'pg_stat_io'),
+    io: mergeCounterDeltas(summaries, 'io', IO_FIELDS, 'pg_stat_io'),
+    phaseBoundWriteSyncTiming: mergePhaseBoundWriteSyncTiming(summaries),
     temporaryStorage: {
       tempBytesDelta,
       tempFilesDelta,

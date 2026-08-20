@@ -24,12 +24,32 @@ function assertNonnegativeNumber(value, label) {
 const WAL_FIELDS = ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs']
 const BGWRITER_FIELDS = ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs']
 const IO_FIELDS = ['ioReads', 'ioWrites', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtends', 'ioExtendTimeMs']
+const PHASE_BOUND_WAL_FIELDS = ['walRecords', 'walBytes', 'walWriteCalls', 'walSyncCalls', 'walWriteTimeMs', 'walSyncTimeMs']
+const PHASE_BOUND_IO_FIELDS = ['ioWriteCalls', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtendCalls', 'ioExtendTimeMs']
+const PHASE_BOUND_RATE_FIELDS = ['walWriteCalls', 'walSyncCalls', 'walWriteTimeMs', 'walSyncTimeMs', 'ioWriteCalls', 'ioFsyncs', 'ioWriteTimeMs', 'ioFsyncTimeMs']
 
 function validateCounterBlock(value, label, basis, fields) {
   assertObject(value, label)
   if (value.basis !== basis) fail(`${label}.basis is invalid`)
   assertObject(value.deltas, `${label}.deltas`)
   for (const field of fields) assertNonnegativeNumber(value.deltas[field], `${label}.deltas.${field}`)
+}
+
+function validatePhaseBoundTiming(value, label) {
+  assertObject(value, label)
+  if (value.basis !== 'phase_bound_postgresql_write_sync_timing') fail(`${label}.basis is invalid`)
+  if (value.phase !== 'restore' || value.boundary !== 'first_and_last_pg_stat_snapshot' && value.boundary !== 'worker_summary_aggregation') fail(`${label} boundary is invalid`)
+  assertNonnegativeInteger(value.sampleCount, `${label}.sampleCount`)
+  assertNonnegativeNumber(value.elapsedMs, `${label}.elapsedMs`)
+  assertObject(value.wal, `${label}.wal`)
+  assertObject(value.io, `${label}.io`)
+  for (const field of PHASE_BOUND_WAL_FIELDS) assertNonnegativeNumber(value.wal[field], `${label}.wal.${field}`)
+  for (const field of PHASE_BOUND_IO_FIELDS) assertNonnegativeNumber(value.io[field], `${label}.io.${field}`)
+  assertObject(value.ratesPerSecond, `${label}.ratesPerSecond`)
+  for (const field of PHASE_BOUND_RATE_FIELDS) {
+    if (value.ratesPerSecond[field] !== null) assertNonnegativeNumber(value.ratesPerSecond[field], `${label}.ratesPerSecond.${field}`)
+  }
+  if (value.interpretation !== 'diagnostic_phase_bound_counter_timing_not_physical_fsync_proof') fail(`${label}.interpretation is invalid`)
 }
 
 function validatePoolSummary(value, label) {
@@ -51,6 +71,7 @@ function validateContentionTelemetry(databaseTelemetry, label, expectedWorkers =
   validateCounterBlock(databaseTelemetry.wal, `${label}.wal`, 'pg_stat_wal', WAL_FIELDS)
   validateCounterBlock(databaseTelemetry.bgwriter, `${label}.bgwriter`, 'pg_stat_bgwriter', BGWRITER_FIELDS)
   validateCounterBlock(databaseTelemetry.io, `${label}.io`, 'pg_stat_io', IO_FIELDS)
+  validatePhaseBoundTiming(databaseTelemetry.phaseBoundWriteSyncTiming, `${label}.phaseBoundWriteSyncTiming`)
   assertObject(databaseTelemetry.snapshotQueryElapsedMs, `${label}.snapshotQueryElapsedMs`)
   for (const field of ['p50', 'p95', 'p99', 'max', 'mean']) assertNonnegativeNumber(databaseTelemetry.snapshotQueryElapsedMs[field], `${label}.snapshotQueryElapsedMs.${field}`)
   return {
@@ -59,6 +80,7 @@ function validateContentionTelemetry(databaseTelemetry, label, expectedWorkers =
     walDeltas: databaseTelemetry.wal.deltas,
     bgwriterDeltas: databaseTelemetry.bgwriter.deltas,
     ioDeltas: databaseTelemetry.io.deltas,
+    phaseBoundWriteSyncTiming: databaseTelemetry.phaseBoundWriteSyncTiming,
     snapshotQueryMaxMs: databaseTelemetry.snapshotQueryElapsedMs.max
   }
 }

@@ -628,9 +628,19 @@ jobs:
           status=$?
           cat artifacts/recovery-wait-throughput.json
           exit 0
+      - name: Analyze PostgreSQL WAL and pg_stat_io counters
+        if: always()
+        run: |
+          set +e
+          RECOVERY_STRESS_EXPECTED_COMMIT=${{ github.sha }} \
+          RECOVERY_STRESS_REPORTS=artifacts/recovery-stress-c2.json,artifacts/recovery-stress-c4.json,artifacts/recovery-stress-c8.json \
+          node packages/backend/scripts/analyze-recovery-db-counters.mjs > artifacts/recovery-db-counters.json
+          status=$?
+          cat artifacts/recovery-db-counters.json
+          exit 0
       - name: Fingerprint recovery baseline artifacts
         if: always()
-        run: sha256sum artifacts/recovery-stress-c2.json artifacts/recovery-stress-c4.json artifacts/recovery-stress-c8.json artifacts/recovery-stress-baseline.json artifacts/recovery-wait-events.json artifacts/recovery-wait-throughput.json | tee artifacts/recovery-stress-baseline.sha256
+        run: sha256sum artifacts/recovery-stress-c2.json artifacts/recovery-stress-c4.json artifacts/recovery-stress-c8.json artifacts/recovery-stress-baseline.json artifacts/recovery-wait-events.json artifacts/recovery-wait-throughput.json artifacts/recovery-db-counters.json | tee artifacts/recovery-stress-baseline.sha256
       - name: Upload redacted recovery baseline artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -643,6 +653,7 @@ jobs:
             artifacts/recovery-stress-baseline.json
             artifacts/recovery-wait-events.json
             artifacts/recovery-wait-throughput.json
+            artifacts/recovery-db-counters.json
             artifacts/recovery-stress-baseline.sha256
           if-no-files-found: error
           retention-days: 7
@@ -655,6 +666,8 @@ jobs:
           grep -q '"status": "verified"' artifacts/recovery-wait-events.json
           test -s artifacts/recovery-wait-throughput.json
           grep -q '"status": "verified"' artifacts/recovery-wait-throughput.json
+          test -s artifacts/recovery-db-counters.json
+          grep -q '"status": "verified"' artifacts/recovery-db-counters.json
 
   recovery-confidence:
     name: Repeated c2/c4/c8 confidence artifacts
@@ -684,14 +697,14 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
-      - name: Run three c2/c4/c8 repetitions with contention telemetry
+      - name: Run five c2/c4/c8 repetitions with contention telemetry
         run: |
           mkdir -p artifacts
           set +e
           RECOVERY_STRESS_ENVIRONMENT=local_disposable \
           RECOVERY_STRESS_RELEASE_COMMIT=${{ github.sha }} \
           RECOVERY_STRESS_ADMIN_URL=postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/postgres \
-          RECOVERY_STRESS_REPETITIONS=3 \
+          RECOVERY_STRESS_REPETITIONS=5 \
           RECOVERY_STRESS_REPEAT_CONCURRENCIES=2,4,8 \
           RECOVERY_STRESS_REPEAT_REPORT_FILE=artifacts/recovery-repeat-confidence.json \
           RECOVERY_STRESS_REQUIRE_CONTENTION_TELEMETRY=true \

@@ -6,6 +6,20 @@ import { validateRecoveryStressBaseline } from '../scripts/verify-recovery-stres
 
 const COMMIT = 'f488f6db0d77a0414c6061f7a1b3e50ca08be105'
 
+function phaseBoundTiming(sampleCount, multiplier = 1) {
+  return {
+    basis: 'phase_bound_postgresql_write_sync_timing',
+    phase: 'restore',
+    boundary: 'first_and_last_pg_stat_snapshot',
+    sampleCount,
+    elapsedMs: 10,
+    wal: { walRecords: 10 * multiplier, walBytes: 100 * multiplier, walWriteCalls: multiplier, walSyncCalls: multiplier, walWriteTimeMs: 2 * multiplier, walSyncTimeMs: 3 * multiplier },
+    io: { ioWriteCalls: multiplier, ioWriteTimeMs: multiplier, ioFsyncs: multiplier, ioFsyncTimeMs: multiplier, ioExtendCalls: multiplier, ioExtendTimeMs: multiplier },
+    ratesPerSecond: { walWriteCalls: 100 * multiplier, walSyncCalls: 100 * multiplier, walWriteTimeMs: 200 * multiplier, walSyncTimeMs: 300 * multiplier, ioWriteCalls: 100 * multiplier, ioFsyncs: 100 * multiplier, ioWriteTimeMs: 100 * multiplier, ioFsyncTimeMs: 100 * multiplier },
+    interpretation: 'diagnostic_phase_bound_counter_timing_not_physical_fsync_proof'
+  }
+}
+
 function sampleReport(concurrency, { resource = false, database = false, contention = false, unsafe = false, rtoTargetMs = null } = {}) {
   const phaseLatencyMs = Object.fromEntries(['backup', 'backup_integrity', 'catalog', 'restore', 'restore_verification'].map((phase) => [phase, { count: concurrency, p50: 1, p95: 2, p99: 3, max: 4, mean: 2 }]))
   const report = {
@@ -44,7 +58,8 @@ function sampleReport(concurrency, { resource = false, database = false, content
         poolPressure: { sampleCount: 2, maxTotalCount: 2, maxActiveCount: 1, maxWaitingCount: 0, meanWaitingCount: 0, maxUtilizationRatio: 0.5, meanUtilizationRatio: 0.5 },
         wal: { basis: 'pg_stat_wal', deltas: { walRecords: 10, walFpi: 1, walBytes: 100, walBuffersFull: 0, walWrite: 1, walSync: 1, walWriteTimeMs: 2, walSyncTimeMs: 3 } },
         bgwriter: { basis: 'pg_stat_bgwriter', deltas: { buffersCheckpoint: 1, buffersClean: 1, maxwrittenClean: 0, buffersBackend: 1, buffersBackendFsync: 0, checkpointWriteTimeMs: 2, checkpointSyncTimeMs: 1 } },
-        io: { basis: 'pg_stat_io', deltas: { ioReads: 1, ioWrites: 1, ioWriteTimeMs: 1, ioFsyncs: 1, ioFsyncTimeMs: 1, ioExtends: 1, ioExtendTimeMs: 1 } }
+        io: { basis: 'pg_stat_io', deltas: { ioReads: 1, ioWrites: 1, ioWriteTimeMs: 1, ioFsyncs: 1, ioFsyncTimeMs: 1, ioExtends: 1, ioExtendTimeMs: 1 } },
+        phaseBoundWriteSyncTiming: phaseBoundTiming(2)
       } : {}),
       errors: []
     }
@@ -64,7 +79,8 @@ function sampleReport(concurrency, { resource = false, database = false, content
         poolPressure: { sampleCount: concurrency * 2, maxTotalCount: concurrency, maxActiveCount: concurrency, perWorker: Array.from({ length: concurrency }, () => ({ sampleCount: 2, maxTotalCount: 2, maxActiveCount: 1, maxWaitingCount: 0, meanWaitingCount: 0, maxUtilizationRatio: 0.5, meanUtilizationRatio: 0.5 })), maxWaitingCount: 0, meanWaitingCount: 0, maxUtilizationRatio: 0.5, meanUtilizationRatio: 0.5 },
         wal: { basis: 'pg_stat_wal', deltas: { walRecords: concurrency * 10, walFpi: concurrency, walBytes: concurrency * 100, walBuffersFull: 0, walWrite: concurrency, walSync: concurrency, walWriteTimeMs: concurrency * 2, walSyncTimeMs: concurrency * 3 } },
         bgwriter: { basis: 'pg_stat_bgwriter', deltas: { buffersCheckpoint: concurrency, buffersClean: concurrency, maxwrittenClean: 0, buffersBackend: concurrency, buffersBackendFsync: 0, checkpointWriteTimeMs: concurrency * 2, checkpointSyncTimeMs: concurrency } },
-        io: { basis: 'pg_stat_io', deltas: { ioReads: concurrency, ioWrites: concurrency, ioWriteTimeMs: concurrency, ioFsyncs: concurrency, ioFsyncTimeMs: concurrency, ioExtends: concurrency, ioExtendTimeMs: concurrency } }
+        io: { basis: 'pg_stat_io', deltas: { ioReads: concurrency, ioWrites: concurrency, ioWriteTimeMs: concurrency, ioFsyncs: concurrency, ioFsyncTimeMs: concurrency, ioExtends: concurrency, ioExtendTimeMs: concurrency } },
+        phaseBoundWriteSyncTiming: phaseBoundTiming(concurrency * 2, concurrency)
       } : {}),
       errors: []
     }

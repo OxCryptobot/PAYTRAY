@@ -22,6 +22,17 @@ function report(concurrency, repetition, overrides = {}) {
         wal: { basis: 'pg_stat_wal', deltas: { walRecords: 10, walBytes: 100, walWrite: 2, walSync: 3, walWriteTimeMs: 4, walSyncTimeMs: 5, walFpi: 1, walBuffersFull: 0 } },
         bgwriter: { basis: 'pg_stat_bgwriter', deltas: { buffersCheckpoint: 1, buffersClean: 1, maxwrittenClean: 0, buffersBackend: 2, buffersBackendFsync: 1, checkpointWriteTimeMs: 3, checkpointSyncTimeMs: 4 } },
         io: { basis: 'pg_stat_io', deltas: { ioReads: 1, ioWrites: 2, ioWriteTimeMs: 3, ioFsyncs: 4, ioFsyncTimeMs: 5, ioExtends: 6, ioExtendTimeMs: 7 } },
+        phaseBoundWriteSyncTiming: {
+          basis: 'phase_bound_postgresql_write_sync_timing',
+          phase: 'restore',
+          boundary: 'first_and_last_pg_stat_snapshot',
+          sampleCount: 2,
+          elapsedMs: 100,
+          wal: { walRecords: 10, walBytes: 100, walWriteCalls: 2, walSyncCalls: 3, walWriteTimeMs: 4, walSyncTimeMs: 5 },
+          io: { ioWriteCalls: 2, ioWriteTimeMs: 3, ioFsyncs: 4, ioFsyncTimeMs: 5, ioExtendCalls: 6, ioExtendTimeMs: 7 },
+          ratesPerSecond: { walWriteCalls: 20, walSyncCalls: 30, walWriteTimeMs: 40, walSyncTimeMs: 50, ioWriteCalls: 20, ioFsyncs: 40, ioWriteTimeMs: 30, ioFsyncTimeMs: 50 },
+          interpretation: 'diagnostic_phase_bound_counter_timing_not_physical_fsync_proof'
+        },
         waitEvents: { observations: [] }
       },
       rto: { targetMs: 500, targetConfigured: true, withinTarget: true }
@@ -53,6 +64,8 @@ describe('repeated recovery stress confidence aggregation', () => {
     expect(result.levels[2].buffersBackendFsync.mean).toBe(1)
     expect(result.levels[2].ioFsyncs.mean).toBe(4)
     expect(result.levels[2].snapshotQueryMaxMs.mean).toBe(2)
+    expect(result.levels[2].phaseBoundWalSyncTimeMs.mean).toBe(5)
+    expect(result.levels[2].phaseBoundIoFsyncTimeMs.mean).toBe(5)
     expect(result.contentionTelemetry).toBe(true)
     expect(result.levels[2].rto).toMatchObject({ targetMs: 500, withinTargetCount: 3, evaluatedRuns: 3, withinTargetRate: 1 })
     expect(result.safety).toEqual({
@@ -73,7 +86,7 @@ describe('repeated recovery stress confidence aggregation', () => {
       concurrencyLevels: [2, 4, 8],
       runResults,
       requireContentionTelemetry: true
-    })).toThrow('concurrency 2 is missing pool/WAL/bgwriter/io/timing telemetry')
+    })).toThrow('concurrency 2 is missing pool/WAL/bgwriter/io/phase-bound timing telemetry')
   })
 
   it('blocks incomplete repetition coverage and preserves failure counts', () => {

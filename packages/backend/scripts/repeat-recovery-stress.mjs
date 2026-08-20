@@ -71,8 +71,8 @@ function metricValues(reports, selector) {
 
 function assertContentionTelemetry(report, concurrency) {
   const telemetry = report.databaseTelemetry
-  if (!telemetry || !telemetry.poolPressure || !telemetry.wal || !telemetry.bgwriter || !telemetry.io || !telemetry.snapshotQueryElapsedMs) throw new Error(`concurrency ${concurrency} is missing pool/WAL/bgwriter/io/timing telemetry`)
-  if (telemetry.wal.basis !== 'pg_stat_wal' || telemetry.bgwriter.basis !== 'pg_stat_bgwriter' || telemetry.io.basis !== 'pg_stat_io') throw new Error(`concurrency ${concurrency} has invalid WAL/bgwriter/io telemetry basis`)
+  if (!telemetry || !telemetry.poolPressure || !telemetry.wal || !telemetry.bgwriter || !telemetry.io || !telemetry.snapshotQueryElapsedMs || !telemetry.phaseBoundWriteSyncTiming) throw new Error(`concurrency ${concurrency} is missing pool/WAL/bgwriter/io/phase-bound timing telemetry`)
+  if (telemetry.wal.basis !== 'pg_stat_wal' || telemetry.bgwriter.basis !== 'pg_stat_bgwriter' || telemetry.io.basis !== 'pg_stat_io' || telemetry.phaseBoundWriteSyncTiming.basis !== 'phase_bound_postgresql_write_sync_timing') throw new Error(`concurrency ${concurrency} has invalid WAL/bgwriter/io/phase-bound telemetry basis`)
   for (const field of ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs']) {
     if (typeof telemetry.wal.deltas?.[field] !== 'number' || !Number.isFinite(telemetry.wal.deltas[field]) || telemetry.wal.deltas[field] < 0) throw new Error(`concurrency ${concurrency}.wal.deltas.${field} is invalid`)
   }
@@ -85,6 +85,17 @@ function assertContentionTelemetry(report, concurrency) {
   for (const field of ['p50', 'p95', 'p99', 'max', 'mean']) {
     if (typeof telemetry.snapshotQueryElapsedMs[field] !== 'number' || !Number.isFinite(telemetry.snapshotQueryElapsedMs[field]) || telemetry.snapshotQueryElapsedMs[field] < 0) throw new Error(`concurrency ${concurrency}.snapshotQueryElapsedMs.${field} is invalid`)
   }
+  for (const [group, fields] of Object.entries({
+    wal: ['walRecords', 'walBytes', 'walWriteCalls', 'walSyncCalls', 'walWriteTimeMs', 'walSyncTimeMs'],
+    io: ['ioWriteCalls', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtendCalls', 'ioExtendTimeMs'],
+    ratesPerSecond: ['walWriteCalls', 'walSyncCalls', 'walWriteTimeMs', 'walSyncTimeMs', 'ioWriteCalls', 'ioFsyncs', 'ioWriteTimeMs', 'ioFsyncTimeMs']
+  })) {
+    for (const field of fields) {
+      const value = telemetry.phaseBoundWriteSyncTiming[group]?.[field]
+      if (value !== null && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) throw new Error(`concurrency ${concurrency}.phaseBoundWriteSyncTiming.${group}.${field} is invalid`)
+    }
+  }
+  if (telemetry.phaseBoundWriteSyncTiming.interpretation !== 'diagnostic_phase_bound_counter_timing_not_physical_fsync_proof') throw new Error(`concurrency ${concurrency}.phaseBoundWriteSyncTiming.interpretation is invalid`)
 }
 
 function buildLevelSummary(concurrency, reports, requireContentionTelemetry = false) {
@@ -117,6 +128,9 @@ function buildLevelSummary(concurrency, reports, requireContentionTelemetry = fa
     ioFsyncTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.io?.deltas?.ioFsyncTimeMs)),
     ioWriteTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.io?.deltas?.ioWriteTimeMs)),
     snapshotQueryMaxMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.snapshotQueryElapsedMs?.max)),
+    phaseBoundWalSyncTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.phaseBoundWriteSyncTiming?.wal?.walSyncTimeMs)),
+    phaseBoundIoFsyncTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.phaseBoundWriteSyncTiming?.io?.ioFsyncTimeMs)),
+    phaseBoundIoWriteTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.phaseBoundWriteSyncTiming?.io?.ioWriteTimeMs)),
     rto: {
       targetMs: reports[0]?.rto?.targetMs ?? null,
       targetConfigured: reports[0]?.rto?.targetConfigured === true,

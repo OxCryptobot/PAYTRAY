@@ -84,6 +84,15 @@ describe('recovery database telemetry', () => {
     expect(result.wal.deltas).toEqual({ walRecords: 50, walFpi: 2, walBytes: 800, walBuffersFull: 2, walWrite: 3, walSync: 5, walWriteTimeMs: 5, walSyncTimeMs: 7 })
     expect(result.bgwriter.deltas).toEqual({ buffersCheckpoint: 4, buffersClean: 5, maxwrittenClean: 1, buffersBackend: 6, buffersBackendFsync: 1, checkpointWriteTimeMs: 7, checkpointSyncTimeMs: 11 })
     expect(result.io.deltas).toEqual({ ioReads: 4, ioWrites: 9, ioWriteTimeMs: 10, ioFsyncs: 3, ioFsyncTimeMs: 4, ioExtends: 3, ioExtendTimeMs: 5 })
+    expect(result.phaseBoundWriteSyncTiming).toMatchObject({
+      basis: 'phase_bound_postgresql_write_sync_timing',
+      phase: 'restore',
+      sampleCount: 2,
+      elapsedMs: 100,
+      wal: { walRecords: 50, walBytes: 800, walWriteCalls: 3, walSyncCalls: 5, walWriteTimeMs: 5, walSyncTimeMs: 7 },
+      io: { ioWriteCalls: 9, ioWriteTimeMs: 10, ioFsyncs: 3, ioFsyncTimeMs: 4 },
+      ratesPerSecond: { walSyncCalls: 50, walSyncTimeMs: 70, ioFsyncs: 30 }
+    })
     expect(result.waitEvents.observations[0]).toMatchObject({ waitEventType: 'IO', waitEvent: 'DataFileRead', observations: 2, observedBackendCount: 3 })
   })
 
@@ -101,6 +110,7 @@ describe('recovery database telemetry', () => {
     expect(merged.workerCount).toBe(2)
     expect(merged.sampleCount).toBe(4)
     expect(merged.temporaryStorage.tempBytesDelta).toBe(summary.temporaryStorage.tempBytesDelta + 4)
+    expect(merged.phaseBoundWriteSyncTiming).toMatchObject({ basis: 'phase_bound_postgresql_write_sync_timing', phase: 'restore', sampleCount: 4 })
     expect(JSON.stringify(merged)).not.toMatch(/password|secret|token|rawContent/i)
   })
 })

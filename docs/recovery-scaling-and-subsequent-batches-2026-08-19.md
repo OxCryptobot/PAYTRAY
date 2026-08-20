@@ -150,3 +150,17 @@ The existing disposable CI `recovery-baseline` and dependent `recovery-confidenc
 ```
 
 No human review decisions, operator signing keys, target settings, Railway configuration, production deployment, live funds, mainnet transactions, or real user data were used or inferred.
+
+### Batch 10 — ESLint v9 migration
+
+**Status:** queued for a separate toolchain batch. The current batch deliberately avoids changing the lint major version while extending recovery evidence, so the existing clean ESLint contract remains stable. The migration must preserve flat-config coverage, test counts, CI parity, and fail-closed release checks before it is pushed.
+
+### Batch 11 — Five-repetition confidence CI integration
+
+**Status:** implemented locally in the current batch. The `recovery-confidence` GitHub Actions job now runs five independent c2/c4/c8 repetitions instead of three, retains the Student-t confidence artifact and log, and continues to require verified status, contention telemetry, and immutable false/read-only authority fields. A fresh pushed CI run remains the authoritative verification of the updated workflow.
+
+### Batch 12 — Phase-bound WAL/fsync timing and counter analysis
+
+**Status:** implemented locally in the current batch. Recovery PostgreSQL telemetry now emits `phaseBoundWriteSyncTiming` for the restore window, derived from the first and last `pg_stat_wal`/`pg_stat_io` snapshots and explicitly marked as diagnostic rather than physical-fsync proof. The baseline verifier and strict repeated-confidence validator require the block, and `backend:recovery:stress:db-counters:check` produces a commit-bound c2/c4/c8 comparison artifact with WAL, pg_stat_io, snapshot-query, and grouped wait-event summaries. A real local-disposable c2/c4/c8 run on the current working tree completed with zero failures and generated a SHA-256 sidecar; CI must verify the same contract after push.
+
+The new timing fields do not alter RTO, settlement, release, or payment authority. They remain engineering evidence only and preserve the safety invariant block below.

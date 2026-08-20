@@ -108,6 +108,12 @@ The baseline verifier now supports `RECOVERY_STRESS_REQUIRE_DATABASE_TELEMETRY=t
 
 **Milestone:** every CI baseline artifact is bound to the exact commit, has a sidecar SHA-256, contains no credentials or raw data, and preserves `releaseEligible=false` and `settlementAuthority=false`.
 
+### Batch 6 — Read-only wait-event distribution comparison
+
+**Status:** implemented in the current working batch. The repository now exposes `backend:recovery:stress:wait-events:check`, which aggregates verified c2/c4/c8 wait-event labels, observed backend counts, worker coverage, connection-acquisition maxima, temporary-byte/file deltas, and recovery elapsed summaries. It binds every input to one exact commit, rejects target-bound RTO reports and unsafe authority fields, rejects malformed or oversized wait labels, fingerprints the read-only output, and emits no raw database content.
+
+The disposable CI baseline job now runs this aggregation after baseline verification, includes the resulting JSON in the SHA-256 sidecar, uploads it with the redacted c2/c4/c8 artifacts, and fails closed unless both the baseline and distribution reports are `status=verified`. The distribution is diagnostic only; it cannot establish causal attribution, production SLOs, release eligibility, payment state, or settlement authority.
+
 ## Safety invariants
 
 ```json

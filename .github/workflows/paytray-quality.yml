@@ -607,9 +607,19 @@ jobs:
           status=$?
           cat artifacts/recovery-stress-baseline.json
           exit 0
+      - name: Aggregate read-only wait-event distribution
+        if: always()
+        run: |
+          set +e
+          RECOVERY_STRESS_EXPECTED_COMMIT=${{ github.sha }} \
+          RECOVERY_STRESS_REPORTS=artifacts/recovery-stress-c2.json,artifacts/recovery-stress-c4.json,artifacts/recovery-stress-c8.json \
+          node packages/backend/scripts/aggregate-recovery-wait-events.mjs > artifacts/recovery-wait-events.json
+          status=$?
+          cat artifacts/recovery-wait-events.json
+          exit 0
       - name: Fingerprint recovery baseline artifacts
         if: always()
-        run: sha256sum artifacts/recovery-stress-c2.json artifacts/recovery-stress-c4.json artifacts/recovery-stress-c8.json artifacts/recovery-stress-baseline.json | tee artifacts/recovery-stress-baseline.sha256
+        run: sha256sum artifacts/recovery-stress-c2.json artifacts/recovery-stress-c4.json artifacts/recovery-stress-c8.json artifacts/recovery-stress-baseline.json artifacts/recovery-wait-events.json | tee artifacts/recovery-stress-baseline.sha256
       - name: Upload redacted recovery baseline artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -620,6 +630,7 @@ jobs:
             artifacts/recovery-stress-c4.json
             artifacts/recovery-stress-c8.json
             artifacts/recovery-stress-baseline.json
+            artifacts/recovery-wait-events.json
             artifacts/recovery-stress-baseline.sha256
           if-no-files-found: error
           retention-days: 7
@@ -628,3 +639,5 @@ jobs:
         run: |
           test -s artifacts/recovery-stress-baseline.json
           grep -q '"status": "verified"' artifacts/recovery-stress-baseline.json
+          test -s artifacts/recovery-wait-events.json
+          grep -q '"status": "verified"' artifacts/recovery-wait-events.json

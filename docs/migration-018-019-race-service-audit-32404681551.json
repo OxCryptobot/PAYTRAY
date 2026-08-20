@@ -1,0 +1,55 @@
+{
+  "migration018": {
+    "status": "verified",
+    "cleanupRuns": 10,
+    "cases": [
+      "invalidStatus",
+      "negativeCount",
+      "countReconciliation",
+      "immutableReports",
+      "invalidReportHash",
+      "duplicateRunId"
+    ]
+  },
+  "migration019": {
+    "status": "verified",
+    "cleanupCommits": 10,
+    "cases": [
+      "invalidChallengeRole",
+      "invalidChallengeHash",
+      "invalidChallengeTime",
+      "missingChallengeForeignKey",
+      "duplicateChallenge",
+      "duplicateRoleCommit",
+      "immutableFlags",
+      "immutableMutation",
+      "metadataMirror",
+      "requiredColumn",
+      "invalidConsumedTime"
+    ]
+  },
+  "attestationRace": {
+    "status": "verified",
+    "repetitions": 5,
+    "rollbackVerifiedCount": 5
+  },
+  "ciRequirements": {
+    "Verify migration-018 operations-quality constraints": true,
+    "Verify migration-019 SQL constraints": true,
+    "Verify reviewer-attestation transaction race": true,
+    "MIGRATION_018_CONTRACT_ISOLATED: true": true,
+    "MIGRATION_019_CONTRACT_ISOLATED: true": true,
+    "ATTESTATION_RACE_REPETITIONS: 3": true,
+    "\"rollbackVerified\": true": true,
+    "\"rollbackPerformed\": true": true
+  },
+  "serviceRequirements": {
+    "SELECT challenge FOR UPDATE": true,
+    "atomic consumed_at update": true,
+    "concurrent-consumption rejection": true,
+    "attestation insert": true,
+    "financial audit insert": true
+  },
+  "errors": [],
+  "valid": true
+}

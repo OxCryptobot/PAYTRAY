@@ -8,7 +8,7 @@
 
 ## Executive result
 
-The reusable `paytray-shadow-review-release-attestation` package is valid against the current skill-creator specification, and all 26 workflow steps now have explicit edge-case and failure-boundary language. The package contains one `SKILL.md`, valid `name` and `description` frontmatter, 121 lines of core instructions, 26 sequential steps, 21 reference files, and no `README.md` or `CHANGELOG.md`. The final package produced for this audit has SHA-256 `90e507a739c07542925da5c7f29214b993056162cbdf3b60d2f1185c9644a9a4`.
+The reusable `paytray-shadow-review-release-attestation` package is valid against the current skill-creator specification, and all 26 workflow steps now have explicit edge-case and failure-boundary language. The package contains one `SKILL.md`, valid `name` and `description` frontmatter, 121 lines of core instructions, 26 sequential steps, 21 reference files, and no `README.md` or `CHANGELOG.md`. The final package produced for this audit has SHA-256 `cda88f13452e467610d74d409e89f1a15d86cce29070c3b656f56b452030a465`.
 
 GitHub Actions run 32388405081 completed successfully with all eight jobs successful and zero failed steps. The 22,498-line raw log contains expected negative-path diagnostics from deliberate rejection tests, but no process-failure signal. The log review therefore separates job conclusions from raw severity lines rather than treating every `ERROR` string as a workflow failure.
 

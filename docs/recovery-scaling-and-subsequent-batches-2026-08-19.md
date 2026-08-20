@@ -128,6 +128,14 @@ The PostgreSQL helper now captures bounded pool pressure (`totalCount`, `activeC
 
 The new `backend:tests:profile:recovery-postgres` command profiled the recovery and PostgreSQL contract suites without changing fixtures or behavior. The current hotspots are `recoveryStressBaseline.test.js` at approximately 30.3 ms and `recoveryArtifactTiming.test.js` at approximately 14.9 ms in the measured local run; these are engineering targets only, not production capacity or SLO evidence.
 
+### Batch 9 — Higher-resolution WAL/fsync timing and five-repetition confidence
+
+**Status:** implemented locally; five-repetition evidence completed against exact commit `7d623a7`. The PostgreSQL collector now captures phase-bound snapshot-query duration and PostgreSQL 16 `pg_stat_io` read/write/extend/fsync counters and timing, in addition to the existing pool-pressure, `pg_stat_wal`, and `pg_stat_bgwriter` blocks. Strict baseline and repeated-confidence validation requires `basis=pg_stat_io`, nonnegative counter deltas, and complete snapshot timing summaries.
+
+The guarded local-disposable run completed **15 verified runs**: five independent repetitions each at c2, c4, and c8, with zero failed sequences, zero integrity failures, null-target RTO semantics, and `contentionTelemetry=true`. Five-run two-sided Student-t intervals are materially narrower than the earlier three-run evidence for the same local setup. At c8, mean derived recovery throughput was 7.092 sequences/second with a 95% interval of [6.680, 7.504], mean sequence p95 was 841.99 ms with [776.319, 907.661], and mean snapshot-query maximum was 6.231 ms with [5.194, 7.267]. Pool waiting remained zero, while pg_stat_io fsync/write timing counters remained zero in the sampled environment and are retained as observations rather than interpreted as proof of absent physical fsync cost.
+
+The existing disposable CI `recovery-baseline` and dependent `recovery-confidence` jobs inherit the stricter contract through `RECOVERY_STRESS_REQUIRE_CONTENTION_TELEMETRY=true`; the next pushed CI run must verify the new pg_stat_io and snapshot-timing fields before the batch is considered complete.
+
 ## Safety invariants
 
 ```json

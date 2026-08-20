@@ -1,0 +1,583 @@
+{
+  "source": "/home/ubuntu/projects/PAYTRAY/docs/ci-negative-path-lines-32399063068.json",
+  "run": "32399063068",
+  "commit": "b401cdc62ac9a73920101cbc26b1c951ccfa1782",
+  "migration": "019_reviewer_attestations",
+  "migrationSource": "packages/backend/migrations/019_reviewer_attestations.sql",
+  "verifierSource": "packages/backend/scripts/verify-migration-019-constraints.mjs",
+  "reviewerRecordCount": 30,
+  "expectedReviewerRecordCount": 30,
+  "jobCounts": {
+    "Disposable backup and isolated recovery contract": 15,
+    "Isolated PostgreSQL route contract": 15
+  },
+  "expectedCaseCounts": {
+    "invalidChallengeRole": 2,
+    "invalidChallengeHash": 2,
+    "invalidChallengeTime": 2,
+    "invalidConsumedTime": 2,
+    "immutableFlags.applied": 2,
+    "immutableFlags.releaseEligible": 2,
+    "immutableFlags.settlementAuthority": 2,
+    "immutableFlags.deploymentPerformed": 2,
+    "immutableFlags.settlementMutationPerformed": 2,
+    "immutableMutation": 2,
+    "metadataMirror": 2,
+    "duplicateChallenge": 2,
+    "duplicateRoleCommit": 2,
+    "missingChallengeForeignKey": 2,
+    "requiredColumn": 2
+  },
+  "expectedCases": [
+    {
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_role_check",
+      "testCase": "invalidChallengeRole",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_artifact_sha256_check",
+      "testCase": "invalidChallengeHash",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_check",
+      "testCase": "invalidChallengeTime",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_check1",
+      "testCase": "invalidConsumedTime",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestations_applied_check",
+      "testCase": "immutableFlags.applied",
+      "testToken": "immutableFlags",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestations_release_eligible_check",
+      "testCase": "immutableFlags.releaseEligible",
+      "testToken": "immutableFlags",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestations_settlement_authority_check",
+      "testCase": "immutableFlags.settlementAuthority",
+      "testToken": "immutableFlags",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestations_deployment_performed_check",
+      "testCase": "immutableFlags.deploymentPerformed",
+      "testToken": "immutableFlags",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestations_settlement_mutation_performed_check",
+      "testCase": "immutableFlags.settlementMutationPerformed",
+      "testToken": "immutableFlags",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestations_mutation_check",
+      "testCase": "immutableMutation",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "check",
+      "constraint": "reviewer_attestations_check2",
+      "testCase": "metadataMirror",
+      "sqlState": "23514",
+      "expectedCount": 2
+    },
+    {
+      "family": "unique",
+      "constraint": "reviewer_attestations_challenge_id_key",
+      "testCase": "duplicateChallenge",
+      "sqlState": "23505",
+      "expectedCount": 2
+    },
+    {
+      "family": "unique",
+      "constraint": "reviewer_attestations_role_commit_index",
+      "testCase": "duplicateRoleCommit",
+      "sqlState": "23505",
+      "expectedCount": 2
+    },
+    {
+      "family": "foreign_key",
+      "constraint": "reviewer_attestations_challenge_id_fkey",
+      "testCase": "missingChallengeForeignKey",
+      "sqlState": "23503",
+      "expectedCount": 2
+    },
+    {
+      "family": "not_null",
+      "column": "reviewer_wallet",
+      "testCase": "requiredColumn",
+      "sqlState": "23502",
+      "expectedCount": 2
+    }
+  ],
+  "tracedRecords": [
+    {
+      "logLine": 4026,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3242832Z  2026-08-20 17:43:25.463 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_role_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_role_check",
+      "column": null,
+      "testCase": "invalidChallengeRole",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        190
+      ]
+    },
+    {
+      "logLine": 4033,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3250408Z  2026-08-20 17:43:25.465 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_artifact_sha256_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_artifact_sha256_check",
+      "column": null,
+      "testCase": "invalidChallengeHash",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        194
+      ]
+    },
+    {
+      "logLine": 4040,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3257223Z  2026-08-20 17:43:25.466 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_check",
+      "column": null,
+      "testCase": "invalidChallengeTime",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        198
+      ]
+    },
+    {
+      "logLine": 4047,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3264282Z  2026-08-20 17:43:25.469 UTC [190] ERROR:  insert or update on table \"reviewer_attestations\" violates foreign key constraint \"reviewer_attestations_challenge_id_fkey\"",
+      "family": "foreign_key",
+      "constraint": "reviewer_attestations_challenge_id_fkey",
+      "column": null,
+      "testCase": "missingChallengeForeignKey",
+      "expectedSqlState": "23503",
+      "verifierSourceLines": [
+        202
+      ]
+    },
+    {
+      "logLine": 4057,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3269902Z  2026-08-20 17:43:25.472 UTC [190] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_challenge_id_key\"",
+      "family": "unique",
+      "constraint": "reviewer_attestations_challenge_id_key",
+      "column": null,
+      "testCase": "duplicateChallenge",
+      "expectedSqlState": "23505",
+      "verifierSourceLines": [
+        210,
+        211,
+        212,
+        213
+      ]
+    },
+    {
+      "logLine": 4067,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3274712Z  2026-08-20 17:43:25.476 UTC [190] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_role_commit_index\"",
+      "family": "unique",
+      "constraint": "reviewer_attestations_role_commit_index",
+      "column": null,
+      "testCase": "duplicateRoleCommit",
+      "expectedSqlState": "23505",
+      "verifierSourceLines": [
+        228
+      ]
+    },
+    {
+      "logLine": 4077,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3280111Z  2026-08-20 17:43:25.478 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_applied_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_applied_check",
+      "column": null,
+      "testCase": "immutableFlags.applied",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 4087,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3289284Z  2026-08-20 17:43:25.479 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_release_eligible_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_release_eligible_check",
+      "column": null,
+      "testCase": "immutableFlags.releaseEligible",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 4097,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3298653Z  2026-08-20 17:43:25.481 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_authority_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_settlement_authority_check",
+      "column": null,
+      "testCase": "immutableFlags.settlementAuthority",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 4107,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3307767Z  2026-08-20 17:43:25.482 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_deployment_performed_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_deployment_performed_check",
+      "column": null,
+      "testCase": "immutableFlags.deploymentPerformed",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 4117,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3316892Z  2026-08-20 17:43:25.483 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_mutation_performed_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_settlement_mutation_performed_check",
+      "column": null,
+      "testCase": "immutableFlags.settlementMutationPerformed",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 4127,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3326099Z  2026-08-20 17:43:25.484 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_mutation_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_mutation_check",
+      "column": null,
+      "testCase": "immutableMutation",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        237
+      ]
+    },
+    {
+      "logLine": 4137,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3335280Z  2026-08-20 17:43:25.487 UTC [190] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_check2\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_check2",
+      "column": null,
+      "testCase": "metadataMirror",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        242
+      ]
+    },
+    {
+      "logLine": 4147,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3344365Z  2026-08-20 17:43:25.489 UTC [190] ERROR:  null value in column \"reviewer_wallet\" of relation \"reviewer_attestations\" violates not-null constraint",
+      "family": "not_null",
+      "constraint": null,
+      "column": "reviewer_wallet",
+      "testCase": "requiredColumn",
+      "expectedSqlState": "23502",
+      "verifierSourceLines": [
+        247
+      ]
+    },
+    {
+      "logLine": 4157,
+      "job": "Disposable backup and isolated recovery contract",
+      "step": "Stop containers",
+      "raw": "Disposable backup and isolated recovery contract\tStop containers\t2026-08-20T17:43:27.3353073Z  2026-08-20 17:43:25.490 UTC [190] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check1\"",
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_check1",
+      "column": null,
+      "testCase": "invalidConsumedTime",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        251
+      ]
+    },
+    {
+      "logLine": 16077,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9497059Z  2026-08-20 17:42:35.319 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_role_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_role_check",
+      "column": null,
+      "testCase": "invalidChallengeRole",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        190
+      ]
+    },
+    {
+      "logLine": 16084,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9504605Z  2026-08-20 17:42:35.321 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_artifact_sha256_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_artifact_sha256_check",
+      "column": null,
+      "testCase": "invalidChallengeHash",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        194
+      ]
+    },
+    {
+      "logLine": 16091,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9511569Z  2026-08-20 17:42:35.322 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_check",
+      "column": null,
+      "testCase": "invalidChallengeTime",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        198
+      ]
+    },
+    {
+      "logLine": 16098,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9518361Z  2026-08-20 17:42:35.325 UTC [89] ERROR:  insert or update on table \"reviewer_attestations\" violates foreign key constraint \"reviewer_attestations_challenge_id_fkey\"",
+      "family": "foreign_key",
+      "constraint": "reviewer_attestations_challenge_id_fkey",
+      "column": null,
+      "testCase": "missingChallengeForeignKey",
+      "expectedSqlState": "23503",
+      "verifierSourceLines": [
+        202
+      ]
+    },
+    {
+      "logLine": 16108,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9523762Z  2026-08-20 17:42:35.328 UTC [89] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_challenge_id_key\"",
+      "family": "unique",
+      "constraint": "reviewer_attestations_challenge_id_key",
+      "column": null,
+      "testCase": "duplicateChallenge",
+      "expectedSqlState": "23505",
+      "verifierSourceLines": [
+        210,
+        211,
+        212,
+        213
+      ]
+    },
+    {
+      "logLine": 16118,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9528875Z  2026-08-20 17:42:35.332 UTC [89] ERROR:  duplicate key value violates unique constraint \"reviewer_attestations_role_commit_index\"",
+      "family": "unique",
+      "constraint": "reviewer_attestations_role_commit_index",
+      "column": null,
+      "testCase": "duplicateRoleCommit",
+      "expectedSqlState": "23505",
+      "verifierSourceLines": [
+        228
+      ]
+    },
+    {
+      "logLine": 16128,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9533821Z  2026-08-20 17:42:35.334 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_applied_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_applied_check",
+      "column": null,
+      "testCase": "immutableFlags.applied",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 16138,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9543162Z  2026-08-20 17:42:35.335 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_release_eligible_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_release_eligible_check",
+      "column": null,
+      "testCase": "immutableFlags.releaseEligible",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 16148,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9552196Z  2026-08-20 17:42:35.339 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_authority_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_settlement_authority_check",
+      "column": null,
+      "testCase": "immutableFlags.settlementAuthority",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 16158,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9561118Z  2026-08-20 17:42:35.340 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_deployment_performed_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_deployment_performed_check",
+      "column": null,
+      "testCase": "immutableFlags.deploymentPerformed",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 16168,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9570291Z  2026-08-20 17:42:35.341 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_settlement_mutation_performed_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_settlement_mutation_performed_check",
+      "column": null,
+      "testCase": "immutableFlags.settlementMutationPerformed",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        233,
+        235
+      ]
+    },
+    {
+      "logLine": 16178,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9579345Z  2026-08-20 17:42:35.343 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_mutation_check\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_mutation_check",
+      "column": null,
+      "testCase": "immutableMutation",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        237
+      ]
+    },
+    {
+      "logLine": 16188,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9588213Z  2026-08-20 17:42:35.345 UTC [89] ERROR:  new row for relation \"reviewer_attestations\" violates check constraint \"reviewer_attestations_check2\"",
+      "family": "check",
+      "constraint": "reviewer_attestations_check2",
+      "column": null,
+      "testCase": "metadataMirror",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        242
+      ]
+    },
+    {
+      "logLine": 16198,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9597148Z  2026-08-20 17:42:35.348 UTC [89] ERROR:  null value in column \"reviewer_wallet\" of relation \"reviewer_attestations\" violates not-null constraint",
+      "family": "not_null",
+      "constraint": null,
+      "column": "reviewer_wallet",
+      "testCase": "requiredColumn",
+      "expectedSqlState": "23502",
+      "verifierSourceLines": [
+        247
+      ]
+    },
+    {
+      "logLine": 16208,
+      "job": "Isolated PostgreSQL route contract",
+      "step": "Stop containers",
+      "raw": "Isolated PostgreSQL route contract\tStop containers\t2026-08-20T17:42:36.9606088Z  2026-08-20 17:42:35.350 UTC [89] ERROR:  new row for relation \"reviewer_attestation_challenges\" violates check constraint \"reviewer_attestation_challenges_check1\"",
+      "family": "check",
+      "constraint": "reviewer_attestation_challenges_check1",
+      "column": null,
+      "testCase": "invalidConsumedTime",
+      "expectedSqlState": "23514",
+      "verifierSourceLines": [
+        251
+      ]
+    }
+  ],
+  "errors": [],
+  "valid": true
+}

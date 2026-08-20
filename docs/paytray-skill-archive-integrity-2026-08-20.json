@@ -1,0 +1,22 @@
+{
+  "archivePath": "/tmp/paytray-deliverables/paytray-shadow-review-release-attestation-high-frequency-final-v4.skill",
+  "sidecarPath": "/tmp/paytray-deliverables/paytray-shadow-review-release-attestation-high-frequency-final-v4.skill.sha256",
+  "actualSha256": "f4363da364692373119ce739ec16ebbcf530d2ae7a5ab4c686a24ce022037e88",
+  "expectedSha256": "f4363da364692373119ce739ec16ebbcf530d2ae7a5ab4c686a24ce022037e88",
+  "sha256Matches": true,
+  "archiveEntryCount": 41,
+  "hasSkillMd": true,
+  "hasReferences": true,
+  "hasScripts": true,
+  "integrityReport": {
+    "valid": true,
+    "errors": 0,
+    "warnings": 0
+  },
+  "rollbackReport": {
+    "valid": true,
+    "errors": 0
+  },
+  "errors": [],
+  "valid": true
+}

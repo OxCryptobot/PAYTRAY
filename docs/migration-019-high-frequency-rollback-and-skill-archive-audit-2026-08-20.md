@@ -37,6 +37,10 @@ The updated `paytray-shadow-review-release-attestation` skill was packaged and t
 | Execution-integrity errors/warnings | 0/0 |
 | Bundled migration audit | `valid=true` |
 | Extracted archive runner smoke test | 2 workers × 3 repetitions, `valid=true` |
+| Archive-integrity verifier | `valid=true`, 41 entries, SHA-256 matched |
+| Negative checksum control | Correctly blocked with `valid=false` |
+
+The final v4 archive SHA-256 is `f4363da364692373119ce739ec16ebbcf530d2ae7a5ab4c686a24ce022037e88`. The sidecar contains the same lowercase digest, and the extracted archive-integrity runner confirmed `sha256Matches=true`, `hasSkillMd=true`, `hasReferences=true`, `hasScripts=true`, integrity report `valid=true` with zero errors/warnings, and rollback report `valid=true` with zero errors. A temporary all-zero sidecar was rejected, demonstrating fail-closed checksum handling.
 
 The execution-integrity checker was extended to discover `.sh` validation utilities and warn when a linked shell runner is not executable. The high-frequency runner resolves its validator from the skill directory, so it remains usable after archive extraction.
 
@@ -44,4 +48,4 @@ The execution-integrity checker was extended to discover `.sh` validation utilit
 
 The skill now exposes `scripts/run-reviewer-attestation-high-frequency.sh` through its read-only validation list and `migration-integration-log-audit.md` reference. The runner bounds workers from 1–8 and repetitions from 1–10, requires isolated local/test databases, validates winner/loser and final-row invariants, and destroys disposable databases after completion.
 
-This is a bounded contention probe. It is not a capacity test, production SLO, RTO decision, release gate, target-environment proof, reviewer approval, Ed25519 custody proof, deployment authorization, payment mutation, or settlement authority.
+This is a bounded contention probe. It is not a capacity test, production SLO, RTO decision, release gate, target-environment proof, reviewer approval, Ed25519 custody proof, deployment authorization, payment mutation, or settlement authority. The 40-race result is engineering evidence only; it must not be interpreted as a production concurrency capacity claim.

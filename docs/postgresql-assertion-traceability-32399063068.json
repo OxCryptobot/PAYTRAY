@@ -1,0 +1,170 @@
+{
+  "source": "/home/ubuntu/projects/PAYTRAY/docs/ci-negative-path-lines-32399063068.json",
+  "run": "32399063068",
+  "commit": "b401cdc62ac9a73920101cbc26b1c951ccfa1782",
+  "recordCount": 64,
+  "expectedRecordCount": 64,
+  "migrationResults": [
+    {
+      "migration": "015_verified_trust_signals",
+      "sqlFile": "packages/backend/migrations/015_verified_trust_signals.sql",
+      "verifier": "packages/backend/scripts/verify-migration-015-trust-signals.mjs",
+      "sourceFilesPresent": true,
+      "expectedCaseNames": [
+        "foreignKeys.subjectUser",
+        "foreignKeys.engagement",
+        "foreignKeys.outcome",
+        "polarity",
+        "score",
+        "rankingEligibility",
+        "uniqueness"
+      ],
+      "casePresence": {
+        "foreignKeys.subjectUser": true,
+        "foreignKeys.engagement": true,
+        "foreignKeys.outcome": true,
+        "polarity": true,
+        "score": true,
+        "rankingEligibility": true,
+        "uniqueness": true
+      },
+      "sqlStatePresence": {
+        "check": true,
+        "foreign_key": true,
+        "unique": true
+      },
+      "expectedPerJob": {
+        "check": 3,
+        "foreign_key": 3,
+        "unique": 1,
+        "not_null": 0
+      },
+      "observedAcrossBothJobs": {
+        "check": 6,
+        "unique": 2,
+        "foreign_key": 6,
+        "not_null": 0
+      },
+      "expectedRecordCount": 14,
+      "observedRecordCount": 14,
+      "valid": true
+    },
+    {
+      "migration": "018_operations_quality_runs",
+      "sqlFile": "packages/backend/migrations/018_operations_quality_runs.sql",
+      "verifier": "packages/backend/scripts/verify-migration-018-constraints.mjs",
+      "sourceFilesPresent": true,
+      "expectedCaseNames": [
+        "invalidStatus",
+        "negativeCount",
+        "countReconciliation",
+        "immutableReports",
+        "invalidReportHash",
+        "duplicateRunId"
+      ],
+      "casePresence": {
+        "invalidStatus": true,
+        "negativeCount": true,
+        "countReconciliation": true,
+        "immutableReports": true,
+        "invalidReportHash": true,
+        "duplicateRunId": true
+      },
+      "sqlStatePresence": {
+        "check": true,
+        "unique": true
+      },
+      "expectedPerJob": {
+        "check": 9,
+        "foreign_key": 0,
+        "unique": 1,
+        "not_null": 0
+      },
+      "observedAcrossBothJobs": {
+        "check": 18,
+        "unique": 2,
+        "foreign_key": 0,
+        "not_null": 0
+      },
+      "expectedRecordCount": 20,
+      "observedRecordCount": 20,
+      "valid": true
+    },
+    {
+      "migration": "019_reviewer_attestations",
+      "sqlFile": "packages/backend/migrations/019_reviewer_attestations.sql",
+      "verifier": "packages/backend/scripts/verify-migration-019-constraints.mjs",
+      "sourceFilesPresent": true,
+      "expectedCaseNames": [
+        "invalidChallengeRole",
+        "invalidChallengeHash",
+        "invalidChallengeTime",
+        "missingChallengeForeignKey",
+        "duplicateChallenge",
+        "duplicateRoleCommit",
+        "immutableFlags",
+        "immutableMutation",
+        "metadataMirror",
+        "requiredColumn",
+        "invalidConsumedTime"
+      ],
+      "casePresence": {
+        "invalidChallengeRole": true,
+        "invalidChallengeHash": true,
+        "invalidChallengeTime": true,
+        "missingChallengeForeignKey": true,
+        "duplicateChallenge": true,
+        "duplicateRoleCommit": true,
+        "immutableFlags": true,
+        "immutableMutation": true,
+        "metadataMirror": true,
+        "requiredColumn": true,
+        "invalidConsumedTime": true
+      },
+      "sqlStatePresence": {
+        "check": true,
+        "foreign_key": true,
+        "unique": true,
+        "not_null": true
+      },
+      "expectedPerJob": {
+        "check": 11,
+        "foreign_key": 1,
+        "unique": 2,
+        "not_null": 1
+      },
+      "observedAcrossBothJobs": {
+        "check": 22,
+        "unique": 4,
+        "foreign_key": 2,
+        "not_null": 2
+      },
+      "expectedRecordCount": 30,
+      "observedRecordCount": 30,
+      "valid": true
+    }
+  ],
+  "jobCounts": {
+    "Disposable backup and isolated recovery contract": {
+      "check": 23,
+      "unique": 4,
+      "foreign_key": 4,
+      "not_null": 1
+    },
+    "Isolated PostgreSQL route contract": {
+      "check": 23,
+      "unique": 4,
+      "foreign_key": 4,
+      "not_null": 1
+    }
+  },
+  "expectedPerJob": {
+    "check": 23,
+    "unique": 4,
+    "foreign_key": 4,
+    "not_null": 1
+  },
+  "jobCountsValid": true,
+  "errors": [],
+  "valid": true
+}

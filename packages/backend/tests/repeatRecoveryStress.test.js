@@ -17,6 +17,9 @@ function report(concurrency, repetition, overrides = {}) {
         basis: 'postgresql_observability',
         temporaryStorage: { tempBytesDelta: concurrency * 10 + repetition },
         connectionAcquisitionMs: { max: 2 + repetition },
+        poolPressure: { maxWaitingCount: repetition, maxUtilizationRatio: 0.5 },
+        wal: { basis: 'pg_stat_wal', deltas: { walRecords: 10, walBytes: 100, walWrite: 2, walSync: 3, walWriteTimeMs: 4, walSyncTimeMs: 5, walFpi: 1, walBuffersFull: 0 } },
+        bgwriter: { basis: 'pg_stat_bgwriter', deltas: { buffersCheckpoint: 1, buffersClean: 1, maxwrittenClean: 0, buffersBackend: 2, buffersBackendFsync: 1, checkpointWriteTimeMs: 3, checkpointSyncTimeMs: 4 } },
         waitEvents: { observations: [] }
       },
       rto: { targetMs: 500, targetConfigured: true, withinTarget: true }
@@ -33,7 +36,8 @@ describe('repeated recovery stress confidence aggregation', () => {
       repetitions: 3,
       concurrencyLevels: [2, 4, 8],
       targetMs: 500,
-      runResults
+      runResults,
+      requireContentionTelemetry: true
     })
     expect(result.status).toBe('verified')
     expect(result.fingerprint).toMatch(/^[a-f0-9]{64}$/)
@@ -41,6 +45,11 @@ describe('repeated recovery stress confidence aggregation', () => {
     expect(result.levels[2]).toMatchObject({ concurrency: 8, repetitionCount: 3, allVerified: true, integrityFailures: 0 })
     expect(result.levels[2].sequenceP95Ms.confidence95.method).toBe('two_sided_student_t')
     expect(result.levels[2].databaseTempBytes.mean).toBeGreaterThan(0)
+    expect(result.levels[2].poolMaxWaitingCount.mean).toBe(2)
+    expect(result.levels[2].poolMaxUtilizationRatio.mean).toBe(0.5)
+    expect(result.levels[2].walSync.mean).toBe(3)
+    expect(result.levels[2].buffersBackendFsync.mean).toBe(1)
+    expect(result.contentionTelemetry).toBe(true)
     expect(result.levels[2].rto).toMatchObject({ targetMs: 500, withinTargetCount: 3, evaluatedRuns: 3, withinTargetRate: 1 })
     expect(result.safety).toEqual({
       releaseEligible: false,
@@ -49,6 +58,18 @@ describe('repeated recovery stress confidence aggregation', () => {
       deploymentPerformed: false,
       settlementMutationPerformed: false
     })
+  })
+
+  it('blocks missing contention telemetry when strict mode is enabled', () => {
+    const runResults = [2, 4, 8].flatMap((concurrency) => [1, 2, 3].map((repetition) => report(concurrency, repetition)))
+    delete runResults[0].report.databaseTelemetry.wal
+    expect(() => buildRepeatedStressReport({
+      commit: '586492474d24cff7495a0703569ecb5e20134309',
+      repetitions: 3,
+      concurrencyLevels: [2, 4, 8],
+      runResults,
+      requireContentionTelemetry: true
+    })).toThrow('concurrency 2 is missing pool/WAL/bgwriter telemetry')
   })
 
   it('blocks incomplete repetition coverage and preserves failure counts', () => {

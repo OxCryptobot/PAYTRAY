@@ -60,12 +60,95 @@ function normalizeStats(row) {
   }
 }
 
+function normalizeWal(row) {
+  if (!row) return null
+  return {
+    walRecords: nonnegativeInteger(row.wal_records),
+    walFpi: nonnegativeInteger(row.wal_fpi),
+    walBytes: nonnegativeNumber(row.wal_bytes),
+    walBuffersFull: nonnegativeInteger(row.wal_buffers_full),
+    walWrite: nonnegativeInteger(row.wal_write),
+    walSync: nonnegativeInteger(row.wal_sync),
+    walWriteTimeMs: nonnegativeNumber(row.wal_write_time),
+    walSyncTimeMs: nonnegativeNumber(row.wal_sync_time)
+  }
+}
+
+function normalizeBgwriter(row) {
+  if (!row) return null
+  return {
+    buffersCheckpoint: nonnegativeInteger(row.buffers_checkpoint),
+    buffersClean: nonnegativeInteger(row.buffers_clean),
+    maxwrittenClean: nonnegativeInteger(row.maxwritten_clean),
+    buffersBackend: nonnegativeInteger(row.buffers_backend),
+    buffersBackendFsync: nonnegativeInteger(row.buffers_backend_fsync),
+    checkpointWriteTimeMs: nonnegativeNumber(row.checkpoint_write_time),
+    checkpointSyncTimeMs: nonnegativeNumber(row.checkpoint_sync_time)
+  }
+}
+
 function diffStat(after, before, field) {
-  return Math.max(0, nonnegativeInteger(after?.[field]) - nonnegativeInteger(before?.[field]))
+  return Math.max(0, nonnegativeNumber(after?.[field]) - nonnegativeNumber(before?.[field]))
+}
+
+function diffCounters(after, before, fields) {
+  return Object.fromEntries(fields.map((field) => [field, diffStat(after, before, field)]))
+}
+
+function poolPressureSnapshot(pool) {
+  const totalCount = nonnegativeInteger(pool?.totalCount)
+  const idleCount = Math.min(totalCount, nonnegativeInteger(pool?.idleCount))
+  const waitingCount = nonnegativeInteger(pool?.waitingCount)
+  const configuredMax = nonnegativeInteger(pool?.options?.max ?? pool?.max)
+  const maxConnections = configuredMax || Math.max(totalCount, 1)
+  const activeCount = Math.max(0, totalCount - idleCount)
+  return {
+    totalCount,
+    idleCount,
+    activeCount,
+    waitingCount,
+    maxConnections,
+    utilizationRatio: Number(Math.min(1, activeCount / maxConnections).toFixed(4))
+  }
+}
+
+function summarizePoolPressure(values) {
+  const normalized = values.filter(Boolean)
+  if (normalized.length === 0) {
+    return {
+      sampleCount: 0,
+      maxTotalCount: 0,
+      maxActiveCount: 0,
+      maxWaitingCount: 0,
+      meanWaitingCount: 0,
+      maxUtilizationRatio: 0,
+      meanUtilizationRatio: 0
+    }
+  }
+  return {
+    sampleCount: normalized.length,
+    maxTotalCount: Math.max(...normalized.map((value) => nonnegativeInteger(value.totalCount))),
+    maxActiveCount: Math.max(...normalized.map((value) => nonnegativeInteger(value.activeCount))),
+    maxWaitingCount: Math.max(...normalized.map((value) => nonnegativeInteger(value.waitingCount))),
+    meanWaitingCount: Number((normalized.reduce((sum, value) => sum + nonnegativeInteger(value.waitingCount), 0) / normalized.length).toFixed(3)),
+    maxUtilizationRatio: Number(Math.max(...normalized.map((value) => nonnegativeNumber(value.utilizationRatio))).toFixed(4)),
+    meanUtilizationRatio: Number((normalized.reduce((sum, value) => sum + nonnegativeNumber(value.utilizationRatio), 0) / normalized.length).toFixed(4))
+  }
+}
+
+function summarizeCounterTelemetry(samples, field, fields) {
+  const first = samples.find((sample) => sample?.[field])?.[field] || null
+  const last = [...samples].reverse().find((sample) => sample?.[field])?.[field] || first
+  return {
+    basis: field === 'wal' ? 'pg_stat_wal' : 'pg_stat_bgwriter',
+    before: first,
+    after: last,
+    deltas: diffCounters(last, first, fields)
+  }
 }
 
 export async function captureDatabaseSnapshot(client) {
-  const [statsResult, waitResult] = await Promise.all([
+  const [statsResult, waitResult, walResult, bgwriterResult] = await Promise.all([
     client.query(`
       SELECT
         pg_database_size(current_database())::bigint AS database_size_bytes,
@@ -88,6 +171,29 @@ export async function captureDatabaseSnapshot(client) {
       GROUP BY wait_event_type, wait_event, state
       ORDER BY count DESC, wait_event_type, wait_event, state
       LIMIT ${MAX_WAIT_EVENT_ROWS}
+    `),
+    client.query(`
+      SELECT
+        COALESCE(wal_records, 0)::bigint AS wal_records,
+        COALESCE(wal_fpi, 0)::bigint AS wal_fpi,
+        COALESCE(wal_bytes, 0)::numeric AS wal_bytes,
+        COALESCE(wal_buffers_full, 0)::bigint AS wal_buffers_full,
+        COALESCE(wal_write, 0)::bigint AS wal_write,
+        COALESCE(wal_sync, 0)::bigint AS wal_sync,
+        COALESCE(wal_write_time, 0)::double precision AS wal_write_time,
+        COALESCE(wal_sync_time, 0)::double precision AS wal_sync_time
+      FROM pg_stat_wal
+    `),
+    client.query(`
+      SELECT
+        COALESCE(buffers_checkpoint, 0)::bigint AS buffers_checkpoint,
+        COALESCE(buffers_clean, 0)::bigint AS buffers_clean,
+        COALESCE(maxwritten_clean, 0)::bigint AS maxwritten_clean,
+        COALESCE(buffers_backend, 0)::bigint AS buffers_backend,
+        COALESCE(buffers_backend_fsync, 0)::bigint AS buffers_backend_fsync,
+        COALESCE(checkpoint_write_time, 0)::double precision AS checkpoint_write_time,
+        COALESCE(checkpoint_sync_time, 0)::double precision AS checkpoint_sync_time
+      FROM pg_stat_bgwriter
     `)
   ])
 
@@ -95,7 +201,9 @@ export async function captureDatabaseSnapshot(client) {
   return {
     sampledAt: new Date().toISOString(),
     stats: normalizeStats(statsResult.rows[0]),
-    waitEvents: normalizeWaitEvents(waitResult.rows)
+    waitEvents: normalizeWaitEvents(waitResult.rows),
+    wal: normalizeWal(walResult.rows[0]),
+    bgwriter: normalizeBgwriter(bgwriterResult.rows[0])
   }
 }
 
@@ -106,10 +214,11 @@ async function acquireConnection(pool) {
 }
 
 export async function captureDatabaseTelemetrySample(pool) {
+  const poolBefore = poolPressureSnapshot(pool)
   const { client, elapsedMs } = await acquireConnection(pool)
   try {
     const snapshot = await captureDatabaseSnapshot(client)
-    return { ...snapshot, connectionAcquisitionMs: elapsedMs }
+    return { ...snapshot, connectionAcquisitionMs: elapsedMs, poolPressure: { before: poolBefore, after: poolPressureSnapshot(pool) } }
   } finally {
     client.release()
   }
@@ -144,11 +253,15 @@ export function summarizeDatabaseTelemetry(samples, { operationElapsedMs = null,
   const tempFilesDelta = diffStat(after, before, 'tempFiles')
   const blocksReadDelta = diffStat(after, before, 'blocksRead')
   const blocksHitDelta = diffStat(after, before, 'blocksHit')
+  const wal = summarizeCounterTelemetry(normalizedSamples, 'wal', ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs'])
+  const bgwriter = summarizeCounterTelemetry(normalizedSamples, 'bgwriter', ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs'])
+  const poolSamples = normalizedSamples.flatMap((sample) => [sample.poolPressure?.before, sample.poolPressure?.after]).filter(Boolean)
 
   return {
     basis: DATABASE_TELEMETRY_BASIS,
     sampleCount: normalizedSamples.length,
     connectionAcquisitionMs: summarizeDurations(normalizedSamples.map((sample) => sample.connectionAcquisitionMs)),
+    poolPressure: summarizePoolPressure(poolSamples),
     waitEvents: {
       sampleCount: normalizedSamples.length,
       observations: [...waitEventCounts.values()].sort((a, b) => b.observedBackendCount - a.observedBackendCount)
@@ -164,6 +277,8 @@ export function summarizeDatabaseTelemetry(samples, { operationElapsedMs = null,
         blocksHit: blocksHitDelta
       }
     },
+    wal,
+    bgwriter,
     temporaryStorage: {
       tempBytesDelta,
       tempFilesDelta,
@@ -216,6 +331,13 @@ export function createDatabaseTelemetryCollector({ pool, intervalMs = DEFAULT_IN
   return { start, stop }
 }
 
+function mergeCounterDeltas(summaries, field, fields) {
+  return {
+    basis: field === 'wal' ? 'pg_stat_wal' : 'pg_stat_bgwriter',
+    deltas: Object.fromEntries(fields.map((metric) => [metric, summaries.reduce((sum, value) => sum + nonnegativeNumber(value?.[field]?.deltas?.[metric]), 0)]))
+  }
+}
+
 export function mergeDatabaseTelemetry(values) {
   const summaries = values.filter((value) => value && value.basis === DATABASE_TELEMETRY_BASIS)
   const waitEventCounts = new Map()
@@ -245,6 +367,7 @@ export function mergeDatabaseTelemetry(values) {
     }
   }
   const connectionSummaries = summaries.map((summary) => summary.connectionAcquisitionMs).filter(Boolean)
+  const poolSummaries = summaries.map((summary) => summary.poolPressure).filter(Boolean)
   return {
     basis: DATABASE_TELEMETRY_BASIS,
     workerCount: summaries.length,
@@ -252,6 +375,13 @@ export function mergeDatabaseTelemetry(values) {
     connectionAcquisitionMs: {
       perWorker: connectionSummaries,
       max: connectionSummaries.length ? Math.max(...connectionSummaries.map((value) => nonnegativeNumber(value.max))) : null
+    },
+    poolPressure: {
+      perWorker: poolSummaries,
+      maxWaitingCount: poolSummaries.length ? Math.max(...poolSummaries.map((value) => nonnegativeInteger(value.maxWaitingCount))) : 0,
+      maxActiveCount: poolSummaries.length ? Math.max(...poolSummaries.map((value) => nonnegativeInteger(value.maxActiveCount))) : 0,
+      maxUtilizationRatio: poolSummaries.length ? Math.max(...poolSummaries.map((value) => nonnegativeNumber(value.maxUtilizationRatio))) : 0,
+      meanWaitingCount: poolSummaries.length ? Number((poolSummaries.reduce((sum, value) => sum + nonnegativeNumber(value.meanWaitingCount), 0) / poolSummaries.length).toFixed(3)) : 0
     },
     waitEvents: {
       sampleCount,
@@ -263,6 +393,8 @@ export function mergeDatabaseTelemetry(values) {
         tempFiles: tempFilesDelta
       }
     },
+    wal: mergeCounterDeltas(summaries, 'wal', ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs']),
+    bgwriter: mergeCounterDeltas(summaries, 'bgwriter', ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs']),
     temporaryStorage: {
       tempBytesDelta,
       tempFilesDelta,

@@ -603,6 +603,7 @@ jobs:
           RECOVERY_STRESS_EXPECTED_COMMIT=${{ github.sha }} \
           RECOVERY_STRESS_REPORTS=artifacts/recovery-stress-c2.json,artifacts/recovery-stress-c4.json,artifacts/recovery-stress-c8.json \
           RECOVERY_STRESS_REQUIRE_DATABASE_TELEMETRY=true \
+          RECOVERY_STRESS_REQUIRE_CONTENTION_TELEMETRY=true \
           node packages/backend/scripts/verify-recovery-stress-baseline.mjs > artifacts/recovery-stress-baseline.json
           status=$?
           cat artifacts/recovery-stress-baseline.json
@@ -654,3 +655,75 @@ jobs:
           grep -q '"status": "verified"' artifacts/recovery-wait-events.json
           test -s artifacts/recovery-wait-throughput.json
           grep -q '"status": "verified"' artifacts/recovery-wait-throughput.json
+
+  recovery-confidence:
+    name: Repeated c2/c4/c8 confidence artifacts
+    needs: recovery-baseline
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: paytray_ci
+          POSTGRES_PASSWORD: paytray_ci
+          POSTGRES_DB: paytray_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paytray_ci -d paytray_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run three c2/c4/c8 repetitions with contention telemetry
+        run: |
+          mkdir -p artifacts
+          set +e
+          RECOVERY_STRESS_ENVIRONMENT=local_disposable \
+          RECOVERY_STRESS_RELEASE_COMMIT=${{ github.sha }} \
+          RECOVERY_STRESS_ADMIN_URL=postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/postgres \
+          RECOVERY_STRESS_REPETITIONS=3 \
+          RECOVERY_STRESS_REPEAT_CONCURRENCIES=2,4,8 \
+          RECOVERY_STRESS_REPEAT_REPORT_FILE=artifacts/recovery-repeat-confidence.json \
+          RECOVERY_STRESS_REQUIRE_CONTENTION_TELEMETRY=true \
+          RECOVERY_CAPTURE_CHILD_RESOURCE=true \
+          RECOVERY_CAPTURE_DATABASE_TELEMETRY=true \
+          RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS=25 \
+          RECOVERY_DATABASE_TELEMETRY_MAX_SAMPLES=120 \
+          node packages/backend/scripts/repeat-recovery-stress.mjs > artifacts/recovery-repeat-confidence.log 2>&1
+          status=$?
+          cat artifacts/recovery-repeat-confidence.log
+          exit $status
+      - name: Enforce confidence and contention contracts
+        if: always()
+        run: |
+          test -s artifacts/recovery-repeat-confidence.json
+          grep -q '"status": "verified"' artifacts/recovery-repeat-confidence.json
+          grep -q '"contentionTelemetry": true' artifacts/recovery-repeat-confidence.json
+          grep -q '"method": "two_sided_student_t"' artifacts/recovery-repeat-confidence.json
+          grep -q '"releaseEligible": false' artifacts/recovery-repeat-confidence.json
+          grep -q '"settlementAuthority": false' artifacts/recovery-repeat-confidence.json
+          grep -q '"mutation": "read_only"' artifacts/recovery-repeat-confidence.json
+      - name: Fingerprint repeated confidence artifacts
+        if: always()
+        run: sha256sum artifacts/recovery-repeat-confidence.json artifacts/recovery-repeat-confidence.log | tee artifacts/recovery-repeat-confidence.sha256
+      - name: Upload redacted repeated confidence artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: recovery-repeat-confidence-${{ github.run_id }}
+          path: |
+            artifacts/recovery-repeat-confidence.json
+            artifacts/recovery-repeat-confidence.log
+            artifacts/recovery-repeat-confidence.sha256
+          if-no-files-found: error
+          retention-days: 7

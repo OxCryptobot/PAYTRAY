@@ -21,7 +21,43 @@ function assertNonnegativeNumber(value, label) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) fail(`${label} must be a nonnegative number`)
 }
 
-function validateDatabaseTelemetry(report, expectedConcurrency) {
+const WAL_FIELDS = ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs']
+const BGWRITER_FIELDS = ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs']
+
+function validateCounterBlock(value, label, basis, fields) {
+  assertObject(value, label)
+  if (value.basis !== basis) fail(`${label}.basis is invalid`)
+  assertObject(value.deltas, `${label}.deltas`)
+  for (const field of fields) assertNonnegativeNumber(value.deltas[field], `${label}.deltas.${field}`)
+}
+
+function validatePoolSummary(value, label) {
+  assertObject(value, label)
+  for (const field of ['sampleCount', 'maxTotalCount', 'maxActiveCount', 'maxWaitingCount']) assertNonnegativeInteger(value[field], `${label}.${field}`)
+  for (const field of ['meanWaitingCount', 'maxUtilizationRatio', 'meanUtilizationRatio']) assertNonnegativeNumber(value[field], `${label}.${field}`)
+  if (value.maxUtilizationRatio > 1 || value.meanUtilizationRatio > 1) fail(`${label}.utilizationRatio must be at most 1`)
+}
+
+function validateContentionTelemetry(databaseTelemetry, label, expectedWorkers = null) {
+  assertObject(databaseTelemetry.poolPressure, `${label}.poolPressure`)
+  if (expectedWorkers !== null) {
+    if (!Array.isArray(databaseTelemetry.poolPressure.perWorker) || databaseTelemetry.poolPressure.perWorker.length !== expectedWorkers) fail(`${label}.poolPressure.perWorker must contain one summary per worker`)
+    databaseTelemetry.poolPressure.perWorker.forEach((summary, index) => validatePoolSummary(summary, `${label}.poolPressure.perWorker[${index}]`))
+  }
+  const poolSummary = { ...databaseTelemetry.poolPressure }
+  delete poolSummary.perWorker
+  validatePoolSummary(poolSummary, `${label}.poolPressure`)
+  validateCounterBlock(databaseTelemetry.wal, `${label}.wal`, 'pg_stat_wal', WAL_FIELDS)
+  validateCounterBlock(databaseTelemetry.bgwriter, `${label}.bgwriter`, 'pg_stat_bgwriter', BGWRITER_FIELDS)
+  return {
+    poolPressureMaxWaitingCount: databaseTelemetry.poolPressure.maxWaitingCount,
+    poolPressureMaxUtilizationRatio: databaseTelemetry.poolPressure.maxUtilizationRatio,
+    walDeltas: databaseTelemetry.wal.deltas,
+    bgwriterDeltas: databaseTelemetry.bgwriter.deltas
+  }
+}
+
+function validateDatabaseTelemetry(report, expectedConcurrency, requireContentionTelemetry = false) {
   const label = `concurrency ${expectedConcurrency}.databaseTelemetry`
   assertObject(report.databaseTelemetry, label)
   if (report.databaseTelemetry.basis !== 'postgresql_observability') fail(`${label}.basis is invalid`)
@@ -51,10 +87,12 @@ function validateDatabaseTelemetry(report, expectedConcurrency) {
   for (const field of ['operationElapsedMs', 'throughputBytesPerSecond']) assertNonnegativeNumber(report.databaseTelemetry.temporaryStorage[field], `${label}.temporaryStorage.${field}`)
   if (!Array.isArray(report.databaseTelemetry.errors) || report.databaseTelemetry.errors.length !== 0) fail(`${label}.errors must be an empty array for a verified baseline`)
   if (!Array.isArray(report.workers) || report.workers.length !== expectedConcurrency) fail(`concurrency ${expectedConcurrency}.workers must contain one worker per sequence`)
+  const contention = requireContentionTelemetry ? validateContentionTelemetry(report.databaseTelemetry, label, expectedConcurrency) : null
   report.workers.forEach((worker, index) => {
     assertObject(worker, `concurrency ${expectedConcurrency}.workers[${index}]`)
     assertObject(worker.databaseTelemetry, `concurrency ${expectedConcurrency}.workers[${index}].databaseTelemetry`)
     if (worker.databaseTelemetry.basis !== 'postgresql_observability') fail(`concurrency ${expectedConcurrency}.workers[${index}].databaseTelemetry.basis is invalid`)
+    if (requireContentionTelemetry) validateContentionTelemetry(worker.databaseTelemetry, `concurrency ${expectedConcurrency}.workers[${index}].databaseTelemetry`)
     if (!Number.isSafeInteger(worker.databaseTelemetry.sampleCount) || worker.databaseTelemetry.sampleCount < 2) fail(`concurrency ${expectedConcurrency}.workers[${index}].databaseTelemetry.sampleCount must be at least 2`)
     assertObject(worker.storageTelemetry, `concurrency ${expectedConcurrency}.workers[${index}].storageTelemetry`)
     if (worker.storageTelemetry.basis !== 'local_disposable_backup_file') fail(`concurrency ${expectedConcurrency}.workers[${index}].storageTelemetry.basis is invalid`)
@@ -68,7 +106,8 @@ function validateDatabaseTelemetry(report, expectedConcurrency) {
     sampleCount: report.databaseTelemetry.sampleCount,
     connectionAcquisitionMaxMs: report.databaseTelemetry.connectionAcquisitionMs.max,
     waitEventCount: report.databaseTelemetry.waitEvents.observations.length,
-    temporaryBytesDelta: report.databaseTelemetry.temporaryStorage.tempBytesDelta
+    temporaryBytesDelta: report.databaseTelemetry.temporaryStorage.tempBytesDelta,
+    ...(contention ? { contention } : {})
   }
 }
 
@@ -102,7 +141,7 @@ function validateResource(resource, label, expectedSamples, workers = []) {
   return { present: true, sampleCount: resource.sampleCount, peakRssKb: resource.memory.peakRssKb, maxHeapUsedBytes: resource.memory.maxHeapUsedBytes }
 }
 
-function validateReport(report, expectedCommit, expectedConcurrency, expectedRtoTargetMs = null, requireDatabaseTelemetry = false) {
+function validateReport(report, expectedCommit, expectedConcurrency, expectedRtoTargetMs = null, requireDatabaseTelemetry = false, requireContentionTelemetry = false) {
   assertObject(report, `recovery-stress-${expectedConcurrency}`)
   if (report.reportKind !== 'local_disposable_recovery_stress') fail(`concurrency ${expectedConcurrency} has an invalid reportKind`)
   if (report.releaseCommit !== expectedCommit) fail(`concurrency ${expectedConcurrency} is bound to an unexpected commit`)
@@ -127,7 +166,7 @@ function validateReport(report, expectedCommit, expectedConcurrency, expectedRto
   }
   if (report.releaseEligible !== false || report.settlementAuthority !== false || report.mutation !== 'read_only' || report.deploymentPerformed !== false || report.settlementMutationPerformed !== false) fail(`concurrency ${expectedConcurrency} has unsafe authority fields`)
   const resource = validateResource(report.resourceTelemetry, `concurrency ${expectedConcurrency}.resourceTelemetry`, expectedConcurrency, report.workers)
-  const database = requireDatabaseTelemetry ? validateDatabaseTelemetry(report, expectedConcurrency) : null
+  const database = requireDatabaseTelemetry ? validateDatabaseTelemetry(report, expectedConcurrency, requireContentionTelemetry) : null
   return {
     concurrency: expectedConcurrency,
     orchestrationElapsedMs: report.orchestrationElapsedMs,
@@ -140,12 +179,12 @@ function validateReport(report, expectedCommit, expectedConcurrency, expectedRto
   }
 }
 
-export async function validateRecoveryStressBaseline({ reportPaths, expectedCommit, expectedConcurrencies = REQUIRED_CONCURRENCIES, expectedRtoTargetMs = null, requireDatabaseTelemetry = false } = {}) {
+export async function validateRecoveryStressBaseline({ reportPaths, expectedCommit, expectedConcurrencies = REQUIRED_CONCURRENCIES, expectedRtoTargetMs = null, requireDatabaseTelemetry = false, requireContentionTelemetry = false } = {}) {
   if (!Array.isArray(reportPaths) || reportPaths.length !== expectedConcurrencies.length) fail('reportPaths must contain one report per expected concurrency')
   if (!/^[a-f0-9]{40}$/.test(expectedCommit || '')) fail('expectedCommit must be a lowercase 40-character hexadecimal commit')
   const reports = await Promise.all(reportPaths.map((filePath) => loadReport(path.resolve(filePath))))
   if (expectedRtoTargetMs !== null && (!Number.isSafeInteger(expectedRtoTargetMs) || expectedRtoTargetMs < 1)) fail('expectedRtoTargetMs must be a positive integer when supplied')
-  const levels = reports.map((report, index) => validateReport(report, expectedCommit, expectedConcurrencies[index], expectedRtoTargetMs, requireDatabaseTelemetry))
+  const levels = reports.map((report, index) => validateReport(report, expectedCommit, expectedConcurrencies[index], expectedRtoTargetMs, requireDatabaseTelemetry, requireContentionTelemetry))
   const actual = levels.map((level) => level.concurrency).sort((a, b) => a - b)
   const expected = [...expectedConcurrencies].sort((a, b) => a - b)
   if (JSON.stringify(actual) !== JSON.stringify(expected)) fail('expected concurrency levels are not unique and complete')
@@ -153,7 +192,9 @@ export async function validateRecoveryStressBaseline({ reportPaths, expectedComm
   const resourceLevels = levels.filter((level) => level.resource.present).map((level) => ({ concurrency: level.concurrency, peakRssKb: level.resource.peakRssKb, maxHeapUsedBytes: level.resource.maxHeapUsedBytes }))
   const databaseTelemetry = levels.every((level) => level.database !== null)
   const databaseLevels = levels.filter((level) => level.database !== null).map((level) => ({ concurrency: level.concurrency, ...level.database }))
-  const content = { expectedCommit, expectedConcurrencies: expected, levels, resourceTelemetry, resourceLevels, databaseTelemetry, databaseLevels }
+  const contentionTelemetry = levels.every((level) => level.database?.contention !== undefined)
+  const contentionLevels = levels.filter((level) => level.database?.contention !== undefined).map((level) => ({ concurrency: level.concurrency, ...level.database.contention }))
+  const content = { expectedCommit, expectedConcurrencies: expected, levels, resourceTelemetry, resourceLevels, databaseTelemetry, databaseLevels, contentionTelemetry, contentionLevels }
   return {
     reportKind: 'local_disposable_recovery_stress_baseline',
     status: 'verified',
@@ -174,12 +215,14 @@ export async function main() {
   const expectedRtoTargetRaw = process.env.RECOVERY_STRESS_EXPECTED_RTO_TARGET_MS
   const expectedRtoTargetMs = expectedRtoTargetRaw === undefined ? null : Number.parseInt(expectedRtoTargetRaw, 10)
   const requireDatabaseTelemetry = process.env.RECOVERY_STRESS_REQUIRE_DATABASE_TELEMETRY === 'true'
+  const requireContentionTelemetry = process.env.RECOVERY_STRESS_REQUIRE_CONTENTION_TELEMETRY === 'true'
   const report = await validateRecoveryStressBaseline({
     reportPaths,
     expectedCommit: process.env.RECOVERY_STRESS_EXPECTED_COMMIT,
     expectedConcurrencies,
     expectedRtoTargetMs,
-    requireDatabaseTelemetry
+    requireDatabaseTelemetry,
+    requireContentionTelemetry
   })
   console.log(JSON.stringify(report, null, 2))
 }

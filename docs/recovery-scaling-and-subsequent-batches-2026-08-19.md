@@ -120,6 +120,14 @@ The disposable CI baseline job now runs this aggregation after baseline verifica
 
 The analyzer explicitly labels its output `descriptive_only` because the recovery harness does not measure application transaction TPS and sampled `pg_stat_activity` wait events are not causal attribution. It rejects target-bound RTO reports, commit mismatches, incomplete or failed levels, integrity failures, and unsafe authority fields. CI now fingerprints, uploads, and requires the new throughput artifact alongside the existing baseline and wait-event artifacts.
 
+### Batch 8 — Repeated confidence, contention depth, and profile-first optimization
+
+**Status:** implemented locally and ready for full validation. The repeated runner now supports strict `RECOVERY_STRESS_REQUIRE_CONTENTION_TELEMETRY=true` mode and summarizes Student-t confidence intervals for pool waiting/utilization, WAL records/bytes/write/sync timing, backend fsync counters, temporary storage, connection acquisition, recovery tails, CPU, and RSS. A guarded local-disposable run completed three independent repetitions at c2/c4/c8: nine verified runs, zero failed sequences, zero integrity failures, null-target RTO semantics, and `contentionTelemetry=true`.
+
+The PostgreSQL helper now captures bounded pool pressure (`totalCount`, `activeCount`, `idleCount`, `waitingCount`, utilization), `pg_stat_wal` counters, and `pg_stat_bgwriter` checkpoint/backend-fsync counters. The baseline verifier supports strict fail-closed validation for these blocks, and the recovery-baseline workflow requires them. A dependent `recovery-confidence` CI job runs three repetitions across c2/c4/c8, requires Student-t output and false/read-only safety fields, fingerprints the redacted report, and retains it for seven days.
+
+The new `backend:tests:profile:recovery-postgres` command profiled the recovery and PostgreSQL contract suites without changing fixtures or behavior. The current hotspots are `recoveryStressBaseline.test.js` at approximately 30.3 ms and `recoveryArtifactTiming.test.js` at approximately 14.9 ms in the measured local run; these are engineering targets only, not production capacity or SLO evidence.
+
 ## Safety invariants
 
 ```json

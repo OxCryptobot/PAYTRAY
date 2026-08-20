@@ -69,7 +69,20 @@ function metricValues(reports, selector) {
   return reports.map(selector).filter((value) => typeof value === 'number' && Number.isFinite(value))
 }
 
-function buildLevelSummary(concurrency, reports) {
+function assertContentionTelemetry(report, concurrency) {
+  const telemetry = report.databaseTelemetry
+  if (!telemetry || !telemetry.poolPressure || !telemetry.wal || !telemetry.bgwriter) throw new Error(`concurrency ${concurrency} is missing pool/WAL/bgwriter telemetry`)
+  if (telemetry.wal.basis !== 'pg_stat_wal' || telemetry.bgwriter.basis !== 'pg_stat_bgwriter') throw new Error(`concurrency ${concurrency} has invalid WAL/bgwriter telemetry basis`)
+  for (const field of ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs']) {
+    if (typeof telemetry.wal.deltas?.[field] !== 'number' || !Number.isFinite(telemetry.wal.deltas[field]) || telemetry.wal.deltas[field] < 0) throw new Error(`concurrency ${concurrency}.wal.deltas.${field} is invalid`)
+  }
+  for (const field of ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs']) {
+    if (typeof telemetry.bgwriter.deltas?.[field] !== 'number' || !Number.isFinite(telemetry.bgwriter.deltas[field]) || telemetry.bgwriter.deltas[field] < 0) throw new Error(`concurrency ${concurrency}.bgwriter.deltas.${field} is invalid`)
+  }
+}
+
+function buildLevelSummary(concurrency, reports, requireContentionTelemetry = false) {
+  if (requireContentionTelemetry) reports.forEach((report) => assertContentionTelemetry(report, concurrency))
   const withinTarget = reports.map((report) => report.rto?.withinTarget).filter((value) => typeof value === 'boolean')
   return {
     concurrency,
@@ -85,6 +98,15 @@ function buildLevelSummary(concurrency, reports) {
     userCpuTimeUs: summarizeMetric(metricValues(reports, (report) => report.resourceTelemetry?.totals?.userCpuTimeUs)),
     databaseTempBytes: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.temporaryStorage?.tempBytesDelta)),
     connectionAcquisitionP95Ms: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.connectionAcquisitionMs?.max)),
+    poolMaxWaitingCount: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.poolPressure?.maxWaitingCount)),
+    poolMaxUtilizationRatio: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.poolPressure?.maxUtilizationRatio)),
+    walRecords: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.wal?.deltas?.walRecords)),
+    walBytes: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.wal?.deltas?.walBytes)),
+    walWrite: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.wal?.deltas?.walWrite)),
+    walSync: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.wal?.deltas?.walSync)),
+    walWriteTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.wal?.deltas?.walWriteTimeMs)),
+    walSyncTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.wal?.deltas?.walSyncTimeMs)),
+    buffersBackendFsync: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.bgwriter?.deltas?.buffersBackendFsync)),
     rto: {
       targetMs: reports[0]?.rto?.targetMs ?? null,
       targetConfigured: reports[0]?.rto?.targetConfigured === true,
@@ -95,10 +117,11 @@ function buildLevelSummary(concurrency, reports) {
   }
 }
 
-export function buildRepeatedStressReport({ commit, repetitions, concurrencyLevels, targetMs = null, restoreJobs = null, runResults }) {
+export function buildRepeatedStressReport({ commit, repetitions, concurrencyLevels, targetMs = null, restoreJobs = null, runResults, requireContentionTelemetry = false }) {
   const levels = concurrencyLevels.map((concurrency) => buildLevelSummary(
     concurrency,
-    runResults.filter((result) => result.concurrency === concurrency).map((result) => result.report)
+    runResults.filter((result) => result.concurrency === concurrency).map((result) => result.report),
+    requireContentionTelemetry
   ))
   const allVerified = levels.every((level) => level.allVerified && level.repetitionCount === repetitions && level.failedSequences === 0 && level.integrityFailures === 0)
   const report = {
@@ -123,6 +146,7 @@ export function buildRepeatedStressReport({ commit, repetitions, concurrencyLeve
       databaseTelemetry: result.databaseTelemetry || null
     })),
     confidenceInterpretation: 'Confidence intervals are engineering variance evidence only; they do not establish production SLOs, release authority, settlement authority, or target-environment clearance.',
+    contentionTelemetry: requireContentionTelemetry,
     safety: {
       releaseEligible: false,
       settlementAuthority: false,
@@ -134,7 +158,7 @@ export function buildRepeatedStressReport({ commit, repetitions, concurrencyLeve
   return { ...report, fingerprint: fingerprint(report) }
 }
 
-export async function runRepeatedStress({ adminUrl, commit, repetitions, concurrencyLevels, targetMs = null, restoreJobs = null }) {
+export async function runRepeatedStress({ adminUrl, commit, repetitions, concurrencyLevels, targetMs = null, restoreJobs = null, requireContentionTelemetry = false }) {
   const runResults = []
   outer: for (const concurrency of concurrencyLevels) {
     for (let repetition = 1; repetition <= repetitions; repetition += 1) {
@@ -143,7 +167,7 @@ export async function runRepeatedStress({ adminUrl, commit, repetitions, concurr
       if (report.status !== 'verified' || report.failedSequences > 0 || report.integrityFailures > 0) break outer
     }
   }
-  return buildRepeatedStressReport({ commit, repetitions, concurrencyLevels, targetMs, restoreJobs, runResults })
+  return buildRepeatedStressReport({ commit, repetitions, concurrencyLevels, targetMs, restoreJobs, runResults, requireContentionTelemetry })
 }
 
 export async function main() {
@@ -153,6 +177,7 @@ export async function main() {
   const repetitions = parsePositiveInteger('RECOVERY_STRESS_REPETITIONS', 3, { min: 2, max: 10 })
   const concurrencyLevels = parseConcurrencyLevels()
   const targetMs = parseTarget()
+  const requireContentionTelemetry = process.env.RECOVERY_STRESS_REQUIRE_CONTENTION_TELEMETRY === 'true'
   const restoreJobsRaw = process.env.RECOVERY_RESTORE_JOBS
   const restoreJobs = restoreJobsRaw === undefined ? null : Number.parseInt(restoreJobsRaw, 10)
   if (restoreJobs !== null && (!Number.isInteger(restoreJobs) || restoreJobs < 1 || restoreJobs > 4)) throw new Error('RECOVERY_RESTORE_JOBS must be an integer between 1 and 4')
@@ -163,7 +188,8 @@ export async function main() {
     repetitions,
     concurrencyLevels,
     targetMs,
-    restoreJobs
+    restoreJobs,
+    requireContentionTelemetry
   })
   const serialized = JSON.stringify(report, null, 2)
   if (process.env.RECOVERY_STRESS_REPEAT_REPORT_FILE) {

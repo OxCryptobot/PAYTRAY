@@ -71,13 +71,19 @@ function metricValues(reports, selector) {
 
 function assertContentionTelemetry(report, concurrency) {
   const telemetry = report.databaseTelemetry
-  if (!telemetry || !telemetry.poolPressure || !telemetry.wal || !telemetry.bgwriter) throw new Error(`concurrency ${concurrency} is missing pool/WAL/bgwriter telemetry`)
-  if (telemetry.wal.basis !== 'pg_stat_wal' || telemetry.bgwriter.basis !== 'pg_stat_bgwriter') throw new Error(`concurrency ${concurrency} has invalid WAL/bgwriter telemetry basis`)
+  if (!telemetry || !telemetry.poolPressure || !telemetry.wal || !telemetry.bgwriter || !telemetry.io || !telemetry.snapshotQueryElapsedMs) throw new Error(`concurrency ${concurrency} is missing pool/WAL/bgwriter/io/timing telemetry`)
+  if (telemetry.wal.basis !== 'pg_stat_wal' || telemetry.bgwriter.basis !== 'pg_stat_bgwriter' || telemetry.io.basis !== 'pg_stat_io') throw new Error(`concurrency ${concurrency} has invalid WAL/bgwriter/io telemetry basis`)
   for (const field of ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs']) {
     if (typeof telemetry.wal.deltas?.[field] !== 'number' || !Number.isFinite(telemetry.wal.deltas[field]) || telemetry.wal.deltas[field] < 0) throw new Error(`concurrency ${concurrency}.wal.deltas.${field} is invalid`)
   }
   for (const field of ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs']) {
     if (typeof telemetry.bgwriter.deltas?.[field] !== 'number' || !Number.isFinite(telemetry.bgwriter.deltas[field]) || telemetry.bgwriter.deltas[field] < 0) throw new Error(`concurrency ${concurrency}.bgwriter.deltas.${field} is invalid`)
+  }
+  for (const field of ['ioReads', 'ioWrites', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtends', 'ioExtendTimeMs']) {
+    if (typeof telemetry.io.deltas?.[field] !== 'number' || !Number.isFinite(telemetry.io.deltas[field]) || telemetry.io.deltas[field] < 0) throw new Error(`concurrency ${concurrency}.io.deltas.${field} is invalid`)
+  }
+  for (const field of ['p50', 'p95', 'p99', 'max', 'mean']) {
+    if (typeof telemetry.snapshotQueryElapsedMs[field] !== 'number' || !Number.isFinite(telemetry.snapshotQueryElapsedMs[field]) || telemetry.snapshotQueryElapsedMs[field] < 0) throw new Error(`concurrency ${concurrency}.snapshotQueryElapsedMs.${field} is invalid`)
   }
 }
 
@@ -107,6 +113,10 @@ function buildLevelSummary(concurrency, reports, requireContentionTelemetry = fa
     walWriteTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.wal?.deltas?.walWriteTimeMs)),
     walSyncTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.wal?.deltas?.walSyncTimeMs)),
     buffersBackendFsync: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.bgwriter?.deltas?.buffersBackendFsync)),
+    ioFsyncs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.io?.deltas?.ioFsyncs)),
+    ioFsyncTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.io?.deltas?.ioFsyncTimeMs)),
+    ioWriteTimeMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.io?.deltas?.ioWriteTimeMs)),
+    snapshotQueryMaxMs: summarizeMetric(metricValues(reports, (report) => report.databaseTelemetry?.snapshotQueryElapsedMs?.max)),
     rto: {
       targetMs: reports[0]?.rto?.targetMs ?? null,
       targetConfigured: reports[0]?.rto?.targetConfigured === true,

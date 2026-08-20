@@ -17,9 +17,11 @@ function report(concurrency, repetition, overrides = {}) {
         basis: 'postgresql_observability',
         temporaryStorage: { tempBytesDelta: concurrency * 10 + repetition },
         connectionAcquisitionMs: { max: 2 + repetition },
+        snapshotQueryElapsedMs: { count: 2, p50: 1, p95: 2, p99: 2, max: 2, mean: 1.5 },
         poolPressure: { maxWaitingCount: repetition, maxUtilizationRatio: 0.5 },
         wal: { basis: 'pg_stat_wal', deltas: { walRecords: 10, walBytes: 100, walWrite: 2, walSync: 3, walWriteTimeMs: 4, walSyncTimeMs: 5, walFpi: 1, walBuffersFull: 0 } },
         bgwriter: { basis: 'pg_stat_bgwriter', deltas: { buffersCheckpoint: 1, buffersClean: 1, maxwrittenClean: 0, buffersBackend: 2, buffersBackendFsync: 1, checkpointWriteTimeMs: 3, checkpointSyncTimeMs: 4 } },
+        io: { basis: 'pg_stat_io', deltas: { ioReads: 1, ioWrites: 2, ioWriteTimeMs: 3, ioFsyncs: 4, ioFsyncTimeMs: 5, ioExtends: 6, ioExtendTimeMs: 7 } },
         waitEvents: { observations: [] }
       },
       rto: { targetMs: 500, targetConfigured: true, withinTarget: true }
@@ -49,6 +51,8 @@ describe('repeated recovery stress confidence aggregation', () => {
     expect(result.levels[2].poolMaxUtilizationRatio.mean).toBe(0.5)
     expect(result.levels[2].walSync.mean).toBe(3)
     expect(result.levels[2].buffersBackendFsync.mean).toBe(1)
+    expect(result.levels[2].ioFsyncs.mean).toBe(4)
+    expect(result.levels[2].snapshotQueryMaxMs.mean).toBe(2)
     expect(result.contentionTelemetry).toBe(true)
     expect(result.levels[2].rto).toMatchObject({ targetMs: 500, withinTargetCount: 3, evaluatedRuns: 3, withinTargetRate: 1 })
     expect(result.safety).toEqual({
@@ -69,7 +73,7 @@ describe('repeated recovery stress confidence aggregation', () => {
       concurrencyLevels: [2, 4, 8],
       runResults,
       requireContentionTelemetry: true
-    })).toThrow('concurrency 2 is missing pool/WAL/bgwriter telemetry')
+    })).toThrow('concurrency 2 is missing pool/WAL/bgwriter/io/timing telemetry')
   })
 
   it('blocks incomplete repetition coverage and preserves failure counts', () => {

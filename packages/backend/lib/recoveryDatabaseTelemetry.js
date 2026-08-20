@@ -87,6 +87,19 @@ function normalizeBgwriter(row) {
   }
 }
 
+function normalizeIo(row) {
+  if (!row) return null
+  return {
+    ioReads: nonnegativeInteger(row.io_reads),
+    ioWrites: nonnegativeInteger(row.io_writes),
+    ioWriteTimeMs: nonnegativeNumber(row.io_write_time),
+    ioFsyncs: nonnegativeInteger(row.io_fsyncs),
+    ioFsyncTimeMs: nonnegativeNumber(row.io_fsync_time),
+    ioExtends: nonnegativeInteger(row.io_extends),
+    ioExtendTimeMs: nonnegativeNumber(row.io_extend_time)
+  }
+}
+
 function diffStat(after, before, field) {
   return Math.max(0, nonnegativeNumber(after?.[field]) - nonnegativeNumber(before?.[field]))
 }
@@ -136,11 +149,11 @@ function summarizePoolPressure(values) {
   }
 }
 
-function summarizeCounterTelemetry(samples, field, fields) {
+function summarizeCounterTelemetry(samples, field, fields, basis) {
   const first = samples.find((sample) => sample?.[field])?.[field] || null
   const last = [...samples].reverse().find((sample) => sample?.[field])?.[field] || first
   return {
-    basis: field === 'wal' ? 'pg_stat_wal' : 'pg_stat_bgwriter',
+    basis,
     before: first,
     after: last,
     deltas: diffCounters(last, first, fields)
@@ -148,7 +161,7 @@ function summarizeCounterTelemetry(samples, field, fields) {
 }
 
 export async function captureDatabaseSnapshot(client) {
-  const [statsResult, waitResult, walResult, bgwriterResult] = await Promise.all([
+  const [statsResult, waitResult, walResult, bgwriterResult, ioResult] = await Promise.all([
     client.query(`
       SELECT
         pg_database_size(current_database())::bigint AS database_size_bytes,
@@ -194,6 +207,17 @@ export async function captureDatabaseSnapshot(client) {
         COALESCE(checkpoint_write_time, 0)::double precision AS checkpoint_write_time,
         COALESCE(checkpoint_sync_time, 0)::double precision AS checkpoint_sync_time
       FROM pg_stat_bgwriter
+    `),
+    client.query(`
+      SELECT
+        COALESCE(SUM(reads), 0)::bigint AS io_reads,
+        COALESCE(SUM(writes), 0)::bigint AS io_writes,
+        COALESCE(SUM(write_time), 0)::double precision AS io_write_time,
+        COALESCE(SUM(fsyncs), 0)::bigint AS io_fsyncs,
+        COALESCE(SUM(fsync_time), 0)::double precision AS io_fsync_time,
+        COALESCE(SUM(extends), 0)::bigint AS io_extends,
+        COALESCE(SUM(extend_time), 0)::double precision AS io_extend_time
+      FROM pg_stat_io
     `)
   ])
 
@@ -203,7 +227,8 @@ export async function captureDatabaseSnapshot(client) {
     stats: normalizeStats(statsResult.rows[0]),
     waitEvents: normalizeWaitEvents(waitResult.rows),
     wal: normalizeWal(walResult.rows[0]),
-    bgwriter: normalizeBgwriter(bgwriterResult.rows[0])
+    bgwriter: normalizeBgwriter(bgwriterResult.rows[0]),
+    io: normalizeIo(ioResult.rows[0])
   }
 }
 
@@ -217,8 +242,10 @@ export async function captureDatabaseTelemetrySample(pool) {
   const poolBefore = poolPressureSnapshot(pool)
   const { client, elapsedMs } = await acquireConnection(pool)
   try {
+    const snapshotQueryStartedAt = performance.now()
     const snapshot = await captureDatabaseSnapshot(client)
-    return { ...snapshot, connectionAcquisitionMs: elapsedMs, poolPressure: { before: poolBefore, after: poolPressureSnapshot(pool) } }
+    const snapshotQueryElapsedMs = Number(Math.max(0, performance.now() - snapshotQueryStartedAt).toFixed(3))
+    return { ...snapshot, snapshotQueryElapsedMs, connectionAcquisitionMs: elapsedMs, poolPressure: { before: poolBefore, after: poolPressureSnapshot(pool) } }
   } finally {
     client.release()
   }
@@ -253,14 +280,17 @@ export function summarizeDatabaseTelemetry(samples, { operationElapsedMs = null,
   const tempFilesDelta = diffStat(after, before, 'tempFiles')
   const blocksReadDelta = diffStat(after, before, 'blocksRead')
   const blocksHitDelta = diffStat(after, before, 'blocksHit')
-  const wal = summarizeCounterTelemetry(normalizedSamples, 'wal', ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs'])
-  const bgwriter = summarizeCounterTelemetry(normalizedSamples, 'bgwriter', ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs'])
+  const snapshotQueryElapsedMs = summarizeDurations(normalizedSamples.map((sample) => sample.snapshotQueryElapsedMs))
+  const wal = summarizeCounterTelemetry(normalizedSamples, 'wal', ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs'], 'pg_stat_wal')
+  const bgwriter = summarizeCounterTelemetry(normalizedSamples, 'bgwriter', ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs'], 'pg_stat_bgwriter')
+  const io = summarizeCounterTelemetry(normalizedSamples, 'io', ['ioReads', 'ioWrites', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtends', 'ioExtendTimeMs'], 'pg_stat_io')
   const poolSamples = normalizedSamples.flatMap((sample) => [sample.poolPressure?.before, sample.poolPressure?.after]).filter(Boolean)
 
   return {
     basis: DATABASE_TELEMETRY_BASIS,
     sampleCount: normalizedSamples.length,
     connectionAcquisitionMs: summarizeDurations(normalizedSamples.map((sample) => sample.connectionAcquisitionMs)),
+    snapshotQueryElapsedMs,
     poolPressure: summarizePoolPressure(poolSamples),
     waitEvents: {
       sampleCount: normalizedSamples.length,
@@ -279,6 +309,7 @@ export function summarizeDatabaseTelemetry(samples, { operationElapsedMs = null,
     },
     wal,
     bgwriter,
+    io,
     temporaryStorage: {
       tempBytesDelta,
       tempFilesDelta,
@@ -331,9 +362,9 @@ export function createDatabaseTelemetryCollector({ pool, intervalMs = DEFAULT_IN
   return { start, stop }
 }
 
-function mergeCounterDeltas(summaries, field, fields) {
+function mergeCounterDeltas(summaries, field, fields, basis) {
   return {
-    basis: field === 'wal' ? 'pg_stat_wal' : 'pg_stat_bgwriter',
+    basis,
     deltas: Object.fromEntries(fields.map((metric) => [metric, summaries.reduce((sum, value) => sum + nonnegativeNumber(value?.[field]?.deltas?.[metric]), 0)]))
   }
 }
@@ -396,8 +427,13 @@ export function mergeDatabaseTelemetry(values) {
         tempFiles: tempFilesDelta
       }
     },
-    wal: mergeCounterDeltas(summaries, 'wal', ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs']),
-    bgwriter: mergeCounterDeltas(summaries, 'bgwriter', ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs']),
+    snapshotQueryElapsedMs: {
+      perWorker: summaries.map((summary) => summary.snapshotQueryElapsedMs).filter(Boolean),
+      max: summaries.length ? Math.max(...summaries.map((summary) => nonnegativeNumber(summary.snapshotQueryElapsedMs?.max))) : null
+    },
+    wal: mergeCounterDeltas(summaries, 'wal', ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs'], 'pg_stat_wal'),
+    bgwriter: mergeCounterDeltas(summaries, 'bgwriter', ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs'], 'pg_stat_bgwriter'),
+    io: mergeCounterDeltas(summaries, 'io', ['ioReads', 'ioWrites', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtends', 'ioExtendTimeMs'], 'pg_stat_io'),
     temporaryStorage: {
       tempBytesDelta,
       tempFilesDelta,

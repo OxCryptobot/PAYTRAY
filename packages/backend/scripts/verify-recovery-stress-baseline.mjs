@@ -23,6 +23,7 @@ function assertNonnegativeNumber(value, label) {
 
 const WAL_FIELDS = ['walRecords', 'walFpi', 'walBytes', 'walBuffersFull', 'walWrite', 'walSync', 'walWriteTimeMs', 'walSyncTimeMs']
 const BGWRITER_FIELDS = ['buffersCheckpoint', 'buffersClean', 'maxwrittenClean', 'buffersBackend', 'buffersBackendFsync', 'checkpointWriteTimeMs', 'checkpointSyncTimeMs']
+const IO_FIELDS = ['ioReads', 'ioWrites', 'ioWriteTimeMs', 'ioFsyncs', 'ioFsyncTimeMs', 'ioExtends', 'ioExtendTimeMs']
 
 function validateCounterBlock(value, label, basis, fields) {
   assertObject(value, label)
@@ -49,11 +50,16 @@ function validateContentionTelemetry(databaseTelemetry, label, expectedWorkers =
   validatePoolSummary(poolSummary, `${label}.poolPressure`)
   validateCounterBlock(databaseTelemetry.wal, `${label}.wal`, 'pg_stat_wal', WAL_FIELDS)
   validateCounterBlock(databaseTelemetry.bgwriter, `${label}.bgwriter`, 'pg_stat_bgwriter', BGWRITER_FIELDS)
+  validateCounterBlock(databaseTelemetry.io, `${label}.io`, 'pg_stat_io', IO_FIELDS)
+  assertObject(databaseTelemetry.snapshotQueryElapsedMs, `${label}.snapshotQueryElapsedMs`)
+  for (const field of ['p50', 'p95', 'p99', 'max', 'mean']) assertNonnegativeNumber(databaseTelemetry.snapshotQueryElapsedMs[field], `${label}.snapshotQueryElapsedMs.${field}`)
   return {
     poolPressureMaxWaitingCount: databaseTelemetry.poolPressure.maxWaitingCount,
     poolPressureMaxUtilizationRatio: databaseTelemetry.poolPressure.maxUtilizationRatio,
     walDeltas: databaseTelemetry.wal.deltas,
-    bgwriterDeltas: databaseTelemetry.bgwriter.deltas
+    bgwriterDeltas: databaseTelemetry.bgwriter.deltas,
+    ioDeltas: databaseTelemetry.io.deltas,
+    snapshotQueryMaxMs: databaseTelemetry.snapshotQueryElapsedMs.max
   }
 }
 

@@ -38,11 +38,13 @@ function sampleReport(concurrency, { resource = false, database = false, content
       connectionAcquisitionMs: { count: 2, p50: 1, p95: 2, p99: 2, max: 2, mean: 1.5 },
       waitEvents: { sampleCount: 2, observations: [] },
       databaseStats: { deltas: { tempBytes: 0, tempFiles: 0 } },
-      temporaryStorage: { tempBytesDelta: 0, tempFiles: 0, operationElapsedMs: 10, throughputBytesPerSecond: 0 },
+      ...(contention ? { snapshotQueryElapsedMs: { count: 2, p50: 1, p95: 2, p99: 2, max: 2, mean: 1.5 } } : {}),
+      temporaryStorage: { tempBytesDelta: 0, tempFilesDelta: 0, operationElapsedMs: 10, throughputBytesPerSecond: 0 },
       ...(contention ? {
         poolPressure: { sampleCount: 2, maxTotalCount: 2, maxActiveCount: 1, maxWaitingCount: 0, meanWaitingCount: 0, maxUtilizationRatio: 0.5, meanUtilizationRatio: 0.5 },
         wal: { basis: 'pg_stat_wal', deltas: { walRecords: 10, walFpi: 1, walBytes: 100, walBuffersFull: 0, walWrite: 1, walSync: 1, walWriteTimeMs: 2, walSyncTimeMs: 3 } },
-        bgwriter: { basis: 'pg_stat_bgwriter', deltas: { buffersCheckpoint: 1, buffersClean: 1, maxwrittenClean: 0, buffersBackend: 1, buffersBackendFsync: 0, checkpointWriteTimeMs: 2, checkpointSyncTimeMs: 1 } }
+        bgwriter: { basis: 'pg_stat_bgwriter', deltas: { buffersCheckpoint: 1, buffersClean: 1, maxwrittenClean: 0, buffersBackend: 1, buffersBackendFsync: 0, checkpointWriteTimeMs: 2, checkpointSyncTimeMs: 1 } },
+        io: { basis: 'pg_stat_io', deltas: { ioReads: 1, ioWrites: 1, ioWriteTimeMs: 1, ioFsyncs: 1, ioFsyncTimeMs: 1, ioExtends: 1, ioExtendTimeMs: 1 } }
       } : {}),
       errors: []
     }
@@ -56,11 +58,13 @@ function sampleReport(concurrency, { resource = false, database = false, content
       },
       waitEvents: { sampleCount: concurrency * 2, observations: [] },
       databaseStats: { deltas: { tempBytes: 0, tempFiles: 0 } },
+      ...(contention ? { snapshotQueryElapsedMs: { count: 2, p50: 1, p95: 2, p99: 2, max: 2, mean: 1.5 } } : {}),
       temporaryStorage: { tempBytesDelta: 0, tempFilesDelta: 0, operationElapsedMs: 10, throughputBytesPerSecond: 0 },
       ...(contention ? {
         poolPressure: { sampleCount: concurrency * 2, maxTotalCount: concurrency, maxActiveCount: concurrency, perWorker: Array.from({ length: concurrency }, () => ({ sampleCount: 2, maxTotalCount: 2, maxActiveCount: 1, maxWaitingCount: 0, meanWaitingCount: 0, maxUtilizationRatio: 0.5, meanUtilizationRatio: 0.5 })), maxWaitingCount: 0, meanWaitingCount: 0, maxUtilizationRatio: 0.5, meanUtilizationRatio: 0.5 },
         wal: { basis: 'pg_stat_wal', deltas: { walRecords: concurrency * 10, walFpi: concurrency, walBytes: concurrency * 100, walBuffersFull: 0, walWrite: concurrency, walSync: concurrency, walWriteTimeMs: concurrency * 2, walSyncTimeMs: concurrency * 3 } },
-        bgwriter: { basis: 'pg_stat_bgwriter', deltas: { buffersCheckpoint: concurrency, buffersClean: concurrency, maxwrittenClean: 0, buffersBackend: concurrency, buffersBackendFsync: 0, checkpointWriteTimeMs: concurrency * 2, checkpointSyncTimeMs: concurrency } }
+        bgwriter: { basis: 'pg_stat_bgwriter', deltas: { buffersCheckpoint: concurrency, buffersClean: concurrency, maxwrittenClean: 0, buffersBackend: concurrency, buffersBackendFsync: 0, checkpointWriteTimeMs: concurrency * 2, checkpointSyncTimeMs: concurrency } },
+        io: { basis: 'pg_stat_io', deltas: { ioReads: concurrency, ioWrites: concurrency, ioWriteTimeMs: concurrency, ioFsyncs: concurrency, ioFsyncTimeMs: concurrency, ioExtends: concurrency, ioExtendTimeMs: concurrency } }
       } : {}),
       errors: []
     }

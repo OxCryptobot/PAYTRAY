@@ -11,6 +11,13 @@ function json(value) {
   return JSON.stringify(value, null, 2)
 }
 
+function boundedInteger(name, fallback, min, max) {
+  const raw = process.env[name]
+  const value = raw === undefined ? fallback : Number.parseInt(raw, 10)
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(`${name} must be an integer between ${min} and ${max}`)
+  return value
+}
+
 function assertDisposableDatabaseUrl(value) {
   if (!value) throw new Error('MIGRATION_014_CONTRACT_DATABASE_URL or DATABASE_URL is required')
   let parsed
@@ -98,7 +105,16 @@ async function verifyCatalog(client) {
   return { status: 'passed', columns: columns.rows.map((row) => row.column_name), indexes: indexes.rows.map((row) => row.indexname) }
 }
 
-async function runContractSuite(pool) {
+async function replayClaimRace(pool, replayKey, attempts) {
+  const outcomes = await Promise.all(Array.from({ length: attempts }, () => atomicClaim(pool, replayKey, '2026-08-20T00:15:00.000Z', '2026-08-20T00:00:00.000Z')))
+  const winners = outcomes.filter(Boolean)
+  const losers = outcomes.filter((outcome) => outcome === null)
+  assert.equal(winners.length, 1, 'exactly one concurrent replay claimant must win')
+  assert.equal(losers.length, attempts - 1, 'all remaining replay claimants must observe a duplicate')
+  return { status: 'passed', attempts, winners: winners.length, losers: losers.length }
+}
+
+async function runContractSuite(pool, attempts, repetitions) {
   const keys = new Set()
   const results = {}
   try {
@@ -120,15 +136,13 @@ async function runContractSuite(pool) {
     assert.deepEqual(refreshed, { replay_key: expiredKey })
     results.expiredReplacement = { status: 'passed', replaced: true }
 
-    const raceKey = `migration-014:race:${randomUUID()}`
-    keys.add(raceKey)
-    const race = await Promise.all([
-      atomicClaim(pool, raceKey, '2026-08-20T00:15:00.000Z', '2026-08-20T00:00:00.000Z'),
-      atomicClaim(pool, raceKey, '2026-08-20T00:15:00.000Z', '2026-08-20T00:00:00.000Z')
-    ])
-    const winners = race.filter(Boolean)
-    assert.equal(winners.length, 1, 'exactly one concurrent replay claimant must win')
-    results.concurrentClaim = { status: 'passed', attempts: race.length, winners: winners.length, losers: race.length - winners.length }
+    const runs = []
+    for (let repetition = 0; repetition < repetitions; repetition += 1) {
+      const raceKey = `migration-014:race:${randomUUID()}`
+      keys.add(raceKey)
+      runs.push(await replayClaimRace(pool, raceKey, attempts))
+    }
+    results.concurrentClaim = { status: 'verified', attempts, repetitions, totalAttempts: attempts * repetitions, validRuns: runs.length, runs }
 
     return { status: 'verified', cases: results, cleanupKeys: keys.size }
   } finally {
@@ -144,10 +158,12 @@ async function main() {
     return
   }
   assertDisposableDatabaseUrl(DATABASE_URL)
-  const pool = new Pool({ connectionString: DATABASE_URL, max: 6, min: 0, connectionTimeoutMillis: 5000 })
+  const attempts = boundedInteger('MIGRATION_014_CONCURRENCY_ATTEMPTS', 8, 2, 16)
+  const repetitions = boundedInteger('MIGRATION_014_CONCURRENCY_REPETITIONS', 3, 1, 10)
+  const pool = new Pool({ connectionString: DATABASE_URL, max: attempts + 2, min: 0, connectionTimeoutMillis: 5000 })
   try {
     await withTransaction(pool, (client) => runMigrations(client))
-    const report = await runContractSuite(pool)
+    const report = await runContractSuite(pool, attempts, repetitions)
     console.log(json({ ...report, migration: '014_webhook_replay_claims', databaseIsolation: true, cleanupPerformed: true, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false }))
   } catch (error) {
     console.error(json({ status: 'blocked', reason: error.message, code: error.code || null, migration: '014_webhook_replay_claims', databaseIsolation: true, cleanupPerformed: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }))

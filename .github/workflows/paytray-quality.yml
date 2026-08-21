@@ -367,12 +367,16 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           MIGRATION_013_CONTRACT_ISOLATED: 'true'
+          MIGRATION_013_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_013_CONCURRENCY_REPETITIONS: '3'
       - name: Verify migration-014 webhook replay claim contract
         run: npm run backend:release:migration:014:check
         env:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           MIGRATION_014_CONTRACT_ISOLATED: 'true'
+          MIGRATION_014_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_014_CONCURRENCY_REPETITIONS: '3'
       - name: Verify migration-015 trust-signal constraints
         run: npm run backend:release:migration:015:check
         env:
@@ -573,6 +577,8 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           MIGRATION_013_CONTRACT_ISOLATED: 'true'
+          MIGRATION_013_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_013_CONCURRENCY_REPETITIONS: '3'
       - name: Verify restored migration-014 webhook replay claim contract
         if: always()
         run: |
@@ -585,6 +591,8 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           MIGRATION_014_CONTRACT_ISOLATED: 'true'
+          MIGRATION_014_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_014_CONCURRENCY_REPETITIONS: '3'
       - name: Verify restored migration-015 trust-signal constraints
         if: always()
         run: |

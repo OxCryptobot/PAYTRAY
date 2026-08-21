@@ -10,6 +10,13 @@ function json(value) {
   return JSON.stringify(value, null, 2)
 }
 
+function boundedInteger(name, fallback, min, max) {
+  const raw = process.env[name]
+  const value = raw === undefined ? fallback : Number.parseInt(raw, 10)
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(`${name} must be an integer between ${min} and ${max}`)
+  return value
+}
+
 function assertDisposableDatabaseUrl(value) {
   if (!value) throw new Error('MIGRATION_013_CONTRACT_DATABASE_URL or DATABASE_URL is required')
   let parsed
@@ -90,7 +97,30 @@ async function verifyCatalog(client) {
   }
 }
 
-async function runContractSuite(pool) {
+async function duplicateChainRace(pool, chainId, attempts) {
+  const outcomes = await Promise.all(Array.from({ length: attempts }, async (_, index) => {
+    try {
+      await withTransaction(pool, (client) => insertCursor(client, chainId, 8453200 + index))
+      return { status: 'committed' }
+    } catch (error) {
+      return { status: 'rejected', sqlState: error.code || null }
+    }
+  }))
+  const winners = outcomes.filter((outcome) => outcome.status === 'committed')
+  const losers = outcomes.filter((outcome) => outcome.status === 'rejected')
+  assert.equal(winners.length, 1, 'exactly one duplicate cursor writer must commit')
+  assert.equal(losers.length, attempts - 1, 'all remaining duplicate cursor writers must reject')
+  assert.ok(losers.every((outcome) => outcome.sqlState === '23505'), 'every duplicate cursor loser must return SQLSTATE 23505')
+  return {
+    status: 'passed',
+    attempts,
+    winners: winners.length,
+    losers: losers.length,
+    sqlStateCounts: { '23505': losers.length }
+  }
+}
+
+async function runContractSuite(pool, attempts, repetitions) {
   const chainIds = new Set()
   const results = {}
   try {
@@ -116,6 +146,14 @@ async function runContractSuite(pool) {
     assert.equal(valid.rows[0].last_scanned_block, '8453200')
     results.validCursor = { status: 'passed', chainId: validChain, lastScannedBlock: Number(valid.rows[0].last_scanned_block), updatedAtPresent: Boolean(valid.rows[0].updated_at) }
 
+    const runs = []
+    for (let repetition = 0; repetition < repetitions; repetition += 1) {
+      const raceChain = 910000000000000000n + BigInt(repetition) * 1000000n + BigInt(Math.floor(Math.random() * 1000000))
+      chainIds.add(raceChain.toString())
+      runs.push(await duplicateChainRace(pool, raceChain.toString(), attempts))
+    }
+    results.concurrentDuplicateChain = { status: 'verified', attempts, repetitions, totalAttempts: attempts * repetitions, validRuns: runs.length, runs }
+
     return { status: 'verified', cases: results, cleanupChainIds: chainIds.size }
   } finally {
     const ids = [...chainIds]
@@ -130,10 +168,12 @@ async function main() {
     return
   }
   assertDisposableDatabaseUrl(DATABASE_URL)
-  const pool = new Pool({ connectionString: DATABASE_URL, max: 4, min: 0, connectionTimeoutMillis: 5000 })
+  const attempts = boundedInteger('MIGRATION_013_CONCURRENCY_ATTEMPTS', 8, 2, 16)
+  const repetitions = boundedInteger('MIGRATION_013_CONCURRENCY_REPETITIONS', 3, 1, 10)
+  const pool = new Pool({ connectionString: DATABASE_URL, max: attempts + 2, min: 0, connectionTimeoutMillis: 5000 })
   try {
     await withTransaction(pool, (client) => runMigrations(client))
-    const report = await runContractSuite(pool)
+    const report = await runContractSuite(pool, attempts, repetitions)
     console.log(json({ ...report, migration: '013_verifier_cursors', databaseIsolation: true, cleanupPerformed: true, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false }))
   } catch (error) {
     console.error(json({ status: 'blocked', reason: error.message, code: error.code || null, migration: '013_verifier_cursors', databaseIsolation: true, cleanupPerformed: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }))

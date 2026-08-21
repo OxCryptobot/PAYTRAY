@@ -47,3 +47,20 @@ The compiled archive was extracted and validated with 50 entries. Its SHA-256 is
 ## Remaining boundaries
 
 These verifiers provide engineering evidence for schema and concurrency behavior only. They do not clear the six pending shadow reviews, four mandatory human sign-offs, Ed25519 custody, authenticated Railway evidence, target backup/restore, fresh verifier/reconciliation evidence, release approval, or the final controlled authority path.
+
+## Increased-load failure-path audit
+
+The original two-client verifiers were extended to bounded repeated races after inspection of the negative-path records. The new local-disposable run used eight concurrent attempts and five repetitions for each migration.
+
+| Contract | Repetitions | Attempts | Winners | Losers | Unexpected failures | Cleanup |
+|---|---:|---:|---:|---:|---:|---|
+| Migration-013 duplicate cursor | 5 | 40 | 5 | 35 | 0 | 9 chain IDs removed |
+| Migration-014 replay claim | 5 | 40 | 5 | 35 | 0 | 8 replay keys removed |
+
+Migration-013 classified every duplicate writer loser as SQLSTATE `23505` (`unique_violation`) and preserved one committed cursor per repetition. Its deterministic negative paths remained negative block `23514`, null block `23502`, and one ordinary duplicate `23505`.
+
+Migration-014 retained null replay key `23502`, ordinary duplicate replay key `23505`, and expired-key replacement through the atomic expiry predicate. In every increased-load repetition, exactly one replay claimant returned a row and seven claimants returned no row; no duplicate replay acceptance occurred.
+
+The first migration-013 verifier implementation exposed a catalog-test assumption: `information_schema` represents generated NOT NULL checks alongside the named application CHECK, so the initial unfiltered CHECK count was `4` rather than `1`. The verifier was corrected to assert the named `payment_verifier_cursors_last_scanned_block_check` constraint specifically. This was an engineering-verifier assertion failure, not a database contract failure, and the corrected run passed.
+
+The migration-013 and migration-014 reports are redacted, local-disposable, cleaned after every run, and retain `releaseEligible=false`, `settlementAuthority=false`, `mutation=read_only`, `deploymentPerformed=false`, and `settlementMutationPerformed=false`. These results are evidence of bounded schema/concurrency behavior only; they do not prove target readiness, cursor freshness, signature validity, settlement, release eligibility, or production capacity.

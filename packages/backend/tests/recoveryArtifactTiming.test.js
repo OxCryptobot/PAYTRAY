@@ -99,6 +99,55 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration-011 payment provenance contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-011-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-011-payment-provenance.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '011_payment_stream_verifier_provenance',
+        cases: { catalog: { status: 'passed' }, nullProvenance: { status: 'passed', sqlState: '23502' }, roundTrip: { status: 'passed', roundTripMatches: true } },
+        cleanupUsers: 2,
+        cleanupStreams: 1,
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-011-payment-provenance.json']).toMatchObject({ status: 'verified', migration: '011_payment_stream_verifier_provenance', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts the allowlisted restored migration-012 shadow-run review contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-012-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-012-shadow-run-review.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '012_shadow_run_review',
+        cases: { catalog: { status: 'passed' }, reviewRace: { status: 'verified', attempts: 2, winners: 1, conflicts: 1, rollbacks: 1, applied: false, promotionStatus: 'shadow_only' } },
+        cleanupRunId: '11111111-1111-4111-8111-111111111111',
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-012-shadow-run-review.json']).toMatchObject({ status: 'verified', migration: '012_shadow_run_review', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-013 verifier cursor contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-013-'))
     try {

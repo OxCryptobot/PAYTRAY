@@ -14,6 +14,18 @@ function boundedInteger(name, fallback, min, max) {
   return value
 }
 
+function summarizeDurations(values) {
+  const sorted = [...values].sort((left, right) => left - right)
+  const percentileIndex = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * 0.95) - 1))
+  return {
+    samples: sorted.length,
+    minMs: sorted[0] ?? 0,
+    maxMs: sorted[sorted.length - 1] ?? 0,
+    meanMs: sorted.length === 0 ? 0 : Number((sorted.reduce((total, value) => total + value, 0) / sorted.length).toFixed(3)),
+    p95Ms: sorted[percentileIndex] ?? 0
+  }
+}
+
 function requiredIsolation() {
   if (process.env.MIGRATION_015_CONTRACT_ISOLATED !== 'true') fail('MIGRATION_015_CONTRACT_ISOLATED=true is required')
   const value = process.env.DATABASE_URL
@@ -92,12 +104,14 @@ async function insertSignal(pool, params) {
 
 async function uniqueSignalRace(pool, fixtures, signalType, attempts) {
   const params = signalParams({ userId: fixtures.providerId, engagementId: fixtures.engagementId, outcomeId: fixtures.outcomeId, signalType })
+  const startedAt = Date.now()
   const outcomes = await Promise.all(Array.from({ length: attempts }, () => insertSignal(pool, params)))
+  const elapsedMs = Date.now() - startedAt
   const winners = outcomes.filter((outcome) => outcome.status === 'committed')
   const losers = outcomes.filter((outcome) => outcome.status === 'rejected')
   if (winners.length !== 1) fail(`${signalType} race committed ${winners.length} rows; expected exactly one`)
   if (losers.length !== attempts - 1 || !losers.every((outcome) => outcome.sqlState === '23505')) fail(`${signalType} race losers did not all return SQLSTATE 23505`)
-  return { status: 'passed', attempts, winners: winners.length, losers: losers.length, sqlStateCounts: { '23505': losers.length } }
+  return { status: 'passed', attempts, winners: winners.length, losers: losers.length, sqlStateCounts: { '23505': losers.length }, elapsedMs }
 }
 
 async function createFixtures(pool) {
@@ -210,7 +224,7 @@ async function main() {
     for (let repetition = 0; repetition < repetitions; repetition += 1) {
       runs.push(await uniqueSignalRace(pool, fixtures, `concurrent_contract_signal_${repetition}`, attempts))
     }
-    cases.concurrentUniqueness = { status: 'verified', attempts, repetitions, totalAttempts: attempts * repetitions, validRuns: runs.length, runs }
+    cases.concurrentUniqueness = { status: 'verified', attempts, repetitions, totalAttempts: attempts * repetitions, validRuns: runs.length, performance: summarizeDurations(runs.map((run) => run.elapsedMs)), runs }
   } finally {
     if (fixtures) {
       await pool.query('DELETE FROM verified_trust_signals WHERE engagement_id = $1 OR outcome_id = $2', [fixtures.engagementId, fixtures.outcomeId])

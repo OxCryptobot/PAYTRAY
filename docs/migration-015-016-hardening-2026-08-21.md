@@ -43,3 +43,13 @@ The isolated and restored PostgreSQL workflow steps now pass 8-attempt/3-repetit
 ## Interpretation
 
 The results demonstrate bounded persistence and state-machine behavior only. Migration-015 evidence does not promote a ranker or create trust outside verifier-owned verified outcomes. Migration-016 evidence does not establish webhook signature validity, delivery completion, event provenance, payment settlement, or ledger truth. These checks cannot clear release blockers, human sign-offs, Ed25519 custody, Railway target evidence, or settlement authority.
+
+## Timing instrumentation and implementation review
+
+The bounded repeated races now emit diagnostic per-race elapsed milliseconds and aggregate `samples`, `minMs`, `maxMs`, `meanMs`, and `p95Ms`. These fields are intentionally evidence-only telemetry and are not interpreted as production SLOs, capacity limits, or release gates.
+
+The migration-015 uniqueness verifier measures the wall-clock span around each `Promise.all` group of concurrent `INSERT` transactions. It requires one committed signal, attempts-minus-one SQLSTATE `23505` losers, and reports timing only after the exact uniqueness assertions pass.
+
+The migration-016 verifier measures first-claim and reclaim race spans separately. Each `Promise.all` group runs the real `claimWebhookInbox` service in independent PostgreSQL transactions. The verifier then checks one primary claim or one reclaim, attempts-minus-one `lease_active` duplicates, expired-lease setup, body-hash conflict rejection, processed duplicate read-only behavior, durable hash/event identity, and `payload.applied=false`. Timing is recorded only for successful, cleaned, local-disposable scenarios.
+
+The final timing run used eight attempts and five repetitions. Migration-016 measured first-claim spans of 2–20 ms with mean 6.6 ms and p95 20 ms; reclaim spans were 2–5 ms with mean 3.2 ms and p95 5 ms. Migration-015 timing is retained in the attached JSON report with the same bounded sample semantics. These values are observations from one local disposable PostgreSQL run and must not be generalized to production.

@@ -11,6 +11,18 @@ function boundedInteger(name, fallback, min, max) {
   return value
 }
 
+function summarizeDurations(values) {
+  const sorted = [...values].sort((left, right) => left - right)
+  const percentileIndex = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * 0.95) - 1))
+  return {
+    samples: sorted.length,
+    minMs: sorted[0] ?? 0,
+    maxMs: sorted[sorted.length - 1] ?? 0,
+    meanMs: sorted.length === 0 ? 0 : Number((sorted.reduce((total, value) => total + value, 0) / sorted.length).toFixed(3)),
+    p95Ms: sorted[percentileIndex] ?? 0
+  }
+}
+
 function requireIsolation() {
   if (process.env.MIGRATION_016_CONTRACT_ISOLATED !== 'true') throw new Error('MIGRATION_016_CONTRACT_ISOLATED=true is required')
   const value = process.env.DATABASE_URL
@@ -83,8 +95,9 @@ async function runScenario(pool, attempts, repetition) {
     leaseMs: 120000
   }
   try {
+    const firstClaimStartedAt = Date.now()
     const firstClaimOutcomes = await runRace(pool, input, attempts)
-    const firstClaim = assertFirstClaimRace(firstClaimOutcomes, attempts)
+    const firstClaim = { ...assertFirstClaimRace(firstClaimOutcomes, attempts), elapsedMs: Date.now() - firstClaimStartedAt }
 
     const expiredAt = new Date(now.getTime() - 1)
     await pool.query(`
@@ -93,8 +106,9 @@ async function runScenario(pool, attempts, repetition) {
       WHERE replay_key = $1
     `, [replayKey, expiredAt.toISOString(), expiredAt.toISOString()])
 
+    const reclaimStartedAt = Date.now()
     const reclaimOutcomes = await runRace(pool, input, attempts)
-    const reclaim = assertReclaimRace(reclaimOutcomes, attempts)
+    const reclaim = { ...assertReclaimRace(reclaimOutcomes, attempts), elapsedMs: Date.now() - reclaimStartedAt }
 
     const final = await pool.query('SELECT replay_key, status, attempts, body_sha256, event_type, payload FROM webhook_inbox WHERE replay_key = $1', [replayKey])
     if (!final.rows[0]) throw new Error('webhook inbox fixture was not persisted')
@@ -143,7 +157,16 @@ async function main() {
     console.log(JSON.stringify({
       status: 'verified',
       migration: '016_webhook_inbox',
-      concurrency: { attempts, repetitions, totalAttempts: attempts * repetitions, validRuns: runs.length },
+      concurrency: {
+        attempts,
+        repetitions,
+        totalAttempts: attempts * repetitions,
+        validRuns: runs.length,
+        performance: {
+          firstClaim: summarizeDurations(runs.map((run) => run.firstClaim.elapsedMs)),
+          reclaim: summarizeDurations(runs.map((run) => run.reclaim.elapsedMs))
+        }
+      },
       runs,
       databaseIsolation: true,
       cleanupPerformed: true,

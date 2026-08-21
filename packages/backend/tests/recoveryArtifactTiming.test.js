@@ -74,6 +74,30 @@ describe('recovery artifact timing contract', () => {
       await fs.rm(directory, { recursive: true, force: true })
     }
   })
+
+  it('accepts the allowlisted restored migration-017 extension-hook contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-017-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-017-extension-hooks.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '017_extension_hooks',
+        databaseIsolation: true,
+        cases: { catalog: { status: 'passed' }, deactivationRace: { status: 'passed', winners: 1, losers: 1 } },
+        cleanupHooks: 6,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-017-extension-hooks.json']).toMatchObject({ status: 'verified', migration: '017_extension_hooks', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
 })
 
 

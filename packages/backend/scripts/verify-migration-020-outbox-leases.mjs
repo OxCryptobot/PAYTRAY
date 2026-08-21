@@ -279,7 +279,7 @@ async function runContractSuite(pool) {
         winners: winners.length,
         losers: RACE_ATTEMPTS - winners.length,
         staleCompletionRejected: true,
-        currentTokenCompletionAccepted: true,
+        currentLeaseCompletionAccepted: true,
         persistedProcessed: true,
         elapsedMs: Date.now() - startedAt
       })

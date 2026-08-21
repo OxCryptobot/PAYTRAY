@@ -290,6 +290,16 @@ npm run backend:release:payload:verify /protected/path/signed-release-payload.js
 
 The last two commands must remain blocked until real approval, Railway, migration/recovery, and signing-key evidence are available. A blocked result is the correct security outcome, not a reason to weaken the gate.
 
+### Migration-006/007/008 contract hardening batch
+
+| Migration | Scope | Status | Evidence |
+|---|---|---|---|
+| 006 AI evaluation foundation | AI table/index catalogs, shadow-only defaults, evaluation-example uniqueness, confidence/applied-state checks, bounded duplicate-example races | Implemented and locally verified | `migration-006-verifier-local.json`; isolated/restored CI wiring staged for this batch |
+| 007 discovery impressions | Discovery-impression indexes, rank/score CHECKs, query/candidate uniqueness, JSONB defaults, bounded duplicate-impression races | Implemented and locally verified | `migration-007-verifier-local.json`; isolated/restored CI wiring staged for this batch |
+| 008 production telemetry | Telemetry column/index catalog, event/privacy CHECKs, JSONB defaults, event-id uniqueness, bounded duplicate-event races | Implemented and locally verified | `migration-008-verifier-local.json`; isolated/restored CI wiring staged for this batch |
+
+Each new verifier rejects unsafe/non-disposable database targets, uses bounded concurrency, rolls back and releases failed transactions, performs dependency-ordered cleanup, and reports immutable false/read-only authority fields. Local results are engineering evidence only.
+
 ### Migration-009/010 contract hardening batch
 
 | Migration | Scope | Status | Evidence |

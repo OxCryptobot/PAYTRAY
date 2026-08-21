@@ -75,6 +75,78 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration-006 AI evaluation foundation contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-006-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-006-ai-evaluation-foundation.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '006_ai_evaluation_foundation',
+        cases: { catalog: { status: 'passed' }, invalidConfidence: { status: 'passed', sqlState: '23514' }, appliedWithoutHumanReview: { status: 'passed', sqlState: '23514' }, concurrentDuplicateEvaluationExample: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12, validRuns: 3 } },
+        cleanupRows: { examples: 4, snapshots: 1, evaluationRuns: 1, profiles: 1, users: 2 },
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-006-ai-evaluation-foundation.json']).toMatchObject({ status: 'verified', migration: '006_ai_evaluation_foundation', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts the allowlisted restored migration-007 discovery-impressions contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-007-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-007-discovery-impressions.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '007_discovery_impressions',
+        cases: { catalog: { status: 'passed' }, duplicateQueryCandidate: { status: 'passed', sqlState: '23505' }, invalidRank: { status: 'passed', sqlState: '23514' }, invalidScore: { status: 'passed', sqlState: '23514' }, concurrentDuplicateQueryCandidate: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12, validRuns: 3 } },
+        cleanupRows: { impressions: 4, profiles: 4, users: 8 },
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-007-discovery-impressions.json']).toMatchObject({ status: 'verified', migration: '007_discovery_impressions', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts the allowlisted restored migration-008 production-telemetry contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-008-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-008-production-telemetry.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '008_production_telemetry',
+        cases: { catalog: { status: 'passed' }, duplicateEventId: { status: 'passed', sqlState: '23505' }, invalidEventType: { status: 'passed', sqlState: '23514' }, invalidPrivacyClass: { status: 'passed', sqlState: '23514' }, concurrentDuplicateEventId: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12, validRuns: 3 } },
+        cleanupEventIds: 4,
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-008-production-telemetry.json']).toMatchObject({ status: 'verified', migration: '008_production_telemetry', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-009 verified-outcome provenance contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-009-'))
     try {

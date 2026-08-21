@@ -79,6 +79,23 @@ describe('PayTray backend skeleton', () => {
     expect(apiLive.body).toMatchObject({ status: 'alive', live: true, dependencyChecksPerformed: false })
   })
 
+  it('maps readiness to HTTP status without granting settlement authority', async () => {
+    const readiness = await request(app).get('/readyz')
+    expect([200, 503]).toContain(readiness.status)
+    expect(readiness.headers['cache-control']).toBe('no-store')
+    expect(readiness.body.service).toBe('paytray-backend')
+    expect(readiness.body.checks).toBeDefined()
+    expect(readiness.body.status).toMatch(/^(ready|degraded)$/)
+    expect(readiness.body.ready).toBe(readiness.status === 200)
+    expect(readiness.body).toMatchObject({ releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+
+    const apiReadiness = await request(app).get('/api/health/readiness')
+    expect([200, 503]).toContain(apiReadiness.status)
+    expect(apiReadiness.headers['cache-control']).toBe('no-store')
+    expect(apiReadiness.body.success).toBe(apiReadiness.status === 200)
+    expect(apiReadiness.body).toMatchObject({ releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+  })
+
   it('rejects invalid wallet signatures at login', async () => {
     const challengeResponse = await request(app).post('/api/auth/challenge').send({
       wallet: '0x742d35Cc6634C0532925a3b844Bc9e7595f42bE0'

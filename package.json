@@ -50,6 +50,8 @@
     "backend:quality:check": "npm run test && npm run lint && npm run backend:extension:contract:check && npm run backend:sdk:contract:check && git diff --check",
     "backend:advisory:ai:check": "node packages/backend/scripts/inspect-advisory-ai.mjs",
     "backend:ready:postgres:check": "node packages/backend/scripts/verify-ready-postgres-contracts.mjs",
+    "backend:release:migration:009:check": "node packages/backend/scripts/verify-migration-009-verified-outcome-provenance.mjs",
+    "backend:release:migration:010:check": "node packages/backend/scripts/verify-migration-010-ledger-intent-idempotency.mjs",
     "backend:release:migration:011:check": "node packages/backend/scripts/verify-migration-011-payment-provenance.mjs",
     "backend:release:migration:012:check": "node packages/backend/scripts/verify-migration-012-shadow-run-review.mjs",
     "backend:release:migration:013:check": "node packages/backend/scripts/verify-migration-013-verifier-cursors.mjs",

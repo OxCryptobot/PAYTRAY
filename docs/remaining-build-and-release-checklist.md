@@ -248,6 +248,8 @@ npm run backend:quality:check
 npm run test
 npm run lint
 DATABASE_URL="$DATABASE_URL" npm run backend:migrations:check
+MIGRATION_009_CONTRACT_ISOLATED=true DATABASE_URL="$DATABASE_URL" npm run backend:release:migration:009:check
+MIGRATION_010_CONTRACT_ISOLATED=true MIGRATION_010_CONCURRENCY_ATTEMPTS=4 MIGRATION_010_CONCURRENCY_REPETITIONS=3 DATABASE_URL="$DATABASE_URL" npm run backend:release:migration:010:check
 npm run backend:deployment:check
 npm run backend:recovery:check
 RECOVERY_ARTIFACT_ISOLATED=true npm run backend:release:recovery:artifact:check -- --sidecar artifacts/recovery-evidence.sha256
@@ -288,6 +290,15 @@ npm run backend:release:payload:verify /protected/path/signed-release-payload.js
 
 The last two commands must remain blocked until real approval, Railway, migration/recovery, and signing-key evidence are available. A blocked result is the correct security outcome, not a reason to weaken the gate.
 
+### Migration-009/010 contract hardening batch
+
+| Migration | Scope | Status | Evidence |
+|---|---|---|---|
+| 009 verified-outcome provenance | Verification columns, verified-outcome index, default null state, metadata round-trip, invalid status and oversized hash negatives | Implemented and locally verified | `migration-009-verifier-local.json`; isolated/restored CI and recovery checksum wiring added |
+| 010 ledger intent idempotency | Partial `(source_intent_id, entry_type)` uniqueness, source-provenance CHECK, duplicate/missing-provenance negatives, distinct entry type, bounded concurrent duplicate races | Implemented and locally verified | `migration-010-verifier-local.json`; 4 attempts × 3 repetitions, one winner and three `23505` losers per race |
+
+Migrations-021/022 remain **not present**. No SQL source, runtime contract, verifier, package command, CI step, recovery allowlist entry, or approved product/data contract exists for either version. Do not fabricate them; begin that tranche only after approved source contracts are available.
+
 ## References
 
 [1]: https://github.com/OxCryptobot/PAYTRAY/blob/16165d61b5f1192fb747b31ea3783b65e1e6326f/MasterBlueprint.md MasterBlueprint roadmap and architecture
@@ -304,7 +315,7 @@ The last two commands must remain blocked until real approval, Railway, migratio
 
 | Batch | Scope | Status | Evidence |
 |---|---|---|---|
-| Liveness/readiness split | Process-only `/livez` and `/api/health/liveness`; strict `/readyz` and `/api/health/readiness`; `Cache-Control: no-store`; immutable safety fields | Implemented locally, pending CI | Liveness does not query dependencies or grant authority. Focused and full regression tests must verify HTTP 200 liveness under unconfigured dependencies and preserve strict readiness semantics. |
+| Liveness/readiness split | Process-only `/livez` and `/api/health/liveness`; strict `/readyz` and `/api/health/readiness`; `Cache-Control: no-store`; immutable safety fields | Implemented locally, included in this batch validation | Liveness does not query dependencies or grant authority. Focused route/helper tests now verify HTTP status mapping, no-store responses, dependency checks, and false/read-only readiness authority fields. |
 
 The liveness endpoints are health evidence only. They do not clear migration, Railway, verifier, target, advisory-AI, shadow-review, sign-off, custody, approval, manifest, payload, or release-authority blockers.
 

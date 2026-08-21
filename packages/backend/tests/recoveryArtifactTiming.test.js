@@ -75,6 +75,54 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration-009 verified-outcome provenance contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-009-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-009-verified-outcome-provenance.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '009_verified_outcome_provenance',
+        cases: { catalog: { status: 'passed' }, defaultValues: { status: 'passed' }, roundTrip: { status: 'passed', persisted: true }, invalidStatus: { status: 'passed', sqlState: '23514' }, oversizedHash: { status: 'passed', sqlState: '22001' } },
+        cleanupRows: { outcomes: 1, engagements: 1, users: 2 },
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-009-verified-outcome-provenance.json']).toMatchObject({ status: 'verified', migration: '009_verified_outcome_provenance', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts the allowlisted restored migration-010 ledger intent idempotency contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-010-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-010-ledger-intent-idempotency.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '010_ledger_intent_idempotency',
+        cases: { catalog: { status: 'passed' }, duplicateIntentEntry: { status: 'passed', sqlState: '23505' }, distinctEntryType: { status: 'passed' }, missingProvenance: { status: 'passed', sqlState: '23514' }, concurrentDuplicateIntentEntry: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12, validRuns: 3 } },
+        cleanupRows: { intents: 4, accounts: 8, users: 8 },
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-010-ledger-intent-idempotency.json']).toMatchObject({ status: 'verified', migration: '010_ledger_intent_idempotency', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-017 extension-hook contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-017-'))
     try {

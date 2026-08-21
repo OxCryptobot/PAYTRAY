@@ -40,6 +40,7 @@ describe('Paytray dependency readiness', () => {
     expect(report.status).toBe('ready')
     expect(report.checks.database.ready).toBe(true)
     expect(report.checks.paymentProtocol.ready).toBe(true)
+    expect(report).toMatchObject({ releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
   })
 
   it('keeps an unconfigured development process live but not payment-ready', () => {
@@ -57,6 +58,7 @@ describe('Paytray dependency readiness', () => {
     expect(report.checks.database.ready).toBe(true)
     expect(report.checks.paymentProtocol.ready).toBe(false)
     expect(report.checks.tokenRegistry.ready).toBe(false)
+    expect(report).toMatchObject({ releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
   })
 
   it('does not treat an unconfigured production database as ready', () => {

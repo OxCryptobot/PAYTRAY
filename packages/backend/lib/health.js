@@ -41,6 +41,11 @@ export function buildReadinessReport({ env, databaseStatus, protocol, protocolCo
   return {
     status: ready ? 'ready' : 'degraded',
     ready,
-    checks
+    checks,
+    releaseEligible: false,
+    settlementAuthority: false,
+    mutation: 'read_only',
+    deploymentPerformed: false,
+    settlementMutationPerformed: false
   }
 }

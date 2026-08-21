@@ -42,6 +42,8 @@ const DEFAULT_ARTIFACTS = [
   'artifacts/restored-migration-015-trust-signals.json',
   'artifacts/restored-migration-014-webhook-replay-claims.json',
   'artifacts/restored-migration-013-verifier-cursors.json',
+  'artifacts/restored-migration-009-verified-outcome-provenance.json',
+  'artifacts/restored-migration-010-ledger-intent-idempotency.json',
   'artifacts/restored-migration-011-payment-provenance.json',
   'artifacts/restored-migration-012-shadow-run-review.json',
   'artifacts/restored-migration-019-constraints.json',
@@ -350,6 +352,8 @@ function classifyArtifact(artifactPath, artifact) {
   if (name === 'restored-migration-015-trust-signals.json') return validateContract(artifact, name, '015_verified_trust_signals')
   if (name === 'restored-migration-014-webhook-replay-claims.json') return validateContract(artifact, name, '014_webhook_replay_claims')
   if (name === 'restored-migration-013-verifier-cursors.json') return validateContract(artifact, name, '013_verifier_cursors')
+  if (name === 'restored-migration-009-verified-outcome-provenance.json') return validateContract(artifact, name, '009_verified_outcome_provenance')
+  if (name === 'restored-migration-010-ledger-intent-idempotency.json') return validateContract(artifact, name, '010_ledger_intent_idempotency')
   if (name === 'restored-migration-011-payment-provenance.json') return validateContract(artifact, name, '011_payment_stream_verifier_provenance')
   if (name === 'restored-migration-012-shadow-run-review.json') return validateContract(artifact, name, '012_shadow_run_review')
   if (name === 'restored-migration-019-constraints.json') return validateContract(artifact, name, '019_reviewer_attestations')

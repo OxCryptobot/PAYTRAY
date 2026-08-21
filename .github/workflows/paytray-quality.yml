@@ -401,12 +401,15 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           MIGRATION_020_CONTRACT_ISOLATED: 'true'
+          MIGRATION_020_RACE_ATTEMPTS: '4'
+          MIGRATION_020_RACE_REPETITIONS: '3'
       - name: Verify reviewer-attestation transaction race
         run: npm run backend:release:attestation:race:check
         env:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           ATTESTATION_RACE_ISOLATED: 'true'
+          ATTESTATION_RACE_ATTEMPTS: '4'
           ATTESTATION_RACE_REPETITIONS: '3'
       - name: Verify ready-PostgreSQL route contracts
         run: npm run backend:ready:postgres:check
@@ -561,6 +564,8 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           MIGRATION_020_CONTRACT_ISOLATED: 'true'
+          MIGRATION_020_RACE_ATTEMPTS: '4'
+          MIGRATION_020_RACE_REPETITIONS: '3'
       - name: Verify restored migration-017 extension-hook constraints
         if: always()
         run: |
@@ -629,6 +634,7 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           ATTESTATION_RACE_ISOLATED: 'true'
+          ATTESTATION_RACE_ATTEMPTS: '4'
           ATTESTATION_RACE_REPETITIONS: '3'
       - name: Prepare recovery artifact SHA-256 sidecar
         if: always()

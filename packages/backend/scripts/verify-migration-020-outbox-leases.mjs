@@ -8,9 +8,28 @@ const DATABASE_URL = process.env.MIGRATION_020_CONTRACT_DATABASE_URL || process.
 const ISOLATED = process.env.MIGRATION_020_CONTRACT_ISOLATED === 'true'
 const MAX_ATTEMPTS = 5
 const LEASE_MS = 120000
+const RACE_ATTEMPTS = Number.parseInt(process.env.MIGRATION_020_RACE_ATTEMPTS || '4', 10)
+const RACE_REPETITIONS = Number.parseInt(process.env.MIGRATION_020_RACE_REPETITIONS || '3', 10)
 
 function json(value) {
   return JSON.stringify(value, null, 2)
+}
+
+function assertBounds() {
+  if (!Number.isInteger(RACE_ATTEMPTS) || RACE_ATTEMPTS < 2 || RACE_ATTEMPTS > 8) throw new Error('MIGRATION_020_RACE_ATTEMPTS must be an integer between 2 and 8')
+  if (!Number.isInteger(RACE_REPETITIONS) || RACE_REPETITIONS < 1 || RACE_REPETITIONS > 10) throw new Error('MIGRATION_020_RACE_REPETITIONS must be an integer between 1 and 10')
+}
+
+function summarizeDurations(values) {
+  const sorted = [...values].sort((left, right) => left - right)
+  const percentileIndex = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * 0.95) - 1))
+  return {
+    samples: sorted.length,
+    minMs: sorted[0] ?? 0,
+    maxMs: sorted[sorted.length - 1] ?? 0,
+    meanMs: sorted.length === 0 ? 0 : Number((sorted.reduce((total, value) => total + value, 0) / sorted.length).toFixed(3)),
+    p95Ms: sorted[percentileIndex] ?? 0
+  }
 }
 
 function assertDisposableDatabaseUrl(value) {
@@ -211,21 +230,68 @@ async function runContractSuite(pool) {
     cleanupIds.add(attemptWithoutTimestamp.id)
     results.attemptWithoutTimestamp = await expectSqlState(pool, 'attempt without timestamp', '23514', (client) => insertEvent(client, attemptWithoutTimestamp, { attempts: 1 }))
 
-    const race = fixture('claim-race')
-    cleanupIds.add(race.id)
-    await withTransaction(pool, (client) => insertEvent(client, race))
-    const claims = await Promise.all([claimOne(pool), claimOne(pool)])
-    const winners = claims.filter(Boolean)
-    assert.equal(winners.length, 1, 'exactly one concurrent claimant must win')
-    assert.equal(winners[0].attempts, 1, 'the winning claim must increment attempts exactly once')
-    assert.match(winners[0].lease_token, /^[0-9a-f-]{36}$/i)
+    const raceRuns = []
+    for (let repetition = 0; repetition < RACE_REPETITIONS; repetition += 1) {
+      const race = fixture(`claim-race-${repetition}`)
+      cleanupIds.add(race.id)
+      await withTransaction(pool, (client) => insertEvent(client, race))
+      const startedAt = Date.now()
+      const claims = await Promise.all(Array.from({ length: RACE_ATTEMPTS }, () => claimOne(pool)))
+      const winners = claims.filter(Boolean)
+      assert.equal(winners.length, 1, 'exactly one concurrent claimant must win')
+      assert.equal(claims.filter((claim) => claim === null).length, RACE_ATTEMPTS - 1, 'all losing claimants must observe SKIP LOCKED')
+      assert.equal(winners[0].attempts, 1, 'the winning claim must increment attempts exactly once')
+      assert.match(winners[0].lease_token, /^[0-9a-f-]{36}$/i)
+      const staleCompletion = await pool.query(`
+        UPDATE outbox_events
+           SET processed_at = CURRENT_TIMESTAMP,
+               lease_token = NULL,
+               lease_acquired_at = NULL,
+               lease_expires_at = NULL
+         WHERE id = $1 AND lease_token = $2 AND processed_at IS NULL
+         RETURNING id
+      `, [race.id, randomUUID()])
+      assert.equal(staleCompletion.rows.length, 0, 'stale lease token must not complete another worker event')
+      const completion = await pool.query(`
+        UPDATE outbox_events
+           SET processed_at = CURRENT_TIMESTAMP,
+               lease_token = NULL,
+               lease_acquired_at = NULL,
+               lease_expires_at = NULL
+         WHERE id = $1 AND lease_token = $2 AND processed_at IS NULL
+         RETURNING id
+      `, [race.id, winners[0].lease_token])
+      assert.equal(completion.rows.length, 1, 'current lease token must complete the claimed event')
+      const persisted = (await pool.query(`
+        SELECT processed_at, lease_token, lease_acquired_at, lease_expires_at, attempts, last_attempt_at, dead_lettered_at
+          FROM outbox_events WHERE id = $1
+      `, [race.id])).rows[0]
+      assert.ok(persisted.processed_at)
+      assert.equal(persisted.lease_token, null)
+      assert.equal(persisted.lease_acquired_at, null)
+      assert.equal(persisted.lease_expires_at, null)
+      assert.equal(persisted.attempts, 1)
+      assert.ok(persisted.last_attempt_at)
+      assert.equal(persisted.dead_lettered_at, null)
+      raceRuns.push({
+        status: 'passed',
+        attempts: RACE_ATTEMPTS,
+        winners: winners.length,
+        losers: RACE_ATTEMPTS - winners.length,
+        staleCompletionRejected: true,
+        currentTokenCompletionAccepted: true,
+        persistedProcessed: true,
+        elapsedMs: Date.now() - startedAt
+      })
+    }
     results.concurrentClaim = {
-      status: 'passed',
-      attempts: claims.length,
-      winners: winners.length,
-      losers: claims.length - winners.length,
-      winnerAttempts: winners[0].attempts,
-      leasePresent: true
+      status: 'verified',
+      attempts: RACE_ATTEMPTS,
+      repetitions: RACE_REPETITIONS,
+      totalAttempts: RACE_ATTEMPTS * RACE_REPETITIONS,
+      validRuns: raceRuns.length,
+      performance: summarizeDurations(raceRuns.map((run) => run.elapsedMs)),
+      runs: raceRuns
     }
     return { status: 'verified', cases: results, cleanupIds: cleanupIds.size }
   } finally {
@@ -235,6 +301,7 @@ async function runContractSuite(pool) {
 }
 
 async function main() {
+  assertBounds()
   if (!ISOLATED) {
     console.error(json({ status: 'blocked', reason: 'MIGRATION_020_CONTRACT_ISOLATED=true is required', migration: '020_outbox_lease_state', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }))
     process.exitCode = 1

@@ -1,0 +1,22 @@
+{
+  "archivePath": "/tmp/paytray-deliverables/paytray-shadow-review-release-attestation-repeat-final-v5-corrected.skill",
+  "sidecarPath": "/tmp/paytray-deliverables/paytray-shadow-review-release-attestation-repeat-final-v5-corrected.skill.sha256",
+  "actualSha256": "a530f6949e3e1a688a67ea0724027f3da2f5a2e83ef2c855dca35b64c52709f0",
+  "expectedSha256": "a530f6949e3e1a688a67ea0724027f3da2f5a2e83ef2c855dca35b64c52709f0",
+  "sha256Matches": true,
+  "archiveEntryCount": 41,
+  "hasSkillMd": true,
+  "hasReferences": true,
+  "hasScripts": true,
+  "integrityReport": {
+    "valid": true,
+    "errors": 0,
+    "warnings": 0
+  },
+  "rollbackReport": {
+    "valid": true,
+    "errors": 0
+  },
+  "errors": [],
+  "valid": true
+}

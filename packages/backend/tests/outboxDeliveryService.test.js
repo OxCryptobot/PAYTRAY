@@ -50,11 +50,16 @@ describe('durable outbox delivery service', () => {
   })
 
   it('claims due events and records processed or failed outcomes', async () => {
-    const client = clientFor([{ rows: [row] }, { rows: [{ id: row.id, processed_at: '2026-08-15T00:01:00.000Z' }] }, { rows: [{ ...row, last_error: 'remote 503' }] }])
+    const leaseToken = '44444444-4444-4444-8444-444444444444'
+    const claimedRow = { ...row, lease_token: leaseToken, lease_acquired_at: '2026-08-15T00:00:00.000Z', lease_expires_at: '2026-08-15T00:00:01.000Z', last_attempt_at: '2026-08-15T00:00:00.000Z' }
+    const client = clientFor([{ rows: [claimedRow] }, { rows: [{ id: row.id, processed_at: '2026-08-15T00:01:00.000Z' }] }, { rows: [{ ...claimedRow, last_error: 'remote 503' }] }])
     const claimed = await claimOutboxEvents({ client, limit: 5, leaseMs: 1000, maxAttempts: 3 })
-    expect(claimed[0]).toMatchObject({ id: row.id, attempts: 1 })
-    expect(await markOutboxProcessed({ client, eventId: row.id })).toMatchObject({ id: row.id })
-    expect(await recordOutboxFailure({ client, eventId: row.id, error: new Error('remote 503'), maxAttempts: 3 })).toMatchObject({ id: row.id, lastError: 'remote 503', status: 'failed' })
+    expect(claimed[0]).toMatchObject({ id: row.id, attempts: 1, leaseToken })
+    expect(client.queries[0].sql).toContain('lease_token = uuid_generate_v4()')
+    expect(await markOutboxProcessed({ client, eventId: row.id, leaseToken })).toMatchObject({ id: row.id })
+    expect(client.queries[1].sql).toContain('($2::uuid IS NULL OR lease_token = $2::uuid)')
+    expect(await recordOutboxFailure({ client, eventId: row.id, leaseToken, error: new Error('remote 503'), maxAttempts: 3 })).toMatchObject({ id: row.id, lastError: 'remote 503', status: 'failed' })
+    expect(client.queries[2].sql).toContain('dead_lettered_at')
   })
 
   it('reports dead-letter attention and supports filtered event inspection', async () => {

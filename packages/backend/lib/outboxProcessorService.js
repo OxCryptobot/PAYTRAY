@@ -118,7 +118,7 @@ export async function processDurableOutbox({
   for (const event of events) {
     const subscribers = matchingHooks(hooks, event.eventType)
     if (subscribers.length === 0) {
-      if (!dryRun) await markOutboxProcessed({ client, eventId: event.id })
+      if (!dryRun) await markOutboxProcessed({ client, eventId: event.id, leaseToken: event.leaseToken })
       skipped += 1
       results.push({
         eventId: event.id,
@@ -165,7 +165,7 @@ export async function processDurableOutbox({
     }
 
     if (eventError) {
-      const failedEvent = await recordOutboxFailure({ client, eventId: event.id, error: eventError, retryBaseDelayMs, maxAttempts })
+      const failedEvent = await recordOutboxFailure({ client, eventId: event.id, leaseToken: event.leaseToken, error: eventError, retryBaseDelayMs, maxAttempts })
       failed += 1
       results.push({
         eventId: event.id,
@@ -179,7 +179,7 @@ export async function processDurableOutbox({
         mutation: 'outbox_delivery_only'
       })
     } else {
-      await markOutboxProcessed({ client, eventId: event.id })
+      await markOutboxProcessed({ client, eventId: event.id, leaseToken: event.leaseToken })
       processed += 1
       results.push({
         eventId: event.id,

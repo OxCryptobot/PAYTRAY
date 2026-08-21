@@ -373,6 +373,12 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           MIGRATION_019_CONTRACT_ISOLATED: 'true'
+      - name: Verify migration-020 outbox lease state
+        run: npm run backend:release:migration:020:check
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
+          MIGRATION_020_CONTRACT_ISOLATED: 'true'
       - name: Verify reviewer-attestation transaction race
         run: npm run backend:release:attestation:race:check
         env:
@@ -519,6 +525,18 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           MIGRATION_019_CONTRACT_ISOLATED: 'true'
+      - name: Verify restored migration-020 outbox lease state
+        if: always()
+        run: |
+          set +e
+          node packages/backend/scripts/verify-migration-020-outbox-leases.mjs > artifacts/restored-migration-020-outbox-leases.json
+          status=$?
+          cat artifacts/restored-migration-020-outbox-leases.json
+          exit $status
+        env:
+          PGPASSWORD: paytray_ci
+          DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+          MIGRATION_020_CONTRACT_ISOLATED: 'true'
       - name: Verify restored migration-017 extension-hook constraints
         if: always()
         run: |
@@ -558,12 +576,12 @@ jobs:
           ATTESTATION_RACE_REPETITIONS: '3'
       - name: Prepare recovery artifact SHA-256 sidecar
         if: always()
-        run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-018-concurrency.json artifacts/restored-migration-017-extension-hooks.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-019-constraints.json artifacts/restored-attestation-concurrency.json | tee artifacts/recovery-evidence.sha256
+        run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-018-concurrency.json artifacts/restored-migration-017-extension-hooks.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-019-constraints.json artifacts/restored-migration-020-outbox-leases.json artifacts/restored-attestation-concurrency.json | tee artifacts/recovery-evidence.sha256
       - name: Verify recovery artifact bundle
         if: always()
         run: |
           set +e
-          node packages/backend/scripts/verify-recovery-artifact.mjs --sidecar artifacts/recovery-evidence.sha256 artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-018-concurrency.json artifacts/restored-migration-017-extension-hooks.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-019-constraints.json artifacts/restored-attestation-concurrency.json > artifacts/recovery-artifact-verification.json
+          node packages/backend/scripts/verify-recovery-artifact.mjs --sidecar artifacts/recovery-evidence.sha256 artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-018-concurrency.json artifacts/restored-migration-017-extension-hooks.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-019-constraints.json artifacts/restored-migration-020-outbox-leases.json artifacts/restored-attestation-concurrency.json > artifacts/recovery-artifact-verification.json
           status=$?
           cat artifacts/recovery-artifact-verification.json
           exit $status
@@ -586,6 +604,7 @@ jobs:
             artifacts/restored-migration-016-webhook-inbox.json
             artifacts/restored-migration-015-trust-signals.json
             artifacts/restored-migration-019-constraints.json
+            artifacts/restored-migration-020-outbox-leases.json
             artifacts/restored-attestation-concurrency.json
             artifacts/recovery-artifact-verification.json
             artifacts/recovery-evidence.sha256

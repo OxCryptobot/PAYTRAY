@@ -51,6 +51,7 @@
     "backend:advisory:ai:check": "node packages/backend/scripts/inspect-advisory-ai.mjs",
     "backend:ready:postgres:check": "node packages/backend/scripts/verify-ready-postgres-contracts.mjs",
     "backend:release:migration:019:check": "node packages/backend/scripts/verify-migration-019-constraints.mjs",
+    "backend:release:migration:020:check": "node packages/backend/scripts/verify-migration-020-outbox-leases.mjs",
     "backend:release:attestation:race:check": "node packages/backend/scripts/verify-reviewer-attestation-concurrency.mjs",
     "backend:release:migration:018:check": "node packages/backend/scripts/verify-migration-018-constraints.mjs",
     "backend:release:migration:018:concurrency:check": "node packages/backend/scripts/verify-migration-018-concurrency.mjs",

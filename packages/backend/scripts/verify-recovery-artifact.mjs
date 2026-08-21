@@ -26,7 +26,8 @@ const EXPECTED_MIGRATIONS = [
   '016_webhook_inbox',
   '017_extension_hooks',
   '018_operations_quality_runs',
-  '019_reviewer_attestations'
+  '019_reviewer_attestations',
+  '020_outbox_lease_state'
 ]
 const DEFAULT_ARTIFACTS = [
   'artifacts/recovery-evidence.json',
@@ -40,6 +41,7 @@ const DEFAULT_ARTIFACTS = [
   'artifacts/restored-migration-016-webhook-inbox.json',
   'artifacts/restored-migration-015-trust-signals.json',
   'artifacts/restored-migration-019-constraints.json',
+  'artifacts/restored-migration-020-outbox-leases.json',
   'artifacts/restored-attestation-concurrency.json'
 ]
 
@@ -279,9 +281,9 @@ function validateRecoveryEvidence(artifact) {
   if (!RESTORE_STATUSES.has(artifact.restore.status)) fail('recovery-evidence.restore.status is invalid')
   if (artifact.restore.status === 'verified') {
     if (!Number.isSafeInteger(artifact.restore.tableCount) || artifact.restore.tableCount < 1) fail('recovery-evidence.restore.tableCount is invalid')
-    if (artifact.restore.migrationCount !== 19) fail('recovery-evidence.restore.migrationCount must be 19')
+    if (artifact.restore.migrationCount !== 20) fail('recovery-evidence.restore.migrationCount must be 20')
     const restoreDatabase = assertLocalDisposableDatabaseUrl(artifact.restore.database, 'recovery-evidence.restore.database')
-    return { status: artifact.status, authority: artifact.authority, sourceDatabase, restoreDatabase, migrationCount: 19, timing: validateTiming(artifact.timing, 'recovery-evidence.timing') }
+    return { status: artifact.status, authority: artifact.authority, sourceDatabase, restoreDatabase, migrationCount: 20, timing: validateTiming(artifact.timing, 'recovery-evidence.timing') }
   }
   if (artifact.restore.database !== undefined) assertLocalDisposableDatabaseUrl(artifact.restore.database, 'recovery-evidence.restore.database')
   return { status: artifact.status, authority: artifact.authority, sourceDatabase, restoreDatabase: null, migrationCount: null, timing: validateTiming(artifact.timing, 'recovery-evidence.timing') }
@@ -291,8 +293,8 @@ function validateRestoredMigrations(artifact) {
   assertObject(artifact, 'restored-migrations')
   if (!['ok', 'verified'].includes(artifact.status)) fail('restored-migrations.status is invalid')
   if (artifact.databaseStatus !== undefined && artifact.databaseStatus !== 'ready') fail('restored-migrations.databaseStatus must be ready')
-  if (!Array.isArray(artifact.migrationNames) || artifact.migrationNames.length !== 19) fail('restored-migrations must contain exactly 19 migrations')
-  if (artifact.migrationNames.some((name, index) => name !== EXPECTED_MIGRATIONS[index])) fail('restored-migrations migration order does not match 001 through 019')
+  if (!Array.isArray(artifact.migrationNames) || artifact.migrationNames.length !== 20) fail('restored-migrations must contain exactly 20 migrations')
+  if (artifact.migrationNames.some((name, index) => name !== EXPECTED_MIGRATIONS[index])) fail('restored-migrations migration order does not match 001 through 020')
   return { status: artifact.status, migrationCount: artifact.migrationNames.length }
 }
 
@@ -343,6 +345,7 @@ function classifyArtifact(artifactPath, artifact) {
   if (name === 'restored-migration-016-webhook-inbox.json') return validateContract(artifact, name, '016_webhook_inbox')
   if (name === 'restored-migration-015-trust-signals.json') return validateContract(artifact, name, '015_verified_trust_signals')
   if (name === 'restored-migration-019-constraints.json') return validateContract(artifact, name, '019_reviewer_attestations')
+  if (name === 'restored-migration-020-outbox-leases.json') return validateContract(artifact, name, '020_outbox_lease_state')
   if (name === 'restored-attestation-concurrency.json') return validateContract(artifact, name)
   fail(`unsupported recovery artifact filename: ${name}`)
 }

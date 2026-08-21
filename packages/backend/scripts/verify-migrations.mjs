@@ -48,8 +48,18 @@ try {
   ))
   assert.deepEqual(
     migrationResult.rows.map((row) => row.migration_name),
-    ['001_init', '002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims', '015_verified_trust_signals', '016_webhook_inbox', '017_extension_hooks', '018_operations_quality_runs', '019_reviewer_attestations']
+    ['001_init', '002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims', '015_verified_trust_signals', '016_webhook_inbox', '017_extension_hooks', '018_operations_quality_runs', '019_reviewer_attestations', '020_outbox_lease_state']
   )
+
+  const outboxLeaseColumns = await transaction((client) => client.query(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'outbox_events'
+      AND column_name = ANY($1::text[])
+    ORDER BY column_name
+  `, [['dead_lettered_at', 'last_attempt_at', 'lease_acquired_at', 'lease_expires_at', 'lease_token']]))
+  assert.deepEqual(outboxLeaseColumns.rows.map((row) => row.column_name), ['dead_lettered_at', 'last_attempt_at', 'lease_acquired_at', 'lease_expires_at', 'lease_token'])
 
   const ledgerIndexes = await transaction((client) => client.query(`
     SELECT indexname
@@ -150,6 +160,7 @@ try {
     reviewColumns: reviewColumns.rows.map((row) => row.column_name),
     cursorTable: cursorTable.rows.map((row) => row.table_name),
     attestationColumns: attestationColumns.rows.map((row) => row.column_name),
+    outboxLeaseColumns: outboxLeaseColumns.rows.map((row) => row.column_name),
     releaseEligible: false,
     settlementAuthority: false,
     mutation: 'read_only',

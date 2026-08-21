@@ -20,7 +20,7 @@ function recoveryArtifact(timing) {
     restore: {
       status: 'verified',
       tableCount: 37,
-      migrationCount: 19,
+      migrationCount: 20,
       database: 'postgresql://127.0.0.1/paytray_recovery_ci'
     },
     authority: 'recovery_evidence_only',

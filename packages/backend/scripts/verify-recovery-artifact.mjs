@@ -40,6 +40,8 @@ const DEFAULT_ARTIFACTS = [
   'artifacts/restored-migration-017-extension-hooks.json',
   'artifacts/restored-migration-016-webhook-inbox.json',
   'artifacts/restored-migration-015-trust-signals.json',
+  'artifacts/restored-migration-014-webhook-replay-claims.json',
+  'artifacts/restored-migration-013-verifier-cursors.json',
   'artifacts/restored-migration-019-constraints.json',
   'artifacts/restored-migration-020-outbox-leases.json',
   'artifacts/restored-attestation-concurrency.json'
@@ -344,6 +346,8 @@ function classifyArtifact(artifactPath, artifact) {
   if (name === 'restored-migration-017-extension-hooks.json') return validateContract(artifact, name, '017_extension_hooks')
   if (name === 'restored-migration-016-webhook-inbox.json') return validateContract(artifact, name, '016_webhook_inbox')
   if (name === 'restored-migration-015-trust-signals.json') return validateContract(artifact, name, '015_verified_trust_signals')
+  if (name === 'restored-migration-014-webhook-replay-claims.json') return validateContract(artifact, name, '014_webhook_replay_claims')
+  if (name === 'restored-migration-013-verifier-cursors.json') return validateContract(artifact, name, '013_verifier_cursors')
   if (name === 'restored-migration-019-constraints.json') return validateContract(artifact, name, '019_reviewer_attestations')
   if (name === 'restored-migration-020-outbox-leases.json') return validateContract(artifact, name, '020_outbox_lease_state')
   if (name === 'restored-attestation-concurrency.json') return validateContract(artifact, name)

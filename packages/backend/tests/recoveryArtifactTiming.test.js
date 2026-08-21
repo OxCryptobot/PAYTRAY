@@ -99,6 +99,54 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration-013 verifier cursor contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-013-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-013-verifier-cursors.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '013_verifier_cursors',
+        cases: { catalog: { status: 'passed' }, negativeBlock: { status: 'passed', sqlState: '23514' }, nullBlock: { status: 'passed', sqlState: '23502' }, duplicateChain: { status: 'passed', sqlState: '23505' } },
+        cleanupChainIds: 4,
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-013-verifier-cursors.json']).toMatchObject({ status: 'verified', migration: '013_verifier_cursors', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts the allowlisted restored migration-014 webhook replay claim contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-014-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-014-webhook-replay-claims.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '014_webhook_replay_claims',
+        cases: { catalog: { status: 'passed' }, nullReplayKey: { status: 'passed', sqlState: '23502' }, duplicateReplayKey: { status: 'passed', sqlState: '23505' }, expiredReplacement: { status: 'passed', replaced: true }, concurrentClaim: { status: 'passed', attempts: 2, winners: 1, losers: 1 } },
+        cleanupKeys: 4,
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-014-webhook-replay-claims.json']).toMatchObject({ status: 'verified', migration: '014_webhook_replay_claims', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-018 concurrency contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-018-concurrency-'))
     try {

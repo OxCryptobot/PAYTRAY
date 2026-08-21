@@ -98,6 +98,32 @@ describe('recovery artifact timing contract', () => {
       await fs.rm(directory, { recursive: true, force: true })
     }
   })
+
+  it('accepts the allowlisted restored migration-018 concurrency contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-018-concurrency-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-018-concurrency.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '018_operations_quality_runs',
+        concurrency: { attempts: 8, repetitions: 3, totalAttempts: 24, validRuns: 3 },
+        runs: [],
+        cleanupRuns: 3,
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false,
+        valid: true
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-018-concurrency.json']).toMatchObject({ status: 'verified', migration: '018_operations_quality_runs', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
 })
 
 

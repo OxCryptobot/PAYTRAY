@@ -35,6 +35,7 @@ const DEFAULT_ARTIFACTS = [
   'artifacts/restored-operations-quality.json',
   'artifacts/restored-operations-quality-verification.json',
   'artifacts/restored-migration-018-constraints.json',
+  'artifacts/restored-migration-018-concurrency.json',
   'artifacts/restored-migration-017-extension-hooks.json',
   'artifacts/restored-migration-016-webhook-inbox.json',
   'artifacts/restored-migration-015-trust-signals.json',
@@ -337,6 +338,7 @@ function classifyArtifact(artifactPath, artifact) {
   if (name === 'restored-operations-quality.json') return validateOperationsQuality(artifactPath)
   if (name === 'restored-operations-quality-verification.json') return validateOperationsQualityVerification(artifact)
   if (name === 'restored-migration-018-constraints.json') return validateContract(artifact, name, '018_operations_quality_runs')
+  if (name === 'restored-migration-018-concurrency.json') return validateContract(artifact, name, '018_operations_quality_runs')
   if (name === 'restored-migration-017-extension-hooks.json') return validateContract(artifact, name, '017_extension_hooks')
   if (name === 'restored-migration-016-webhook-inbox.json') return validateContract(artifact, name, '016_webhook_inbox')
   if (name === 'restored-migration-015-trust-signals.json') return validateContract(artifact, name, '015_verified_trust_signals')

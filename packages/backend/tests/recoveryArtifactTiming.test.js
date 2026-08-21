@@ -86,6 +86,7 @@ describe('recovery artifact timing contract', () => {
           catalog: { status: 'passed' },
           duplicateSenderIdempotency: { status: 'passed', sqlState: '23505' },
           duplicateTransactionHash: { status: 'passed', sqlState: '23505' },
+          invalidDecimals: { status: 'passed', sqlState: '23514' },
           duplicateChainIdentity: { status: 'passed', sqlState: '23505' },
           missingLedgerProvenance: { status: 'passed', sqlState: '23514' },
           concurrentPaymentIntentIdempotency: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12 },

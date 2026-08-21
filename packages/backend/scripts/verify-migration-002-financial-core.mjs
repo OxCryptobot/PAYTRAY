@@ -480,7 +480,7 @@ async function runContractSuite(pool, attempts, repetitions) {
         sameEngagementUsers,
         invalidEngagementStatus,
         sameIntentUsers,
-        invalidTokenDecimals,
+        invalidDecimals: invalidTokenDecimals,
         negativeAmount,
         duplicateProtocolStream,
         negativeConfirmation,

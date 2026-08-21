@@ -7,6 +7,13 @@ function fail(message) {
   throw new Error(message)
 }
 
+function boundedInteger(name, fallback, min, max) {
+  const raw = process.env[name]
+  const value = raw === undefined ? fallback : Number.parseInt(raw, 10)
+  if (!Number.isInteger(value) || value < min || value > max) fail(`${name} must be an integer between ${min} and ${max}`)
+  return value
+}
+
 function requiredIsolation() {
   if (process.env.MIGRATION_015_CONTRACT_ISOLATED !== 'true') fail('MIGRATION_015_CONTRACT_ISOLATED=true is required')
   const value = process.env.DATABASE_URL
@@ -61,6 +68,36 @@ async function expectSignalInsert(pool, label, params, sqlState) {
       signal_type, polarity, score, eligible_for_ranking, evidence_hash, provenance
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
   `, params, sqlState)
+}
+
+async function insertSignal(pool, params) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(`
+      INSERT INTO verified_trust_signals (
+        subject_user_id, subject_wallet_address, engagement_id, outcome_id,
+        signal_type, polarity, score, eligible_for_ranking, evidence_hash, provenance
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+    `, params)
+    await client.query('COMMIT')
+    return { status: 'committed' }
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {})
+    return { status: 'rejected', sqlState: error.code || null }
+  } finally {
+    client.release()
+  }
+}
+
+async function uniqueSignalRace(pool, fixtures, signalType, attempts) {
+  const params = signalParams({ userId: fixtures.providerId, engagementId: fixtures.engagementId, outcomeId: fixtures.outcomeId, signalType })
+  const outcomes = await Promise.all(Array.from({ length: attempts }, () => insertSignal(pool, params)))
+  const winners = outcomes.filter((outcome) => outcome.status === 'committed')
+  const losers = outcomes.filter((outcome) => outcome.status === 'rejected')
+  if (winners.length !== 1) fail(`${signalType} race committed ${winners.length} rows; expected exactly one`)
+  if (losers.length !== attempts - 1 || !losers.every((outcome) => outcome.sqlState === '23505')) fail(`${signalType} race losers did not all return SQLSTATE 23505`)
+  return { status: 'passed', attempts, winners: winners.length, losers: losers.length, sqlStateCounts: { '23505': losers.length } }
 }
 
 async function createFixtures(pool) {
@@ -134,7 +171,9 @@ async function catalogChecks(pool) {
 
 async function main() {
   const connectionString = requiredIsolation()
-  const pool = new Pool({ connectionString, max: 4, min: 0, connectionTimeoutMillis: 5000 })
+  const attempts = boundedInteger('MIGRATION_015_CONCURRENCY_ATTEMPTS', 8, 2, 16)
+  const repetitions = boundedInteger('MIGRATION_015_CONCURRENCY_REPETITIONS', 3, 1, 10)
+  const pool = new Pool({ connectionString, max: attempts + 2, min: 0, connectionTimeoutMillis: 5000 })
   let fixtures = null
   let cleanupPerformed = false
   const cases = {}
@@ -166,6 +205,12 @@ async function main() {
     cases.score = await expectSignalInsert(pool, 'negative score', signalParams({ userId: fixtures.providerId, engagementId: fixtures.engagementId, outcomeId: fixtures.outcomeId, signalType: 'negative_score', overrides: { 6: -1 } }), '23514')
     cases.rankingEligibility = await expectSignalInsert(pool, 'ranking eligibility promotion', signalParams({ userId: fixtures.providerId, engagementId: fixtures.engagementId, outcomeId: fixtures.outcomeId, signalType: 'ranking_promotion', overrides: { 7: true } }), '23514')
     cases.uniqueness = await expectSignalInsert(pool, 'duplicate trust signal', signalParams({ userId: fixtures.providerId, engagementId: fixtures.engagementId, outcomeId: fixtures.outcomeId, signalType: 'valid_contract_signal' }), '23505')
+
+    const runs = []
+    for (let repetition = 0; repetition < repetitions; repetition += 1) {
+      runs.push(await uniqueSignalRace(pool, fixtures, `concurrent_contract_signal_${repetition}`, attempts))
+    }
+    cases.concurrentUniqueness = { status: 'verified', attempts, repetitions, totalAttempts: attempts * repetitions, validRuns: runs.length, runs }
   } finally {
     if (fixtures) {
       await pool.query('DELETE FROM verified_trust_signals WHERE engagement_id = $1 OR outcome_id = $2', [fixtures.engagementId, fixtures.outcomeId])

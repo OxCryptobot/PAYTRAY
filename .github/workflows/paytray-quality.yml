@@ -347,6 +347,8 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           MIGRATION_016_CONTRACT_ISOLATED: 'true'
+          MIGRATION_016_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_016_CONCURRENCY_REPETITIONS: '3'
       - name: Verify migration-017 extension-hook constraints
         run: npm run backend:release:migration:017:check
         env:
@@ -383,6 +385,8 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           MIGRATION_015_CONTRACT_ISOLATED: 'true'
+          MIGRATION_015_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_015_CONCURRENCY_REPETITIONS: '3'
       - name: Verify migration-019 SQL constraints
         run: npm run backend:release:migration:019:check
         env:
@@ -529,6 +533,8 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           MIGRATION_016_CONTRACT_ISOLATED: 'true'
+          MIGRATION_016_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_016_CONCURRENCY_REPETITIONS: '3'
       - name: Verify restored migration-019 SQL constraints
         if: always()
         run: |
@@ -605,6 +611,8 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           MIGRATION_015_CONTRACT_ISOLATED: 'true'
+          MIGRATION_015_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_015_CONCURRENCY_REPETITIONS: '3'
       - name: Verify restored reviewer-attestation transaction race
         if: always()
         run: |

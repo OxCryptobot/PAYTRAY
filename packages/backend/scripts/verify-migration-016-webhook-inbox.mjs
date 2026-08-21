@@ -4,6 +4,13 @@ import { claimWebhookInbox } from '../lib/webhookInboxService.js'
 
 const { Pool } = pg
 
+function boundedInteger(name, fallback, min, max) {
+  const raw = process.env[name]
+  const value = raw === undefined ? fallback : Number.parseInt(raw, 10)
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(`${name} must be an integer between ${min} and ${max}`)
+  return value
+}
+
 function requireIsolation() {
   if (process.env.MIGRATION_016_CONTRACT_ISOLATED !== 'true') throw new Error('MIGRATION_016_CONTRACT_ISOLATED=true is required')
   const value = process.env.DATABASE_URL
@@ -36,13 +43,29 @@ async function runTransaction(pool, input) {
   }
 }
 
-async function runRace(pool, input) {
-  return Promise.all([runTransaction(pool, input), runTransaction(pool, input)])
+async function runRace(pool, input, attempts) {
+  return Promise.all(Array.from({ length: attempts }, () => runTransaction(pool, input)))
 }
 
-async function main() {
-  const connectionString = requireIsolation()
-  const pool = new Pool({ connectionString, max: 4, connectionTimeoutMillis: 5000 })
+function assertFirstClaimRace(outcomes, attempts) {
+  const winners = outcomes.filter((result) => result.claimed && !result.duplicate)
+  const activeDuplicates = outcomes.filter((result) => !result.claimed && result.duplicate && result.reason === 'lease_active')
+  if (winners.length !== 1) throw new Error(`first-claim race produced ${winners.length} primary claims; expected exactly one`)
+  if (activeDuplicates.length !== attempts - 1) throw new Error(`first-claim race produced ${activeDuplicates.length} lease-active duplicates; expected ${attempts - 1}`)
+  outcomes.forEach((result, index) => assertSafety(result, `first-claim outcome ${index}`))
+  return { attempts, winners: winners.length, losers: activeDuplicates.length }
+}
+
+function assertReclaimRace(outcomes, attempts) {
+  const reclaimers = outcomes.filter((result) => result.claimed && result.duplicate && result.mutation === 'inbox_reclaim')
+  const activeDuplicates = outcomes.filter((result) => !result.claimed && result.duplicate && result.reason === 'lease_active')
+  if (reclaimers.length !== 1) throw new Error(`reclaim race produced ${reclaimers.length} reclaims; expected exactly one`)
+  if (activeDuplicates.length !== attempts - 1) throw new Error(`reclaim race produced ${activeDuplicates.length} lease-active duplicates; expected ${attempts - 1}`)
+  outcomes.forEach((result, index) => assertSafety(result, `reclaim outcome ${index}`))
+  return { attempts, winners: reclaimers.length, losers: activeDuplicates.length }
+}
+
+async function runScenario(pool, attempts, repetition) {
   const replayKey = `migration-016:${randomUUID()}`
   const eventType = 'ai.shadow_review_recorded'
   const body = JSON.stringify({ event: 'ai.shadow_review_recorded', runId: randomUUID() })
@@ -60,10 +83,8 @@ async function main() {
     leaseMs: 120000
   }
   try {
-    const firstClaimOutcomes = await runRace(pool, input)
-    if (firstClaimOutcomes.filter((result) => result.claimed && !result.duplicate).length !== 1) throw new Error('first-claim race did not produce exactly one primary claim')
-    if (firstClaimOutcomes.filter((result) => !result.claimed && result.duplicate && result.reason === 'lease_active').length !== 1) throw new Error('first-claim race did not produce exactly one active-lease duplicate')
-    firstClaimOutcomes.forEach((result, index) => assertSafety(result, `first-claim outcome ${index}`))
+    const firstClaimOutcomes = await runRace(pool, input, attempts)
+    const firstClaim = assertFirstClaimRace(firstClaimOutcomes, attempts)
 
     const expiredAt = new Date(now.getTime() - 1)
     await pool.query(`
@@ -72,10 +93,8 @@ async function main() {
       WHERE replay_key = $1
     `, [replayKey, expiredAt.toISOString(), expiredAt.toISOString()])
 
-    const reclaimOutcomes = await runRace(pool, input)
-    if (reclaimOutcomes.filter((result) => result.claimed && result.duplicate && result.mutation === 'inbox_reclaim').length !== 1) throw new Error('reclaim race did not produce exactly one reclaim')
-    if (reclaimOutcomes.filter((result) => !result.claimed && result.duplicate && result.reason === 'lease_active').length !== 1) throw new Error('reclaim race did not produce exactly one active-lease duplicate')
-    reclaimOutcomes.forEach((result, index) => assertSafety(result, `reclaim outcome ${index}`))
+    const reclaimOutcomes = await runRace(pool, input, attempts)
+    const reclaim = assertReclaimRace(reclaimOutcomes, attempts)
 
     const final = await pool.query('SELECT replay_key, status, attempts, body_sha256, event_type, payload FROM webhook_inbox WHERE replay_key = $1', [replayKey])
     if (!final.rows[0]) throw new Error('webhook inbox fixture was not persisted')
@@ -84,14 +103,50 @@ async function main() {
     if (state.body_sha256 !== bodySha256 || state.event_type !== eventType) throw new Error('webhook inbox durable identity does not match the signed payload')
     if (state.payload?.applied !== false) throw new Error('webhook inbox payload must remain non-applied')
 
+    let conflictRejected = false
+    try {
+      await runTransaction(pool, { ...input, body: `${body}!` })
+    } catch (error) {
+      conflictRejected = error.message === 'Webhook replay key conflicts with a different signed payload'
+    }
+    if (!conflictRejected) throw new Error('body-hash conflict was not rejected')
+
+    await pool.query(`UPDATE webhook_inbox SET status = 'processed', processed_at = $2, lease_until = NULL, updated_at = $2 WHERE replay_key = $1`, [replayKey, now.toISOString()])
+    const processedDuplicate = await runTransaction(pool, input)
+    if (processedDuplicate.claimed !== false || processedDuplicate.reason !== 'processed' || processedDuplicate.mutation !== 'read_only') throw new Error('processed webhook duplicate did not remain read-only')
+    assertSafety(processedDuplicate, 'processed duplicate')
+
+    return {
+      status: 'passed',
+      repetition,
+      firstClaim,
+      reclaim,
+      conflictRejected,
+      processedDuplicate: { claimed: processedDuplicate.claimed, duplicate: processedDuplicate.duplicate, reason: processedDuplicate.reason, mutation: processedDuplicate.mutation },
+      finalState: { status: state.status, attempts: Number(state.attempts), bodySha256, eventType, payloadApplied: state.payload?.applied === true }
+    }
+  } finally {
+    await pool.query('DELETE FROM webhook_inbox WHERE replay_key = $1', [replayKey]).catch(() => {})
+  }
+}
+
+async function main() {
+  const connectionString = requireIsolation()
+  const attempts = boundedInteger('MIGRATION_016_CONCURRENCY_ATTEMPTS', 8, 2, 16)
+  const repetitions = boundedInteger('MIGRATION_016_CONCURRENCY_REPETITIONS', 3, 1, 10)
+  const pool = new Pool({ connectionString, max: attempts + 2, connectionTimeoutMillis: 5000 })
+  try {
+    const runs = []
+    for (let repetition = 0; repetition < repetitions; repetition += 1) {
+      runs.push(await runScenario(pool, attempts, repetition))
+    }
     console.log(JSON.stringify({
       status: 'verified',
       migration: '016_webhook_inbox',
-      replayKey,
-      firstClaimOutcomes: firstClaimOutcomes.map(({ claimed, duplicate, reason = null, mutation, settlementAuthority }) => ({ claimed, duplicate, reason, mutation, settlementAuthority })),
-      reclaimOutcomes: reclaimOutcomes.map(({ claimed, duplicate, reason = null, mutation, settlementAuthority }) => ({ claimed, duplicate, reason, mutation, settlementAuthority })),
-      finalState: { status: state.status, attempts: Number(state.attempts), bodySha256: state.body_sha256, eventType: state.event_type, payloadApplied: state.payload?.applied === true },
+      concurrency: { attempts, repetitions, totalAttempts: attempts * repetitions, validRuns: runs.length },
+      runs,
       databaseIsolation: true,
+      cleanupPerformed: true,
       releaseEligible: false,
       settlementAuthority: false,
       mutation: 'read_only',
@@ -99,7 +154,6 @@ async function main() {
       settlementMutationPerformed: false
     }, null, 2))
   } finally {
-    await pool.query('DELETE FROM webhook_inbox WHERE replay_key = $1', [replayKey]).catch(() => {})
     await pool.end()
   }
 }
@@ -111,6 +165,8 @@ try {
     status: 'blocked',
     reason: error.message,
     migration: '016_webhook_inbox',
+    databaseIsolation: true,
+    cleanupPerformed: false,
     releaseEligible: false,
     settlementAuthority: false,
     mutation: 'read_only',

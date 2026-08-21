@@ -51,6 +51,8 @@
     "backend:advisory:ai:check": "node packages/backend/scripts/inspect-advisory-ai.mjs",
     "backend:ready:postgres:check": "node packages/backend/scripts/verify-ready-postgres-contracts.mjs",
     "backend:release:migration:002:check": "node packages/backend/scripts/verify-migration-002-financial-core.mjs",
+    "backend:release:migration:004:check": "node packages/backend/scripts/verify-migration-004-engagement-context.mjs",
+    "backend:release:migration:005:check": "node packages/backend/scripts/verify-migration-005-outcome-lineage.mjs",
     "backend:release:migration:006:check": "node packages/backend/scripts/verify-migration-006-ai-evaluation-foundation.mjs",
     "backend:release:migration:007:check": "node packages/backend/scripts/verify-migration-007-discovery-impressions.mjs",
     "backend:release:migration:008:check": "node packages/backend/scripts/verify-migration-008-production-telemetry.mjs",

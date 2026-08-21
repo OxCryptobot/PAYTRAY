@@ -110,6 +110,76 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration-004 engagement-context contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-004-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-004-engagement-context.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '004_engagement_context',
+        cases: {
+          catalog: { status: 'passed' },
+          defaults: { status: 'passed' },
+          roundTrip: { status: 'passed' },
+          invalidCollaboration: { status: 'passed', sqlState: '23514' },
+          invalidPayment: { status: 'passed', sqlState: '23514' },
+          nullCollaboration: { status: 'passed', sqlState: '23502' },
+          nullPayment: { status: 'passed', sqlState: '23502' },
+          concurrentOptimisticContextUpdate: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12 }
+        },
+        cleanupRows: { users: 2, engagements: 1 },
+        databaseIsolation: true,
+        cleanupPerformed: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-004-engagement-context.json']).toMatchObject({ status: 'verified', migration: '004_engagement_context', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts the allowlisted restored migration-005 outcome-lineage contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-005-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-005-outcome-lineage.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '005_outcomes_and_metrics',
+        cases: {
+          catalog: { status: 'passed' },
+          validRoundTrip: { status: 'passed' },
+          duplicateIdentity: { status: 'passed', sqlState: '23505' },
+          invalidEventType: { status: 'passed', sqlState: '23514' },
+          invalidActorType: { status: 'passed', sqlState: '23514' },
+          invalidReviewState: { status: 'passed', sqlState: '23514' },
+          missingEngagement: { status: 'passed', sqlState: '23503' },
+          nullOccurredAt: { status: 'passed', sqlState: '23502' },
+          concurrentDuplicateIdentity: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12 },
+          concurrentVerifierTransition: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12 }
+        },
+        cleanupRows: { users: 2, engagements: 1, outcomeEvents: 'all events for verifier engagements' },
+        databaseIsolation: true,
+        cleanupPerformed: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-005-outcome-lineage.json']).toMatchObject({ status: 'verified', migration: '005_outcomes_and_metrics', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-006 AI evaluation foundation contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-006-'))
     try {

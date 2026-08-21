@@ -298,6 +298,15 @@ The last two commands must remain blocked until real approval, Railway, migratio
 
 The verifier covers valid round-trips plus exact SQLSTATE `23505` duplicate boundaries and SQLSTATE `23514` state, amount, provenance, and actor negatives. It remains disposable engineering evidence with `releaseEligible=false`, `settlementAuthority=false`, and `mutation=read_only`.
 
+### Migration-004/005 contract hardening batch
+
+| Migration | Scope | Status | Evidence |
+|---|---|---|---|
+| 004 engagement context | Six non-null context/status/version columns, JSONB/status/version defaults, two named status CHECKs, two indexes, invalid/null status and context negatives, bounded optimistic-update race | Implemented and locally verified | `migration-004-verifier-local.json`; isolated/restored CI and recovery checksum wiring added |
+| 005 outcome lineage | Outcome table columns, enum CHECKs, JSONB defaults, unverified default, engagement FK, indexes, four-field identity uniqueness, duplicate/enum/FK/null negatives, duplicate identity race, verifier-owned transition race | Implemented and locally verified | `migration-005-verifier-local.json`; isolated/restored CI and recovery checksum wiring added |
+
+Migration-004 race losers are classified as safe `optimistic_update_conflict` no-ops; migration-005 transition losers are persisted-state no-ops after row locking. Both reports remain disposable engineering evidence with `releaseEligible=false`, `settlementAuthority=false`, and `mutation=read_only`.
+
 ### Migration-006/007/008 contract hardening batch
 
 | Migration | Scope | Status | Evidence |

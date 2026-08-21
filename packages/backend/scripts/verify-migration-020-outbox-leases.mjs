@@ -225,7 +225,7 @@ async function runContractSuite(pool) {
       winners: winners.length,
       losers: claims.length - winners.length,
       winnerAttempts: winners[0].attempts,
-      leaseTokenReturned: true
+      leasePresent: true
     }
     return { status: 'verified', cases: results, cleanupIds: cleanupIds.size }
   } finally {

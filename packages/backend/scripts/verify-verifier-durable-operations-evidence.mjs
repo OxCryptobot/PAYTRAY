@@ -49,7 +49,7 @@ function loadEvidence(filePath, { label, target, releaseCommit, reportKind }) {
 }
 
 function verifyRecovery(report) {
-  const status = report.status === 'verified' && report.restore?.status === 'verified' && Number(report.restore?.migrationCount) === 19
+  const status = report.status === 'verified' && report.restore?.status === 'verified' && Number(report.restore?.migrationCount) === 20
   return { status: status ? 'verified_reference' : 'blocked', migrationCount: Number(report.restore?.migrationCount || 0), restoredDatabase: report.restore?.database || null }
 }
 

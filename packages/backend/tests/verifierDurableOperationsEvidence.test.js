@@ -18,7 +18,7 @@ function recovery(overrides = {}) {
   return {
     reportKind: 'recovery_evidence',
     status: 'verified',
-    restore: { status: 'verified', migrationCount: 19, database: 'postgresql://isolated/paytray' },
+    restore: { status: 'verified', migrationCount: 20, database: 'postgresql://isolated/paytray' },
     mutation: 'isolated_recovery_only',
     releaseEligible: false,
     settlementAuthority: false,

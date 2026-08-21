@@ -118,8 +118,8 @@ async function verifyRestoredDatabase(connectionString) {
     if (missingTables.length > 0) {
       throw new Error(`isolated restore is missing tables: ${missingTables.join(', ')}`)
     }
-    if (actualMigrations.length !== 19) {
-      throw new Error(`isolated restore has ${actualMigrations.length} migrations; expected 19`)
+    if (actualMigrations.length !== 20) {
+      throw new Error(`isolated restore has ${actualMigrations.length} migrations; expected 20`)
     }
     return {
       status: 'verified',

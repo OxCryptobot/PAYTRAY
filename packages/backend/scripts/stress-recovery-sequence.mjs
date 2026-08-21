@@ -136,7 +136,7 @@ async function initializeSource(sourceUrl) {
       client.release()
     }
     const result = await pool.query('SELECT COUNT(*)::int AS count FROM schema_migrations')
-    if (result.rows[0]?.count !== 19) throw new Error(`source database has ${result.rows[0]?.count} migrations; expected 19`)
+    if (result.rows[0]?.count !== 20) throw new Error(`source database has ${result.rows[0]?.count} migrations; expected 20`)
   } finally {
     await pool.end()
   }

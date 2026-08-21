@@ -1,0 +1,443 @@
+{
+  "repo": "/home/ubuntu/projects/PAYTRAY",
+  "migrationCount": 19,
+  "expectedMigrationRange": "001-019",
+  "migrationSequenceValid": true,
+  "records": [
+    {
+      "migration": "001_init.sql",
+      "migrationId": 1,
+      "lineCount": 71,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 2,
+        "foreign_keys": 6,
+        "check_constraints": 0,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage",
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "002_financial_core.sql",
+      "migrationId": 2,
+      "lineCount": 186,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 7,
+        "foreign_keys": 14,
+        "check_constraints": 16,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 3
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage",
+        "partial index detected; verify predicate matches state-machine transition",
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "003_discovery_v1.sql",
+      "migrationId": 3,
+      "lineCount": 19,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 0,
+        "foreign_keys": 0,
+        "check_constraints": 0,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "004_engagement_context.sql",
+      "migrationId": 4,
+      "lineCount": 17,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 0,
+        "foreign_keys": 0,
+        "check_constraints": 2,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "005_outcomes_and_metrics.sql",
+      "migrationId": 5,
+      "lineCount": 27,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 1,
+        "foreign_keys": 1,
+        "check_constraints": 4,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage",
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "006_ai_evaluation_foundation.sql",
+      "migrationId": 6,
+      "lineCount": 92,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 2,
+        "foreign_keys": 3,
+        "check_constraints": 14,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage",
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "007_discovery_impressions.sql",
+      "migrationId": 7,
+      "lineCount": 26,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 1,
+        "foreign_keys": 3,
+        "check_constraints": 2,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage",
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "008_production_telemetry.sql",
+      "migrationId": 8,
+      "lineCount": 31,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 1,
+        "foreign_keys": 0,
+        "check_constraints": 2,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage",
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "009_verified_outcome_provenance.sql",
+      "migrationId": 9,
+      "lineCount": 10,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 0,
+        "foreign_keys": 0,
+        "check_constraints": 0,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "010_ledger_intent_idempotency.sql",
+      "migrationId": 10,
+      "lineCount": 6,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 1,
+        "foreign_keys": 0,
+        "check_constraints": 0,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 1
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage",
+        "partial index detected; verify predicate matches state-machine transition",
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "011_payment_stream_verifier_provenance.sql",
+      "migrationId": 11,
+      "lineCount": 5,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 0,
+        "foreign_keys": 0,
+        "check_constraints": 0,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "012_shadow_run_review.sql",
+      "migrationId": 12,
+      "lineCount": 10,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 0,
+        "foreign_keys": 0,
+        "check_constraints": 0,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "013_verifier_cursors.sql",
+      "migrationId": 13,
+      "lineCount": 9,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 0,
+        "foreign_keys": 0,
+        "check_constraints": 1,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "014_webhook_replay_claims.sql",
+      "migrationId": 14,
+      "lineCount": 11,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 0,
+        "foreign_keys": 0,
+        "check_constraints": 0,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/tests/webhookReplayLoad.test.js"
+      ],
+      "notes": [
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "015_verified_trust_signals.sql",
+      "migrationId": 15,
+      "lineCount": 41,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 1,
+        "foreign_keys": 3,
+        "check_constraints": 3,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/scripts/verify-migration-015-trust-signals.mjs"
+      ],
+      "knownConcurrencyTests": [
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/tests/trustSignalService.test.js"
+      ],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage"
+      ]
+    },
+    {
+      "migration": "016_webhook_inbox.sql",
+      "migrationId": 16,
+      "lineCount": 28,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 0,
+        "foreign_keys": 0,
+        "check_constraints": 2,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 1
+      },
+      "knownVerifierScripts": [
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/scripts/verify-migration-016-webhook-inbox.mjs"
+      ],
+      "knownConcurrencyTests": [
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/tests/webhookInboxService.test.js",
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/tests/webhookReplayLoad.test.js"
+      ],
+      "notes": [
+        "partial index detected; verify predicate matches state-machine transition"
+      ]
+    },
+    {
+      "migration": "017_extension_hooks.sql",
+      "migrationId": 17,
+      "lineCount": 25,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 0,
+        "foreign_keys": 0,
+        "check_constraints": 2,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [],
+      "knownConcurrencyTests": [],
+      "notes": [
+        "no dedicated migration verifier is registered in this audit; static result is not runtime proof"
+      ]
+    },
+    {
+      "migration": "018_operations_quality_runs.sql",
+      "migrationId": 18,
+      "lineCount": 31,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 1,
+        "foreign_keys": 0,
+        "check_constraints": 12,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/scripts/verify-migration-018-constraints.mjs"
+      ],
+      "knownConcurrencyTests": [
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/tests/operationsQualityArtifact.test.js"
+      ],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage"
+      ]
+    },
+    {
+      "migration": "019_reviewer_attestations.sql",
+      "migrationId": 19,
+      "lineCount": 58,
+      "concurrencyPatterns": {
+        "row_locking": 0,
+        "skip_locked": 0,
+        "conflict_handling": 0,
+        "unique_constraints": 2,
+        "foreign_keys": 1,
+        "check_constraints": 31,
+        "serializable_or_deferrable": 0,
+        "partial_indexes": 0
+      },
+      "knownVerifierScripts": [
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/scripts/verify-migration-019-constraints.mjs",
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/scripts/verify-reviewer-attestation-concurrency.mjs"
+      ],
+      "knownConcurrencyTests": [
+        "/home/ubuntu/projects/PAYTRAY/packages/backend/tests/reviewerAttestationService.test.js"
+      ],
+      "notes": [
+        "unique constraint/index is a concurrency boundary; require duplicate-write coverage"
+      ]
+    }
+  ],
+  "globalSqlPatternCounts": {
+    "row_locking": 0,
+    "skip_locked": 0,
+    "conflict_handling": 0,
+    "unique_constraints": 19,
+    "foreign_keys": 31,
+    "check_constraints": 91,
+    "serializable_or_deferrable": 0,
+    "partial_indexes": 5
+  },
+  "contractMarkers": {
+    "transactionRollback": true,
+    "rowLocking": true,
+    "atomicClaimOrConsume": true,
+    "duplicateNegativeCoverage": true,
+    "foreignKeyNegativeCoverage": true,
+    "checkNegativeCoverage": true
+  },
+  "staticAuditLimitations": [
+    "SQL pattern scans identify review targets; they cannot prove absence of race conditions.",
+    "Runtime guarantees require disposable PostgreSQL transaction tests and service-level assertions.",
+    "Migrations without dedicated verifiers are classified as coverage gaps, not safe by inference.",
+    "This audit never grants release authority, settlement authority, or deployment approval."
+  ],
+  "errors": [],
+  "valid": true
+}

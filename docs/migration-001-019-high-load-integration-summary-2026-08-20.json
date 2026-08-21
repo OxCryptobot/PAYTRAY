@@ -1,0 +1,45 @@
+{
+  "databaseIsolation": true,
+  "migrationRange": "001-019",
+  "migrationChecks": {
+    "migrations-001-019.log": {
+      "hasVerified": true,
+      "hasFailureMarkers": false,
+      "bytes": 2459
+    },
+    "migration-015.log": {
+      "hasVerified": true,
+      "hasFailureMarkers": false,
+      "bytes": 1493
+    },
+    "migration-016.log": {
+      "hasVerified": true,
+      "hasFailureMarkers": false,
+      "bytes": 1359
+    },
+    "migration-018.log": {
+      "hasVerified": true,
+      "hasFailureMarkers": false,
+      "bytes": 1662
+    },
+    "migration-019.log": {
+      "hasVerified": true,
+      "hasFailureMarkers": false,
+      "bytes": 2037
+    },
+    "migration-019-race.log": {
+      "hasVerified": true,
+      "hasFailureMarkers": false,
+      "bytes": 9108
+    }
+  },
+  "highLoadComponentTests": {
+    "testLogBytes": 575,
+    "containsPassedSummary": true,
+    "hasFailureMarkers": false
+  },
+  "releaseEligible": false,
+  "settlementAuthority": false,
+  "mutation": "read_only",
+  "valid": true
+}

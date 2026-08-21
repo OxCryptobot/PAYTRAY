@@ -3,6 +3,40 @@ import pg from 'pg'
 
 const { Pool } = pg
 
+function boundedInteger(name, fallback, min, max) {
+  const raw = process.env[name]
+  const value = raw === undefined ? fallback : Number.parseInt(raw, 10)
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(`${name} must be an integer between ${min} and ${max}`)
+  return value
+}
+
+function summarizeDurations(values) {
+  const sorted = [...values].sort((left, right) => left - right)
+  const percentileIndex = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * 0.95) - 1))
+  return {
+    samples: sorted.length,
+    minMs: sorted[0] ?? 0,
+    maxMs: sorted[sorted.length - 1] ?? 0,
+    meanMs: sorted.length === 0 ? 0 : Number((sorted.reduce((total, value) => total + value, 0) / sorted.length).toFixed(3)),
+    p95Ms: sorted[percentileIndex] ?? 0
+  }
+}
+
+async function runDeactivationRace(pool, raceId, attempts) {
+  const startedAt = Date.now()
+  const results = await Promise.all(Array.from({ length: attempts }, () => pool.query(`
+    UPDATE extension_hooks
+    SET active = false, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1 AND owner_wallet = $2 AND active = true
+    RETURNING id
+  `, [raceId, '0x1111111111111111111111111111111111111111'])))
+  const winners = results.filter((result) => result.rows.length === 1).length
+  const losers = results.length - winners
+  const activeRows = Number((await pool.query('SELECT COUNT(*)::int AS count FROM extension_hooks WHERE id = $1 AND active = true', [raceId])).rows[0].count)
+  if (winners !== 1 || losers !== attempts - 1 || activeRows !== 0) throw new Error(`migration-017 deactivation race expected one winner, ${attempts - 1} losers, and zero active rows; received ${winners}/${losers}/${activeRows}`)
+  return { status: 'passed', attempts, winners, losers, activeRows, elapsedMs: Date.now() - startedAt }
+}
+
 function requiredIsolation() {
   if (process.env.MIGRATION_017_CONTRACT_ISOLATED !== 'true') throw new Error('MIGRATION_017_CONTRACT_ISOLATED=true is required')
   const value = process.env.DATABASE_URL
@@ -76,7 +110,9 @@ async function insertHook(pool, params) {
 
 async function main() {
   const connectionString = requiredIsolation()
-  const pool = new Pool({ connectionString, max: 8, connectionTimeoutMillis: 5000 })
+  const attempts = boundedInteger('MIGRATION_017_CONCURRENCY_ATTEMPTS', 8, 2, 16)
+  const repetitions = boundedInteger('MIGRATION_017_CONCURRENCY_REPETITIONS', 3, 1, 10)
+  const pool = new Pool({ connectionString, max: attempts + 2, connectionTimeoutMillis: 5000 })
   const fixtureIds = []
   const cases = {}
   try {
@@ -125,23 +161,14 @@ async function main() {
       VALUES ($1, NULL, $2, $3, $4, $5, $6::jsonb, $7, $8::jsonb)
     `, nullOwnerParams(nullOwnerId), '23502')
 
-    const raceId = `hook-${randomUUID()}`
-    fixtureIds.push(raceId)
-    await insertHook(pool, hookParams(raceId))
-    const clients = [await pool.connect(), await pool.connect()]
-    try {
-      const results = await Promise.all(clients.map((client) => client.query(`
-        UPDATE extension_hooks
-        SET active = false, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1 AND owner_wallet = $2 AND active = true
-        RETURNING id
-      `, [raceId, '0x1111111111111111111111111111111111111111'])))
-      const returned = results.filter((result) => result.rows.length === 1).length
-      if (returned !== 1) throw new Error(`migration-017 deactivation race expected one winner, received ${returned}`)
-      cases.deactivationRace = { status: 'passed', attempts: results.length, winners: returned, losers: results.length - returned, activeRows: (await pool.query('SELECT COUNT(*)::int AS count FROM extension_hooks WHERE id = $1 AND active = true', [raceId])).rows[0].count }
-    } finally {
-      clients.forEach((client) => client.release())
+    const runs = []
+    for (let repetition = 0; repetition < repetitions; repetition += 1) {
+      const raceId = `hook-${randomUUID()}`
+      fixtureIds.push(raceId)
+      await insertHook(pool, hookParams(raceId))
+      runs.push(await runDeactivationRace(pool, raceId, attempts))
     }
+    cases.deactivationRace = { status: 'verified', attempts, repetitions, totalAttempts: attempts * repetitions, validRuns: runs.length, performance: summarizeDurations(runs.map((run) => run.elapsedMs)), runs }
   } finally {
     if (fixtureIds.length) await pool.query('DELETE FROM extension_hooks WHERE id = ANY($1::varchar[])', [fixtureIds])
     await pool.end()

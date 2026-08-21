@@ -90,12 +90,43 @@ async function runRace(pool, attempts) {
       return { status: 'rejected', commitPerformed: false, sqlState: error.code ?? null, error: error.message, elapsedMs: Math.round((performance.now() - attemptStarted) * 100) / 100 }
     }
   }))
+  const persisted = (await pool.query(`
+    SELECT strict_mode, status, check_count, passed_count, operator_blocker_count,
+           unexpected_failure_count, report, report_hash
+      FROM operations_quality_runs
+     WHERE run_id = $1
+  `, [runId])).rows[0]
+  if (!persisted) throw new Error('migration-018 winning operations-quality row was not persisted')
+  if (persisted.strict_mode !== false || persisted.status !== SAFE_REPORT.status || persisted.check_count !== SAFE_REPORT.checkCount || persisted.passed_count !== SAFE_REPORT.passedCount || persisted.operator_blocker_count !== SAFE_REPORT.operatorBlockerCount || persisted.unexpected_failure_count !== SAFE_REPORT.unexpectedFailureCount) throw new Error('migration-018 persisted operations-quality counters or strict mode drifted')
+  if (persisted.report_hash !== reportHash(SAFE_REPORT)) throw new Error('migration-018 persisted report hash does not match canonical report')
+  for (const [field, expected] of Object.entries({ releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })) {
+    if (persisted.report?.[field] !== expected) throw new Error(`migration-018 persisted report safety field ${field} drifted`)
+  }
   const rowCount = Number((await pool.query('SELECT COUNT(*)::int AS count FROM operations_quality_runs WHERE run_id = $1', [runId])).rows[0].count)
   const winners = outcomes.filter((outcome) => outcome.status === 'committed').length
   const duplicateRejects = outcomes.filter((outcome) => outcome.status === 'rejected' && outcome.sqlState === '23505').length
   const unexpectedRejects = outcomes.filter((outcome) => outcome.status === 'rejected' && outcome.sqlState !== '23505').length
   const elapsedMs = Math.round((performance.now() - started) * 100) / 100
-  return { runId, attempts, winners, duplicateRejects, unexpectedRejects, rowCount, elapsedMs, outcomes }
+  return {
+    runId,
+    attempts,
+    winners,
+    duplicateRejects,
+    unexpectedRejects,
+    rowCount,
+    elapsedMs,
+    persistedSafety: {
+      strictMode: persisted.strict_mode,
+      status: persisted.status,
+      reportHashMatches: true,
+      releaseEligible: persisted.report.releaseEligible,
+      settlementAuthority: persisted.report.settlementAuthority,
+      mutation: persisted.report.mutation,
+      deploymentPerformed: persisted.report.deploymentPerformed,
+      settlementMutationPerformed: persisted.report.settlementMutationPerformed
+    },
+    outcomes
+  }
 }
 
 async function main() {

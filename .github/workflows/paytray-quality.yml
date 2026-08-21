@@ -355,6 +355,8 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_ci
           MIGRATION_017_CONTRACT_ISOLATED: 'true'
+          MIGRATION_017_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_017_CONCURRENCY_REPETITIONS: '3'
       - name: Verify migration-018 duplicate-run concurrency
         run: npm run backend:release:migration:018:concurrency:check
         env:
@@ -571,6 +573,8 @@ jobs:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
           MIGRATION_017_CONTRACT_ISOLATED: 'true'
+          MIGRATION_017_CONCURRENCY_ATTEMPTS: '8'
+          MIGRATION_017_CONCURRENCY_REPETITIONS: '3'
       - name: Verify restored migration-013 verifier cursor contract
         if: always()
         run: |

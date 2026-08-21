@@ -75,6 +75,40 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration-002 financial-core contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-002-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-002-financial-core.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '002_financial_core',
+        cases: {
+          catalog: { status: 'passed' },
+          duplicateSenderIdempotency: { status: 'passed', sqlState: '23505' },
+          duplicateTransactionHash: { status: 'passed', sqlState: '23505' },
+          duplicateChainIdentity: { status: 'passed', sqlState: '23505' },
+          missingLedgerProvenance: { status: 'passed', sqlState: '23514' },
+          concurrentPaymentIntentIdempotency: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12 },
+          concurrentChainEventIdentity: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12 },
+          concurrentLedgerEventType: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12 },
+          concurrentIdempotencyRecord: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12 }
+        },
+        cleanupRows: { users: 2, engagements: 1, streams: 1, intents: 3, chainEvents: 3, accounts: 2, ledgerEntries: 'all fixture entries', idempotencyRecords: 'all verifier-scope records', outboxEvents: 1, auditEvents: 1 },
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-002-financial-core.json']).toMatchObject({ status: 'verified', migration: '002_financial_core', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-006 AI evaluation foundation contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-006-'))
     try {

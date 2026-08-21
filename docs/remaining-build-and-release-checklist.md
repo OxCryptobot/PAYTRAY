@@ -290,6 +290,14 @@ npm run backend:release:payload:verify /protected/path/signed-release-payload.js
 
 The last two commands must remain blocked until real approval, Railway, migration/recovery, and signing-key evidence are available. A blocked result is the correct security outcome, not a reason to weaken the gate.
 
+### Migration-002 financial-core contract hardening batch
+
+| Scope | Status | Evidence |
+|---|---|---|
+| Eight financial-core tables, fifteen payment-stream columns, protocol stream identity, payment-intent idempotency and transaction-hash uniqueness, chain-event identity, ledger provenance, ledger-account/idempotency-record uniqueness, outbox attempts, financial-audit actor domains, and four bounded duplicate-write races | Implemented and locally verified | `migration-002-verifier-local.json`; isolated/restored CI and recovery checksum wiring added |
+
+The verifier covers valid round-trips plus exact SQLSTATE `23505` duplicate boundaries and SQLSTATE `23514` state, amount, provenance, and actor negatives. It remains disposable engineering evidence with `releaseEligible=false`, `settlementAuthority=false`, and `mutation=read_only`.
+
 ### Migration-006/007/008 contract hardening batch
 
 | Migration | Scope | Status | Evidence |

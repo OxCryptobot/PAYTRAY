@@ -60,6 +60,11 @@ jobs:
           mkdir -p artifacts
           MIGRATION_RACE_BOUNDARY_OUTPUT_PATH=artifacts/migration-race-boundaries.json npm run backend:release:migrations:races:trace:check
           sha256sum artifacts/migration-race-boundaries.json | tee artifacts/migration-race-boundaries.json.sha256
+      - name: Verify runtime migration race-helper traceability
+        run: |
+          mkdir -p artifacts
+          MIGRATION_RUNTIME_RACE_OUTPUT_PATH=artifacts/migration-runtime-races.json npm run backend:release:migrations:runtime:races:trace:check
+          sha256sum artifacts/migration-runtime-races.json | tee artifacts/migration-runtime-races.json.sha256
       - name: Verify verifier-worker configuration contract
         run: npm run backend:verifier:worker:check
         env:

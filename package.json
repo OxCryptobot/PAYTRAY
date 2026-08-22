@@ -30,6 +30,7 @@
     "backend:target:operations:check": "node packages/backend/scripts/verify-target-operations.mjs",
     "backend:operations:quality:check": "node packages/backend/scripts/verify-operations-quality.mjs",
     "backend:ci:matrix:check": "node packages/backend/scripts/verify-ci-matrix-artifact.mjs",
+    "backend:ci:negative:extract": "node packages/backend/scripts/extract-ci-negative-lines.mjs",
     "backend:human:evidence:check": "node packages/backend/scripts/verify-human-evidence-worksheet.mjs",
     "backend:release:key:custody:check": "node packages/backend/scripts/verify-operator-key-custody.mjs",
     "backend:release:key:secret-manager:check": "node packages/backend/scripts/verify-secret-manager-custody.mjs",

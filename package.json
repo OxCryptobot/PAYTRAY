@@ -71,6 +71,7 @@
     "backend:release:postgres:taxonomy:check": "node packages/backend/scripts/verify-postgres-taxonomy.mjs",
     "backend:release:postgres:assertions:trace:check": "node packages/backend/scripts/verify-postgres-assertion-traceability.mjs",
     "backend:release:migrations:races:trace:check": "node packages/backend/scripts/verify-migration-race-boundaries.mjs",
+    "backend:release:migrations:runtime:races:trace:check": "node packages/backend/scripts/verify-migration-runtime-races.mjs",
     "backend:release:ci:warnings:check": "node packages/backend/scripts/audit-ci-warning-signals.mjs",
     "backend:release:attestation:race:check": "node packages/backend/scripts/verify-reviewer-attestation-concurrency.mjs",
     "backend:release:migration:018:check": "node packages/backend/scripts/verify-migration-018-constraints.mjs",

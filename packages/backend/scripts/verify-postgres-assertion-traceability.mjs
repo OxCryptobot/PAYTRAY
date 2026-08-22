@@ -239,6 +239,88 @@ const migrations = [
       /ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP/i,
       /CREATE INDEX IF NOT EXISTS ai_evaluation_runs_review_index/i
     ]
+  },
+  {
+    migration: '013_verifier_cursors',
+    sqlFile: 'packages/backend/migrations/013_verifier_cursors.sql',
+    verifier: 'packages/backend/scripts/verify-migration-013-verifier-cursors.mjs',
+    tableMatchers: ['payment_verifier_cursors'],
+    caseStates: { negativeBlock: '23514', nullBlock: '23502', duplicateChain: '23505' },
+    raceCases: ['duplicateChainRace'],
+    sqlMatchers: [
+      /CREATE TABLE IF NOT EXISTS payment_verifier_cursors/i,
+      /chain_id BIGINT PRIMARY KEY/i,
+      /last_scanned_block BIGINT NOT NULL/i,
+      /CHECK \(last_scanned_block >= 0\)/i
+    ]
+  },
+  {
+    migration: '014_webhook_replay_claims',
+    sqlFile: 'packages/backend/migrations/014_webhook_replay_claims.sql',
+    verifier: 'packages/backend/scripts/verify-migration-014-webhook-replay-claims.mjs',
+    tableMatchers: ['webhook_replay_claims'],
+    caseStates: { nullReplayKey: '23502', duplicateReplayKey: '23505' },
+    raceCases: ['replayClaimRace'],
+    behaviorCases: { expiredReplacement: 'expiredReplacement' },
+    sqlMatchers: [
+      /CREATE TABLE IF NOT EXISTS webhook_replay_claims/i,
+      /replay_key VARCHAR\(512\) PRIMARY KEY/i,
+      /expires_at TIMESTAMP NOT NULL/i,
+      /CREATE INDEX IF NOT EXISTS webhook_replay_claims_expiry_index/i
+    ]
+  },
+  {
+    migration: '015_verified_trust_signals',
+    sqlFile: 'packages/backend/migrations/015_verified_trust_signals.sql',
+    verifier: 'packages/backend/scripts/verify-migration-015-trust-signals.mjs',
+    tableMatchers: ['verified_trust_signals'],
+    caseStates: {
+      subjectUser: '23503',
+      engagement: '23503',
+      outcome: '23503',
+      polarity: '23514',
+      score: '23514',
+      rankingEligibility: '23514',
+      uniqueness: '23505'
+    },
+    raceCases: ['uniqueSignalRace'],
+    behaviorCases: { eligibleForRanking: 'eligible_for_ranking', validSignal: 'validSignal' },
+    sqlMatchers: [
+      /CREATE TABLE IF NOT EXISTS verified_trust_signals/i,
+      /subject_user_id UUID NOT NULL REFERENCES users\(id\) ON DELETE RESTRICT/i,
+      /engagement_id UUID NOT NULL REFERENCES engagements\(id\) ON DELETE RESTRICT/i,
+      /outcome_id UUID NOT NULL REFERENCES engagement_outcome_events\(id\) ON DELETE RESTRICT/i,
+      /eligible_for_ranking BOOLEAN NOT NULL DEFAULT false/i,
+      /UNIQUE \(subject_user_id, outcome_id, signal_type\)/i,
+      /verified_trust_signals_eligible_for_ranking_check/i,
+      /CREATE INDEX IF NOT EXISTS verified_trust_signals_outcome_index/i,
+      /CREATE INDEX IF NOT EXISTS verified_trust_signals_subject_index/i
+    ]
+  },
+  {
+    migration: '016_webhook_inbox',
+    sqlFile: 'packages/backend/migrations/016_webhook_inbox.sql',
+    verifier: 'packages/backend/scripts/verify-migration-016-webhook-inbox.mjs',
+    tableMatchers: ['webhook_inbox'],
+    caseStates: {},
+    raceCases: ['runRace', 'assertFirstClaimRace', 'assertReclaimRace'],
+    behaviorCases: {
+      firstClaimRace: 'assertFirstClaimRace',
+      reclaimRace: 'assertReclaimRace',
+      bodyHashConflict: 'body-hash conflict',
+      processedDuplicate: 'processed webhook duplicate',
+      nonAppliedPayload: 'applied: false'
+    },
+    sqlMatchers: [
+      /CREATE TABLE IF NOT EXISTS webhook_inbox/i,
+      /body_sha256 CHAR\(64\) NOT NULL/i,
+      /payload JSONB NOT NULL/i,
+      /status VARCHAR\(16\) NOT NULL DEFAULT 'claimed'/i,
+      /CHECK \(status IN \('claimed', 'processed', 'retryable', 'quarantined'\)\)/i,
+      /CHECK \(attempts >= 1\)/i,
+      /CREATE INDEX IF NOT EXISTS webhook_inbox_due_index/i,
+      /CREATE INDEX IF NOT EXISTS webhook_inbox_status_index/i
+    ]
   }
 ]
 
@@ -255,6 +337,8 @@ for (const migration of migrations) {
   const sourceFilesPresent = fs.existsSync(sqlPath) && fs.existsSync(verifierPath)
   const casePresence = Object.fromEntries(Object.keys(migration.caseStates).map((caseName) => [caseName, verifier.includes(caseName)]))
   const sqlStatePresence = Object.fromEntries(Object.entries(migration.caseStates).map(([caseName, sqlState]) => [caseName, verifier.includes(`'${sqlState}'`)]))
+  const behaviorCases = migration.behaviorCases ?? {}
+  const behaviorPresence = Object.fromEntries(Object.entries(behaviorCases).map(([caseName, marker]) => [caseName, verifier.includes(marker)]))
   const raceNames = migration.raceCases ?? []
   const racePresence = raceNames.length === 0
     ? { status: 'not_applicable', reason: migration.noRaceReason }
@@ -270,12 +354,14 @@ for (const migration of migrations) {
     expectedCaseStates: migration.caseStates,
     casePresence,
     sqlStatePresence,
+    behaviorCases,
+    behaviorPresence,
     raceCases: raceNames,
     racePresence,
     tablePresence,
     schemaPresence,
     safetyPresence,
-    valid: sourceFilesPresent && Object.values(casePresence).every(Boolean) && Object.values(sqlStatePresence).every(Boolean) && (racePresence.status === 'present' || racePresence.status === 'not_applicable') && Object.values(tablePresence).every(Boolean) && schemaPresence.every(Boolean) && Object.values(safetyPresence).every(Boolean)
+    valid: sourceFilesPresent && Object.values(casePresence).every(Boolean) && Object.values(sqlStatePresence).every(Boolean) && (racePresence.status === 'present' || racePresence.status === 'not_applicable') && Object.values(tablePresence).every(Boolean) && schemaPresence.every(Boolean) && Object.values(behaviorPresence).every(Boolean) && Object.values(safetyPresence).every(Boolean)
   }
   results.push(result)
   if (!result.valid) errors.push({ migration: migration.migration, result })

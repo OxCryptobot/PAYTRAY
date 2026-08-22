@@ -35,6 +35,8 @@ function requireIsolation() {
   return value
 }
 
+let databaseIsolation = false
+
 function assertSafety(result, label) {
   if (result.settlementAuthority !== false) throw new Error(`${label} established settlement authority`)
   if (!['inbox_claim_only', 'inbox_reclaim', 'read_only'].includes(result.mutation)) throw new Error(`${label} returned unexpected mutation ${result.mutation}`)
@@ -146,6 +148,7 @@ async function runScenario(pool, attempts, repetition) {
 
 async function main() {
   const connectionString = requireIsolation()
+  databaseIsolation = true
   const attempts = boundedInteger('MIGRATION_016_CONCURRENCY_ATTEMPTS', 8, 2, 16)
   const repetitions = boundedInteger('MIGRATION_016_CONCURRENCY_REPETITIONS', 3, 1, 10)
   const pool = new Pool({ connectionString, max: attempts + 2, connectionTimeoutMillis: 5000 })
@@ -168,7 +171,7 @@ async function main() {
         }
       },
       runs,
-      databaseIsolation: true,
+      databaseIsolation,
       cleanupPerformed: true,
       releaseEligible: false,
       settlementAuthority: false,
@@ -188,7 +191,7 @@ try {
     status: 'blocked',
     reason: error.message,
     migration: '016_webhook_inbox',
-    databaseIsolation: true,
+    databaseIsolation,
     cleanupPerformed: false,
     releaseEligible: false,
     settlementAuthority: false,

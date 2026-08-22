@@ -183,8 +183,11 @@ async function catalogChecks(pool) {
   return { status: 'passed', foreignKeys: actualForeignKeys, indexes: actualIndexes }
 }
 
+let databaseIsolation = false
+
 async function main() {
   const connectionString = requiredIsolation()
+  databaseIsolation = true
   const attempts = boundedInteger('MIGRATION_015_CONCURRENCY_ATTEMPTS', 8, 2, 16)
   const repetitions = boundedInteger('MIGRATION_015_CONCURRENCY_REPETITIONS', 3, 1, 10)
   const pool = new Pool({ connectionString, max: attempts + 2, min: 0, connectionTimeoutMillis: 5000 })
@@ -258,7 +261,7 @@ try {
     reason: error.message,
     code: error.code || null,
     migration: '015_verified_trust_signals',
-    databaseIsolation: true,
+    databaseIsolation,
     cleanupPerformed: false,
     releaseEligible: false,
     settlementAuthority: false,

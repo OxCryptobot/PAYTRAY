@@ -162,24 +162,21 @@ async function runContractSuite(pool, attempts, repetitions) {
 }
 
 async function main() {
-  if (!ISOLATED) {
-    console.error(json({ status: 'blocked', reason: 'MIGRATION_013_CONTRACT_ISOLATED=true is required', migration: '013_verifier_cursors', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }))
-    process.exitCode = 1
-    return
-  }
-  assertDisposableDatabaseUrl(DATABASE_URL)
-  const attempts = boundedInteger('MIGRATION_013_CONCURRENCY_ATTEMPTS', 8, 2, 16)
-  const repetitions = boundedInteger('MIGRATION_013_CONCURRENCY_REPETITIONS', 3, 1, 10)
-  const pool = new Pool({ connectionString: DATABASE_URL, max: attempts + 2, min: 0, connectionTimeoutMillis: 5000 })
+  let pool = null
   try {
+    if (!ISOLATED) throw new Error('MIGRATION_013_CONTRACT_ISOLATED=true is required')
+    assertDisposableDatabaseUrl(DATABASE_URL)
+    const attempts = boundedInteger('MIGRATION_013_CONCURRENCY_ATTEMPTS', 8, 2, 16)
+    const repetitions = boundedInteger('MIGRATION_013_CONCURRENCY_REPETITIONS', 3, 1, 10)
+    pool = new Pool({ connectionString: DATABASE_URL, max: attempts + 2, min: 0, connectionTimeoutMillis: 5000 })
     await withTransaction(pool, (client) => runMigrations(client))
     const report = await runContractSuite(pool, attempts, repetitions)
     console.log(json({ ...report, migration: '013_verifier_cursors', databaseIsolation: true, cleanupPerformed: true, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false }))
   } catch (error) {
-    console.error(json({ status: 'blocked', reason: error.message, code: error.code || null, migration: '013_verifier_cursors', databaseIsolation: true, cleanupPerformed: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }))
+    console.error(json({ status: 'blocked', reason: error.message, code: error.code || null, migration: '013_verifier_cursors', databaseIsolation: false, cleanupPerformed: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false }))
     process.exitCode = 1
   } finally {
-    await pool.end()
+    await pool?.end()
   }
 }
 

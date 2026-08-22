@@ -523,6 +523,71 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration-015 trust-signal contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-015-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-015-trust-signals.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '015_verified_trust_signals',
+        cases: {
+          catalog: { status: 'passed' },
+          validSignal: { status: 'passed', eligibleForRanking: false },
+          foreignKeys: { status: 'passed', sqlStates: ['23503'] },
+          polarity: { status: 'passed', sqlState: '23514' },
+          score: { status: 'passed', sqlState: '23514' },
+          rankingEligibility: { status: 'passed', sqlState: '23514' },
+          uniqueness: { status: 'passed', sqlState: '23505' },
+          concurrentUniqueness: { status: 'verified', attempts: 2, repetitions: 1, validRuns: 1 }
+        },
+        cleanupPerformed: true,
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-015-trust-signals.json']).toMatchObject({ status: 'verified', migration: '015_verified_trust_signals', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts the allowlisted restored migration-016 webhook-inbox contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-016-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-016-webhook-inbox.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '016_webhook_inbox',
+        runs: [{
+          status: 'passed',
+          firstClaim: { attempts: 2, winners: 1, losers: 1 },
+          reclaim: { attempts: 2, winners: 1, losers: 1 },
+          conflictRejected: true,
+          processedDuplicate: { claimed: false, duplicate: true, reason: 'processed', mutation: 'read_only' },
+          finalState: { status: 'claimed', attempts: 2, payloadApplied: false }
+        }],
+        concurrency: { attempts: 2, repetitions: 1, totalAttempts: 2, validRuns: 1 },
+        cleanupPerformed: true,
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-016-webhook-inbox.json']).toMatchObject({ status: 'verified', migration: '016_webhook_inbox', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-018 concurrency contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-018-concurrency-'))
     try {

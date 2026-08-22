@@ -20,11 +20,15 @@ const migrationIds = [
   '009_verified_outcome_provenance',
   '010_ledger_intent_idempotency',
   '011_payment_stream_verifier_provenance',
-  '012_shadow_run_review'
+  '012_shadow_run_review',
+  '013_verifier_cursors',
+  '014_webhook_replay_claims',
+  '015_verified_trust_signals',
+  '016_webhook_inbox'
 ]
 
 describe('PostgreSQL assertion traceability', () => {
-  it('maps migration-001 through migration-012 verifier cases to SQLSTATE and schema contracts', async () => {
+  it('maps migration-001 through migration-016 verifier cases to SQLSTATE and schema contracts', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-postgres-trace-'))
     try {
       const outputPath = path.join(directory, 'traceability.json')
@@ -35,7 +39,7 @@ describe('PostgreSQL assertion traceability', () => {
       const summary = JSON.parse(stdout)
       const report = JSON.parse(await fs.readFile(outputPath, 'utf8'))
       expect(summary.valid).toBe(true)
-      expect(report.migrations).toHaveLength(12)
+      expect(report.migrations).toHaveLength(16)
       expect(report.migrations.map((migration) => migration.migration)).toEqual(migrationIds)
       expect(report.migrations.every((migration) => migration.valid)).toBe(true)
       expect(report.migrations[0].expectedCaseStates).toMatchObject({
@@ -68,6 +72,16 @@ describe('PostgreSQL assertion traceability', () => {
       expect(report.migrations[10].expectedCaseStates).toEqual({ nullProvenance: '23502' })
       expect(report.migrations[10].racePresence.status).toBe('not_applicable')
       expect(report.migrations[11].racePresence).toMatchObject({ status: 'present', cases: { reviewWithTransaction: true, reviewRace: true } })
+      expect(report.migrations[12].expectedCaseStates).toEqual({ negativeBlock: '23514', nullBlock: '23502', duplicateChain: '23505' })
+      expect(report.migrations[12].racePresence).toMatchObject({ status: 'present', cases: { duplicateChainRace: true } })
+      expect(report.migrations[13].expectedCaseStates).toEqual({ nullReplayKey: '23502', duplicateReplayKey: '23505' })
+      expect(report.migrations[13].racePresence).toMatchObject({ status: 'present', cases: { replayClaimRace: true } })
+      expect(report.migrations[13].behaviorPresence).toMatchObject({ expiredReplacement: true })
+      expect(report.migrations[14].expectedCaseStates).toMatchObject({ subjectUser: '23503', engagement: '23503', outcome: '23503', polarity: '23514', score: '23514', rankingEligibility: '23514', uniqueness: '23505' })
+      expect(report.migrations[14].racePresence).toMatchObject({ status: 'present', cases: { uniqueSignalRace: true } })
+      expect(report.migrations[14].behaviorPresence).toMatchObject({ eligibleForRanking: true, validSignal: true })
+      expect(report.migrations[15].racePresence).toMatchObject({ status: 'present', cases: { runRace: true, assertFirstClaimRace: true, assertReclaimRace: true } })
+      expect(report.migrations[15].behaviorPresence).toMatchObject({ bodyHashConflict: true, processedDuplicate: true, nonAppliedPayload: true })
       expect(report.expectedSqlStateLiterals).toEqual(['23505', '23503', '23502', '23514', '22001'])
       expect(report.authority).toBe('assertion_traceability_audit_only')
       expect(report.releaseEligible).toBe(false)
@@ -103,11 +117,13 @@ describe('PostgreSQL assertion traceability', () => {
       })).toThrow()
       const report = JSON.parse(await fs.readFile(outputPath, 'utf8'))
       expect(report.valid).toBe(false)
-      expect(report.errors).toHaveLength(12)
+      expect(report.errors).toHaveLength(16)
       expect(report.errors.every((error) => error.result.valid === false)).toBe(true)
       expect(report.releaseEligible).toBe(false)
       expect(report.settlementAuthority).toBe(false)
       expect(report.mutation).toBe('read_only')
+      expect(report.deploymentPerformed).toBe(false)
+      expect(report.settlementMutationPerformed).toBe(false)
     } finally {
       await fs.rm(directory, { recursive: true, force: true })
     }

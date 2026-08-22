@@ -42,6 +42,8 @@ function boundedInteger(name, fallback, minimum, maximum) {
   return value
 }
 
+let databaseIsolation = false
+
 function requiredIsolation() {
   if (process.env.MIGRATION_018_CONCURRENCY_ISOLATED !== 'true') throw new Error('MIGRATION_018_CONCURRENCY_ISOLATED=true is required')
   const value = process.env.DATABASE_URL
@@ -51,6 +53,7 @@ function requiredIsolation() {
   if (!['127.0.0.1', 'localhost', '::1'].includes(url.hostname) || !/(ci|test|testing|disposable|recovery)/.test(databaseName)) {
     throw new Error('migration-018 concurrency verifier requires a local disposable database URL')
   }
+  databaseIsolation = true
   return value
 }
 
@@ -168,6 +171,7 @@ try {
     status: 'blocked',
     reason: error.message,
     migration: '018_operations_quality_runs',
+    databaseIsolation,
     releaseEligible: false,
     settlementAuthority: false,
     mutation: 'read_only',

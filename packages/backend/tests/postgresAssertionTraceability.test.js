@@ -24,11 +24,15 @@ const migrationIds = [
   '013_verifier_cursors',
   '014_webhook_replay_claims',
   '015_verified_trust_signals',
-  '016_webhook_inbox'
+  '016_webhook_inbox',
+  '017_extension_hooks',
+  '018_operations_quality_runs',
+  '019_reviewer_attestations',
+  '020_outbox_lease_state'
 ]
 
 describe('PostgreSQL assertion traceability', () => {
-  it('maps migration-001 through migration-016 verifier cases to SQLSTATE and schema contracts', async () => {
+  it('maps migration-001 through migration-020 verifier cases to SQLSTATE and schema contracts', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-postgres-trace-'))
     try {
       const outputPath = path.join(directory, 'traceability.json')
@@ -39,7 +43,7 @@ describe('PostgreSQL assertion traceability', () => {
       const summary = JSON.parse(stdout)
       const report = JSON.parse(await fs.readFile(outputPath, 'utf8'))
       expect(summary.valid).toBe(true)
-      expect(report.migrations).toHaveLength(16)
+      expect(report.migrations).toHaveLength(20)
       expect(report.migrations.map((migration) => migration.migration)).toEqual(migrationIds)
       expect(report.migrations.every((migration) => migration.valid)).toBe(true)
       expect(report.migrations[0].expectedCaseStates).toMatchObject({
@@ -82,6 +86,18 @@ describe('PostgreSQL assertion traceability', () => {
       expect(report.migrations[14].behaviorPresence).toMatchObject({ eligibleForRanking: true, validSignal: true })
       expect(report.migrations[15].racePresence).toMatchObject({ status: 'present', cases: { runRace: true, assertFirstClaimRace: true, assertReclaimRace: true } })
       expect(report.migrations[15].behaviorPresence).toMatchObject({ bodyHashConflict: true, processedDuplicate: true, nonAppliedPayload: true })
+      expect(report.migrations[16].expectedCaseStates).toEqual({ invalidApiVersion: '23514', lowReplayWindow: '23514', highReplayWindow: '23514', requiredOwner: '23502' })
+      expect(report.migrations[16].racePresence).toMatchObject({ status: 'present', cases: { runDeactivationRace: true } })
+      expect(report.migrations[16].behaviorPresence).toMatchObject({ validHook: true, activeRows: true })
+      expect(report.migrations[17].racePresence).toMatchObject({ status: 'present', cases: { runRace: true } })
+      expect(report.migrations[17].behaviorPresence).toMatchObject({ duplicateRejects: true, unexpectedRejects: true, reportHashMatches: true })
+      expect(report.migrations[18].additionalVerifiers).toEqual(['packages/backend/scripts/verify-reviewer-attestation-concurrency.mjs'])
+      expect(report.migrations[18].expectedCaseStates).toMatchObject({ invalidChallengeRole: '23514', missingChallengeForeignKey: '23503', duplicateRoleCommit: '23505', requiredColumn: '23502' })
+      expect(report.migrations[18].racePresence).toMatchObject({ status: 'present', cases: { runRace: true, verifyWithHeldTransaction: true } })
+      expect(report.migrations[18].behaviorPresence).toMatchObject({ rollbackPerformed: true, auditEventCount: true, consumedChallengeCount: true })
+      expect(report.migrations[19].expectedCaseStates).toEqual({ leaseShape: '23514', expiryOrder: '23514', processedLease: '23514', deadWithoutAttempt: '23514', attemptWithoutTimestamp: '23514' })
+      expect(report.migrations[19].racePresence).toMatchObject({ status: 'present', cases: { claimOne: true } })
+      expect(report.migrations[19].behaviorPresence).toMatchObject({ staleCompletionRejected: true, currentLeaseCompletionAccepted: true, persistedProcessed: true })
       expect(report.expectedSqlStateLiterals).toEqual(['23505', '23503', '23502', '23514', '22001'])
       expect(report.authority).toBe('assertion_traceability_audit_only')
       expect(report.releaseEligible).toBe(false)
@@ -117,7 +133,7 @@ describe('PostgreSQL assertion traceability', () => {
       })).toThrow()
       const report = JSON.parse(await fs.readFile(outputPath, 'utf8'))
       expect(report.valid).toBe(false)
-      expect(report.errors).toHaveLength(16)
+      expect(report.errors).toHaveLength(20)
       expect(report.errors.every((error) => error.result.valid === false)).toBe(true)
       expect(report.releaseEligible).toBe(false)
       expect(report.settlementAuthority).toBe(false)

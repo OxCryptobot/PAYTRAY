@@ -321,6 +321,110 @@ const migrations = [
       /CREATE INDEX IF NOT EXISTS webhook_inbox_due_index/i,
       /CREATE INDEX IF NOT EXISTS webhook_inbox_status_index/i
     ]
+  },
+  {
+    migration: '017_extension_hooks',
+    sqlFile: 'packages/backend/migrations/017_extension_hooks.sql',
+    verifier: 'packages/backend/scripts/verify-migration-017-extension-hooks.mjs',
+    tableMatchers: ['extension_hooks'],
+    caseStates: { invalidApiVersion: '23514', lowReplayWindow: '23514', highReplayWindow: '23514', requiredOwner: '23502' },
+    raceCases: ['runDeactivationRace'],
+    behaviorCases: { validHook: 'validHook', activeRows: 'activeRows' },
+    sqlMatchers: [
+      /CREATE TABLE IF NOT EXISTS extension_hooks/i,
+      /owner_wallet VARCHAR\(255\) NOT NULL/i,
+      /api_version VARCHAR\(16\) NOT NULL/i,
+      /projections JSONB NOT NULL DEFAULT '\[\]'::jsonb/i,
+      /delivery JSONB NOT NULL DEFAULT '\{\}'::jsonb/i,
+      /CHECK \(api_version = 'v2'\)/i,
+      /CHECK \(replay_window_seconds BETWEEN 60 AND 86400\)/i,
+      /CREATE INDEX IF NOT EXISTS extension_hooks_event_active_index/i,
+      /CREATE INDEX IF NOT EXISTS extension_hooks_owner_index/i
+    ]
+  },
+  {
+    migration: '018_operations_quality_runs',
+    sqlFile: 'packages/backend/migrations/018_operations_quality_runs.sql',
+    verifier: 'packages/backend/scripts/verify-migration-018-concurrency.mjs',
+    tableMatchers: ['operations_quality_runs'],
+    caseStates: {},
+    raceCases: ['runRace'],
+    behaviorCases: { duplicateRejects: 'duplicateRejects', unexpectedRejects: 'unexpectedRejects', reportHashMatches: 'reportHashMatches' },
+    sqlMatchers: [
+      /CREATE TABLE IF NOT EXISTS operations_quality_runs/i,
+      /run_id UUID NOT NULL UNIQUE/i,
+      /strict_mode BOOLEAN NOT NULL DEFAULT false/i,
+      /report JSONB NOT NULL/i,
+      /report_hash CHAR\(64\) NOT NULL CHECK/i,
+      /CHECK \(status IN \('passed', 'operator_blocked', 'failed'\)\)/i,
+      /CHECK \(passed_count \+ operator_blocker_count \+ unexpected_failure_count = check_count\)/i,
+      /CHECK \(\(report->>'releaseEligible'\) = 'false'\)/i,
+      /CHECK \(\(report->>'settlementAuthority'\) = 'false'\)/i,
+      /CHECK \(\(report->>'mutation'\) = 'read_only'\)/i,
+      /CREATE INDEX IF NOT EXISTS operations_quality_runs_created_index/i,
+      /CREATE INDEX IF NOT EXISTS operations_quality_runs_status_index/i
+    ]
+  },
+  {
+    migration: '019_reviewer_attestations',
+    sqlFile: 'packages/backend/migrations/019_reviewer_attestations.sql',
+    verifier: 'packages/backend/scripts/verify-migration-019-constraints.mjs',
+    additionalVerifiers: ['packages/backend/scripts/verify-reviewer-attestation-concurrency.mjs'],
+    tableMatchers: ['reviewer_attestation_challenges', 'reviewer_attestations'],
+    caseStates: {
+      invalidChallengeRole: '23514',
+      invalidChallengeHash: '23514',
+      invalidChallengeTime: '23514',
+      missingChallengeForeignKey: '23503',
+      duplicateChallenge: '23505',
+      duplicateRoleCommit: '23505',
+      immutableFlags: '23514',
+      immutableMutation: '23514',
+      metadataMirror: '23514',
+      requiredColumn: '23502',
+      invalidConsumedTime: '23514'
+    },
+    raceCases: ['runRace', 'verifyWithHeldTransaction'],
+    behaviorCases: { rollbackPerformed: 'rollbackPerformed', auditEventCount: 'auditEventCount', consumedChallengeCount: 'consumedChallengeCount' },
+    sqlMatchers: [
+      /CREATE TABLE IF NOT EXISTS reviewer_attestation_challenges/i,
+      /role VARCHAR\(32\) NOT NULL CHECK \(role IN \('release_operator', 'protocol_finance', 'ai_data', 'security'\)\)/i,
+      /release_commit CHAR\(40\) NOT NULL CHECK/i,
+      /artifact_sha256 CHAR\(64\) NOT NULL CHECK/i,
+      /public_key_fingerprint_sha256 CHAR\(64\) NOT NULL CHECK/i,
+      /CREATE TABLE IF NOT EXISTS reviewer_attestations/i,
+      /challenge_id UUID NOT NULL UNIQUE REFERENCES reviewer_attestation_challenges\(id\)/i,
+      /CHECK \(applied = false\)/i,
+      /CHECK \(release_eligible = false\)/i,
+      /CHECK \(settlement_authority = false\)/i,
+      /CHECK \(mutation = 'read_only'\)/i,
+      /CREATE UNIQUE INDEX IF NOT EXISTS reviewer_attestations_role_commit_index/i,
+      /CREATE INDEX IF NOT EXISTS reviewer_attestations_commit_index/i
+    ]
+  },
+  {
+    migration: '020_outbox_lease_state',
+    sqlFile: 'packages/backend/migrations/020_outbox_lease_state.sql',
+    verifier: 'packages/backend/scripts/verify-migration-020-outbox-leases.mjs',
+    tableMatchers: ['outbox_events'],
+    caseStates: { leaseShape: '23514', expiryOrder: '23514', processedLease: '23514', deadWithoutAttempt: '23514', attemptWithoutTimestamp: '23514' },
+    raceCases: ['claimOne'],
+    behaviorCases: { staleCompletionRejected: 'staleCompletionRejected', currentLeaseCompletionAccepted: 'currentLeaseCompletionAccepted', persistedProcessed: 'persistedProcessed' },
+    sqlMatchers: [
+      /ALTER TABLE outbox_events/i,
+      /ADD COLUMN IF NOT EXISTS lease_token UUID/i,
+      /ADD COLUMN IF NOT EXISTS lease_acquired_at TIMESTAMP/i,
+      /ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMP/i,
+      /ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP/i,
+      /ADD COLUMN IF NOT EXISTS dead_lettered_at TIMESTAMP/i,
+      /outbox_events_lease_shape_check/i,
+      /outbox_events_processed_lease_check/i,
+      /outbox_events_dead_letter_check/i,
+      /outbox_events_attempt_timestamp_check/i,
+      /CREATE INDEX IF NOT EXISTS outbox_events_lease_expiry_index/i,
+      /CREATE INDEX IF NOT EXISTS outbox_events_dead_letter_index/i,
+      /CREATE INDEX IF NOT EXISTS outbox_events_attempt_index/i
+    ]
   }
 ]
 
@@ -331,10 +435,10 @@ const expectedSqlStateLiterals = [...new Set(migrations.flatMap((migration) => O
 
 for (const migration of migrations) {
   const sqlPath = path.join(repositoryPath, migration.sqlFile)
-  const verifierPath = path.join(repositoryPath, migration.verifier)
+  const verifierPaths = [migration.verifier, ...(migration.additionalVerifiers ?? [])].map((verifier) => path.join(repositoryPath, verifier))
   const sql = fs.existsSync(sqlPath) ? fs.readFileSync(sqlPath, 'utf8') : ''
-  const verifier = fs.existsSync(verifierPath) ? fs.readFileSync(verifierPath, 'utf8') : ''
-  const sourceFilesPresent = fs.existsSync(sqlPath) && fs.existsSync(verifierPath)
+  const verifier = verifierPaths.filter((verifierPath) => fs.existsSync(verifierPath)).map((verifierPath) => fs.readFileSync(verifierPath, 'utf8')).join('\n')
+  const sourceFilesPresent = fs.existsSync(sqlPath) && verifierPaths.every((verifierPath) => fs.existsSync(verifierPath))
   const casePresence = Object.fromEntries(Object.keys(migration.caseStates).map((caseName) => [caseName, verifier.includes(caseName)]))
   const sqlStatePresence = Object.fromEntries(Object.entries(migration.caseStates).map(([caseName, sqlState]) => [caseName, verifier.includes(`'${sqlState}'`)]))
   const behaviorCases = migration.behaviorCases ?? {}
@@ -350,6 +454,7 @@ for (const migration of migrations) {
     migration: migration.migration,
     sqlFile: migration.sqlFile,
     verifier: migration.verifier,
+    additionalVerifiers: migration.additionalVerifiers ?? [],
     sourceFilesPresent,
     expectedCaseStates: migration.caseStates,
     casePresence,

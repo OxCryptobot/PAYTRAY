@@ -37,6 +37,8 @@ async function runDeactivationRace(pool, raceId, attempts) {
   return { status: 'passed', attempts, winners, losers, activeRows, elapsedMs: Date.now() - startedAt }
 }
 
+let databaseIsolation = false
+
 function requiredIsolation() {
   if (process.env.MIGRATION_017_CONTRACT_ISOLATED !== 'true') throw new Error('MIGRATION_017_CONTRACT_ISOLATED=true is required')
   const value = process.env.DATABASE_URL
@@ -46,6 +48,7 @@ function requiredIsolation() {
   if (!['127.0.0.1', 'localhost', '::1'].includes(url.hostname) || !/(ci|test|testing|disposable|recovery)/.test(databaseName)) {
     throw new Error('migration-017 verifier requires a local disposable database URL')
   }
+  databaseIsolation = true
   return value
 }
 
@@ -195,6 +198,7 @@ try {
     status: 'blocked',
     reason: error.message,
     migration: '017_extension_hooks',
+    databaseIsolation,
     releaseEligible: false,
     settlementAuthority: false,
     mutation: 'read_only',

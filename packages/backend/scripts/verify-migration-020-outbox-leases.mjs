@@ -300,14 +300,13 @@ async function runContractSuite(pool) {
   }
 }
 
+let databaseIsolation = false
+
 async function main() {
   assertBounds()
-  if (!ISOLATED) {
-    console.error(json({ status: 'blocked', reason: 'MIGRATION_020_CONTRACT_ISOLATED=true is required', migration: '020_outbox_lease_state', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }))
-    process.exitCode = 1
-    return
-  }
+  if (!ISOLATED) throw new Error('MIGRATION_020_CONTRACT_ISOLATED=true is required')
   assertDisposableDatabaseUrl(DATABASE_URL)
+  databaseIsolation = true
   const pool = new Pool({ connectionString: DATABASE_URL, max: 6, min: 0, connectionTimeoutMillis: 5000 })
   try {
     await withTransaction(pool, (client) => runMigrations(client))
@@ -315,7 +314,7 @@ async function main() {
     console.log(json({
       ...report,
       migration: '020_outbox_lease_state',
-      databaseIsolation: true,
+      databaseIsolation,
       cleanupPerformed: true,
       releaseEligible: false,
       settlementAuthority: false,
@@ -329,11 +328,13 @@ async function main() {
       reason: error.message,
       code: error.code || null,
       migration: '020_outbox_lease_state',
-      databaseIsolation: true,
+      databaseIsolation,
       cleanupPerformed: false,
       releaseEligible: false,
       settlementAuthority: false,
-      mutation: 'read_only'
+      mutation: 'read_only',
+      deploymentPerformed: false,
+      settlementMutationPerformed: false
     }))
     process.exitCode = 1
   } finally {
@@ -341,4 +342,21 @@ async function main() {
   }
 }
 
-await main()
+try {
+  await main()
+} catch (error) {
+  console.error(json({
+    status: 'blocked',
+    reason: error.message,
+    code: error.code || null,
+    migration: '020_outbox_lease_state',
+    databaseIsolation,
+    cleanupPerformed: false,
+    releaseEligible: false,
+    settlementAuthority: false,
+    mutation: 'read_only',
+    deploymentPerformed: false,
+    settlementMutationPerformed: false
+  }))
+  process.exitCode = 1
+}

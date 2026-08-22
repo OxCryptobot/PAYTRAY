@@ -260,13 +260,12 @@ async function runContractSuite(pool) {
   }
 }
 
+let databaseIsolation = false
+
 async function main() {
-  if (!ISOLATED) {
-    console.error(json({ status: 'blocked', reason: 'MIGRATION_019_CONTRACT_ISOLATED=true is required', mutation: 'read_only', releaseEligible: false, settlementAuthority: false }))
-    process.exitCode = 1
-    return
-  }
+  if (!ISOLATED) throw new Error('MIGRATION_019_CONTRACT_ISOLATED=true is required')
   assertDisposableDatabaseUrl(DATABASE_URL)
+  databaseIsolation = true
   const pool = new Pool({ connectionString: DATABASE_URL, max: 4, min: 0, connectionTimeoutMillis: 5000 })
   try {
     await withTransaction(pool, (client) => runMigrations(client))
@@ -283,11 +282,28 @@ async function main() {
       settlementMutationPerformed: false
     }))
   } catch (error) {
-    console.error(json({ status: 'blocked', reason: error.message, code: error.code || null, migration: '019_reviewer_attestations', databaseIsolation: true, cleanupPerformed: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }))
+    console.error(json({ status: 'blocked', reason: error.message, code: error.code || null, migration: '019_reviewer_attestations', databaseIsolation, cleanupPerformed: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false }))
     process.exitCode = 1
   } finally {
     await pool.end()
   }
 }
 
-await main()
+try {
+  await main()
+} catch (error) {
+  console.error(json({
+    status: 'blocked',
+    reason: error.message,
+    code: error.code || null,
+    migration: '019_reviewer_attestations',
+    databaseIsolation,
+    cleanupPerformed: false,
+    releaseEligible: false,
+    settlementAuthority: false,
+    mutation: 'read_only',
+    deploymentPerformed: false,
+    settlementMutationPerformed: false
+  }))
+  process.exitCode = 1
+}

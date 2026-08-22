@@ -588,6 +588,69 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration-019 constraints contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-019-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-019-constraints.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '019_reviewer_attestations',
+        cases: {
+          catalog: { status: 'passed' },
+          invalidChallengeRole: { status: 'passed', sqlState: '23514' },
+          missingChallengeForeignKey: { status: 'passed', sqlState: '23503' },
+          duplicateRoleCommit: { status: 'passed', sqlState: '23505' },
+          immutableFlags: { status: 'passed', sqlState: '23514' },
+          invalidConsumedTime: { status: 'passed', sqlState: '23514' }
+        },
+        cleanupCommits: 5,
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-019-constraints.json']).toMatchObject({ status: 'verified', migration: '019_reviewer_attestations', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts the allowlisted restored migration-020 outbox-lease contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-020-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-020-outbox-leases.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '020_outbox_lease_state',
+        cases: {
+          catalog: { status: 'passed' },
+          leaseShape: { status: 'passed', sqlState: '23514' },
+          expiryOrder: { status: 'passed', sqlState: '23514' },
+          processedLease: { status: 'passed', sqlState: '23514' },
+          deadWithoutAttempt: { status: 'passed', sqlState: '23514' },
+          attemptWithoutTimestamp: { status: 'passed', sqlState: '23514' },
+          concurrentClaim: { status: 'verified', attempts: 4, repetitions: 3, validRuns: 3, staleCompletionRejected: true, currentLeaseCompletionAccepted: true }
+        },
+        cleanupIds: 8,
+        databaseIsolation: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-020-outbox-leases.json']).toMatchObject({ status: 'verified', migration: '020_outbox_lease_state', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-018 concurrency contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-018-concurrency-'))
     try {

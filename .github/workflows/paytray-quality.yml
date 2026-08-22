@@ -50,6 +50,16 @@ jobs:
         run: npm run backend:quality:check
         env:
           DATABASE_URL: ''
+      - name: Verify migration source assertion traceability
+        run: |
+          mkdir -p artifacts
+          POSTGRES_ASSERTION_TRACEABILITY_OUTPUT_PATH=artifacts/migration-source-traceability.json npm run backend:release:postgres:assertions:trace:check
+          sha256sum artifacts/migration-source-traceability.json | tee artifacts/migration-source-traceability.json.sha256
+      - name: Verify migration race-boundary traceability
+        run: |
+          mkdir -p artifacts
+          MIGRATION_RACE_BOUNDARY_OUTPUT_PATH=artifacts/migration-race-boundaries.json npm run backend:release:migrations:races:trace:check
+          sha256sum artifacts/migration-race-boundaries.json | tee artifacts/migration-race-boundaries.json.sha256
       - name: Verify verifier-worker configuration contract
         run: npm run backend:verifier:worker:check
         env:

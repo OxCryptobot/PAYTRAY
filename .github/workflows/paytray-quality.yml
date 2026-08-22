@@ -80,6 +80,22 @@ jobs:
         run: npm run client:e2e:smoke
         env:
           CLIENT_SMOKE_PORT: '0'
+      - name: Upload migration audit evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: migration-audits-${{ github.sha }}
+          path: |
+            artifacts/migration-source-traceability.json
+            artifacts/migration-source-traceability.json.sha256
+            artifacts/migration-race-boundaries.json
+            artifacts/migration-race-boundaries.json.sha256
+            artifacts/migration-runtime-races.json
+            artifacts/migration-runtime-races.json.sha256
+            artifacts/migration-future-boundary.json
+            artifacts/migration-future-boundary.json.sha256
+          if-no-files-found: error
+          retention-days: 7
 
   operations-quality:
     name: Operations quality matrix

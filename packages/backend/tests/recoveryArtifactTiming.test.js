@@ -75,6 +75,29 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration coverage report', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-coverage-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-coverage.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migrationCount: 20,
+        futureBoundary: { '021': 'not_present', '022': 'not_present' },
+        authority: 'coverage_audit_only',
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-coverage.json']).toMatchObject({ status: 'verified', migrationCount: 20, authority: 'coverage_audit_only' })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-001 bootstrap contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-001-'))
     try {

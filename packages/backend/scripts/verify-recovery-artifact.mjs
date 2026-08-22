@@ -32,6 +32,7 @@ const EXPECTED_MIGRATIONS = [
 const DEFAULT_ARTIFACTS = [
   'artifacts/recovery-evidence.json',
   'artifacts/restored-migrations.json',
+  'artifacts/restored-migration-coverage.json',
   'artifacts/restored-ready-postgres.json',
   'artifacts/restored-operations-quality.json',
   'artifacts/restored-operations-quality-verification.json',
@@ -312,6 +313,16 @@ function validateRestoredMigrations(artifact) {
   return { status: artifact.status, migrationCount: artifact.migrationNames.length }
 }
 
+function validateMigrationCoverage(artifact) {
+  assertObject(artifact, 'restored-migration-coverage')
+  if (artifact.status !== 'verified') fail('restored-migration-coverage.status must be verified')
+  if (artifact.migrationCount !== 20) fail('restored-migration-coverage must cover exactly 20 migrations')
+  if (artifact.futureBoundary?.['021'] !== 'not_present' || artifact.futureBoundary?.['022'] !== 'not_present') fail('restored-migration-coverage must preserve the 021/022 not-present boundary')
+  if (artifact.authority !== 'coverage_audit_only') fail('restored-migration-coverage.authority is invalid')
+  assertSafety(artifact, 'restored-migration-coverage')
+  return { status: artifact.status, migrationCount: artifact.migrationCount, authority: artifact.authority }
+}
+
 function validateReadyPostgres(artifact) {
   assertObject(artifact, 'restored-ready-postgres')
   if (artifact.status !== 'verified') fail('restored-ready-postgres.status must be verified')
@@ -350,6 +361,7 @@ function classifyArtifact(artifactPath, artifact) {
   const name = path.basename(artifactPath)
   if (name === 'recovery-evidence.json') return validateRecoveryEvidence(artifact)
   if (name === 'restored-migrations.json') return validateRestoredMigrations(artifact)
+  if (name === 'restored-migration-coverage.json') return validateMigrationCoverage(artifact)
   if (name === 'restored-ready-postgres.json') return validateReadyPostgres(artifact)
   if (name === 'restored-operations-quality.json') return validateOperationsQuality(artifactPath)
   if (name === 'restored-operations-quality-verification.json') return validateOperationsQualityVerification(artifact)

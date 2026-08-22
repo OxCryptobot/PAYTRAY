@@ -335,6 +335,8 @@ jobs:
         run: npm ci
       - name: Verify migrations and schema contracts
         run: npm run backend:migrations:check
+      - name: Verify migration verifier coverage
+        run: npm run backend:release:migrations:coverage:check
       - name: Verify migration-001 bootstrap schema
         run: npm run backend:release:migration:001:check
         env:
@@ -559,6 +561,8 @@ jobs:
         env:
           PGPASSWORD: paytray_ci
           DATABASE_URL: postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/paytray_recovery_ci
+      - name: Verify restored migration verifier coverage
+        run: MIGRATION_COVERAGE_AUDIT_ISOLATED=true node packages/backend/scripts/verify-migration-coverage.mjs > artifacts/restored-migration-coverage.json
       - name: Verify restored migration-001 bootstrap schema
         if: always()
         run: |
@@ -886,12 +890,12 @@ jobs:
           ATTESTATION_RACE_REPETITIONS: '3'
       - name: Prepare recovery artifact SHA-256 sidecar
         if: always()
-        run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-018-concurrency.json artifacts/restored-migration-017-extension-hooks.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-014-webhook-replay-claims.json artifacts/restored-migration-013-verifier-cursors.json artifacts/restored-migration-001-bootstrap.json artifacts/restored-migration-002-financial-core.json artifacts/restored-migration-003-discovery-v1.json artifacts/restored-migration-004-engagement-context.json artifacts/restored-migration-005-outcome-lineage.json artifacts/restored-migration-006-ai-evaluation-foundation.json artifacts/restored-migration-007-discovery-impressions.json artifacts/restored-migration-008-production-telemetry.json artifacts/restored-migration-009-verified-outcome-provenance.json artifacts/restored-migration-010-ledger-intent-idempotency.json artifacts/restored-migration-011-payment-provenance.json artifacts/restored-migration-012-shadow-run-review.json artifacts/restored-migration-019-constraints.json artifacts/restored-migration-020-outbox-leases.json artifacts/restored-attestation-concurrency.json | tee artifacts/recovery-evidence.sha256
+        run: sha256sum artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-migration-coverage.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-018-concurrency.json artifacts/restored-migration-017-extension-hooks.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-014-webhook-replay-claims.json artifacts/restored-migration-013-verifier-cursors.json artifacts/restored-migration-001-bootstrap.json artifacts/restored-migration-002-financial-core.json artifacts/restored-migration-003-discovery-v1.json artifacts/restored-migration-004-engagement-context.json artifacts/restored-migration-005-outcome-lineage.json artifacts/restored-migration-006-ai-evaluation-foundation.json artifacts/restored-migration-007-discovery-impressions.json artifacts/restored-migration-008-production-telemetry.json artifacts/restored-migration-009-verified-outcome-provenance.json artifacts/restored-migration-010-ledger-intent-idempotency.json artifacts/restored-migration-011-payment-provenance.json artifacts/restored-migration-012-shadow-run-review.json artifacts/restored-migration-019-constraints.json artifacts/restored-migration-020-outbox-leases.json artifacts/restored-attestation-concurrency.json | tee artifacts/recovery-evidence.sha256
       - name: Verify recovery artifact bundle
         if: always()
         run: |
           set +e
-          node packages/backend/scripts/verify-recovery-artifact.mjs --sidecar artifacts/recovery-evidence.sha256 artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-018-concurrency.json artifacts/restored-migration-017-extension-hooks.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-014-webhook-replay-claims.json artifacts/restored-migration-013-verifier-cursors.json artifacts/restored-migration-001-bootstrap.json artifacts/restored-migration-002-financial-core.json artifacts/restored-migration-003-discovery-v1.json artifacts/restored-migration-004-engagement-context.json artifacts/restored-migration-005-outcome-lineage.json artifacts/restored-migration-006-ai-evaluation-foundation.json artifacts/restored-migration-007-discovery-impressions.json artifacts/restored-migration-008-production-telemetry.json artifacts/restored-migration-009-verified-outcome-provenance.json artifacts/restored-migration-010-ledger-intent-idempotency.json artifacts/restored-migration-011-payment-provenance.json artifacts/restored-migration-012-shadow-run-review.json artifacts/restored-migration-019-constraints.json artifacts/restored-migration-020-outbox-leases.json artifacts/restored-attestation-concurrency.json > artifacts/recovery-artifact-verification.json
+          node packages/backend/scripts/verify-recovery-artifact.mjs --sidecar artifacts/recovery-evidence.sha256 artifacts/recovery-evidence.json artifacts/restored-migrations.json artifacts/restored-migration-coverage.json artifacts/restored-ready-postgres.json artifacts/restored-operations-quality.json artifacts/restored-operations-quality-verification.json artifacts/restored-migration-018-constraints.json artifacts/restored-migration-018-concurrency.json artifacts/restored-migration-017-extension-hooks.json artifacts/restored-migration-016-webhook-inbox.json artifacts/restored-migration-015-trust-signals.json artifacts/restored-migration-014-webhook-replay-claims.json artifacts/restored-migration-013-verifier-cursors.json artifacts/restored-migration-001-bootstrap.json artifacts/restored-migration-002-financial-core.json artifacts/restored-migration-003-discovery-v1.json artifacts/restored-migration-004-engagement-context.json artifacts/restored-migration-005-outcome-lineage.json artifacts/restored-migration-006-ai-evaluation-foundation.json artifacts/restored-migration-007-discovery-impressions.json artifacts/restored-migration-008-production-telemetry.json artifacts/restored-migration-009-verified-outcome-provenance.json artifacts/restored-migration-010-ledger-intent-idempotency.json artifacts/restored-migration-011-payment-provenance.json artifacts/restored-migration-012-shadow-run-review.json artifacts/restored-migration-019-constraints.json artifacts/restored-migration-020-outbox-leases.json artifacts/restored-attestation-concurrency.json > artifacts/recovery-artifact-verification.json
           status=$?
           cat artifacts/recovery-artifact-verification.json
           exit $status
@@ -905,6 +909,7 @@ jobs:
           path: |
             artifacts/recovery-evidence.json
             artifacts/restored-migrations.json
+            artifacts/restored-migration-coverage.json
             artifacts/restored-ready-postgres.json
             artifacts/restored-operations-quality.json
             artifacts/restored-operations-quality-verification.json

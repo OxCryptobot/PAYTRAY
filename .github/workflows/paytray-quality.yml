@@ -70,6 +70,11 @@ jobs:
           mkdir -p artifacts
           MIGRATION_FUTURE_BOUNDARY_OUTPUT_PATH=artifacts/migration-future-boundary.json npm run backend:release:migrations:future-boundary:check
           sha256sum artifacts/migration-future-boundary.json | tee artifacts/migration-future-boundary.json.sha256
+      - name: Verify release-attestation artifact retention
+        run: |
+          mkdir -p artifacts
+          MIGRATION_AUDIT_ARTIFACT_DIR=artifacts RELEASE_ATTESTATION_ARTIFACT_OUTPUT_PATH=artifacts/release-attestation-artifacts.json npm run backend:release:attestation:artifacts:check
+          sha256sum artifacts/release-attestation-artifacts.json | tee artifacts/release-attestation-artifacts.json.sha256
       - name: Verify verifier-worker configuration contract
         run: npm run backend:verifier:worker:check
         env:
@@ -94,6 +99,8 @@ jobs:
             artifacts/migration-runtime-races.json.sha256
             artifacts/migration-future-boundary.json
             artifacts/migration-future-boundary.json.sha256
+            artifacts/release-attestation-artifacts.json
+            artifacts/release-attestation-artifacts.json.sha256
           if-no-files-found: error
           retention-days: 7
 

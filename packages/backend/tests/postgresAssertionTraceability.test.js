@@ -8,8 +8,20 @@ const repositoryPath = path.resolve(process.cwd(), '..', '..')
 const backendDirectory = process.cwd()
 const scriptPath = path.join(backendDirectory, 'scripts', 'verify-postgres-assertion-traceability.mjs')
 
+const migrationIds = [
+  '001_init',
+  '002_financial_core',
+  '003_discovery_v1',
+  '004_engagement_context',
+  '005_outcomes_and_metrics',
+  '006_ai_evaluation_foundation',
+  '007_discovery_impressions',
+  '008_production_telemetry',
+  '009_verified_outcome_provenance'
+]
+
 describe('PostgreSQL assertion traceability', () => {
-  it('maps migration-006 through migration-009 verifier cases to SQLSTATE and schema contracts', async () => {
+  it('maps migration-001 through migration-009 verifier cases to SQLSTATE and schema contracts', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-postgres-trace-'))
     try {
       const outputPath = path.join(directory, 'traceability.json')
@@ -20,21 +32,35 @@ describe('PostgreSQL assertion traceability', () => {
       const summary = JSON.parse(stdout)
       const report = JSON.parse(await fs.readFile(outputPath, 'utf8'))
       expect(summary.valid).toBe(true)
-      expect(report.migrations).toHaveLength(4)
-      expect(report.migrations.map((migration) => migration.migration)).toEqual([
-        '006_ai_evaluation_foundation',
-        '007_discovery_impressions',
-        '008_production_telemetry',
-        '009_verified_outcome_provenance'
-      ])
+      expect(report.migrations).toHaveLength(9)
+      expect(report.migrations.map((migration) => migration.migration)).toEqual(migrationIds)
       expect(report.migrations.every((migration) => migration.valid)).toBe(true)
-      expect(report.migrations[2].expectedCaseStates).toEqual({
+      expect(report.migrations[0].expectedCaseStates).toMatchObject({
+        duplicateWallet: '23505',
+        missingProfileUser: '23503',
+        nullWalletAddress: '23502'
+      })
+      expect(report.migrations[1].racePresence.status).toBe('present')
+      expect(report.migrations[2].racePresence.status).toBe('not_applicable')
+      expect(report.migrations[3].expectedCaseStates).toMatchObject({
+        invalidCollaboration: '23514',
+        nullDiscoveryContext: '23502'
+      })
+      expect(report.migrations[4].racePresence).toMatchObject({
+        status: 'present',
+        cases: { duplicateOutcomeRace: true, verifierTransitionRace: true }
+      })
+      expect(report.migrations[7].expectedCaseStates).toEqual({
         duplicateEventId: '23505',
         invalidEventType: '23514',
         invalidPrivacyClass: '23514'
       })
-      expect(report.migrations[3].racePresence.status).toBe('not_applicable')
-      expect(report.expectedSqlStateLiterals).toEqual(['23505', '23514', '22001'])
+      expect(report.migrations[8].expectedCaseStates).toEqual({
+        invalidStatus: '23514',
+        oversizedHash: '22001'
+      })
+      expect(report.migrations[8].racePresence.status).toBe('not_applicable')
+      expect(report.expectedSqlStateLiterals).toEqual(['23505', '23503', '23502', '23514', '22001'])
       expect(report.authority).toBe('assertion_traceability_audit_only')
       expect(report.releaseEligible).toBe(false)
       expect(report.settlementAuthority).toBe(false)
@@ -52,14 +78,11 @@ describe('PostgreSQL assertion traceability', () => {
       const fakeRepository = path.join(directory, 'repo')
       await fs.mkdir(path.join(fakeRepository, 'packages/backend/migrations'), { recursive: true })
       await fs.mkdir(path.join(fakeRepository, 'packages/backend/scripts'), { recursive: true })
-      await fs.writeFile(path.join(fakeRepository, 'packages/backend/migrations/006_ai_evaluation_foundation.sql'), 'CREATE TABLE ai_evaluation_examples (UNIQUE (dataset_version, query_id, candidate_profile_id, split));')
-      await fs.writeFile(path.join(fakeRepository, 'packages/backend/migrations/007_discovery_impressions.sql'), 'CREATE TABLE discovery_impressions (CHECK (rank_position > 0), CHECK (baseline_score >= 0 AND baseline_score <= 100), UNIQUE (query_id, candidate_profile_id));')
-      await fs.writeFile(path.join(fakeRepository, 'packages/backend/migrations/008_production_telemetry.sql'), 'CREATE TABLE production_telemetry_events (CHECK (event_type IN (\'discovery_impression\')), CHECK (privacy_class IN (\'operational\')), UNIQUE (event_id));')
-      await fs.writeFile(path.join(fakeRepository, 'packages/backend/migrations/009_verified_outcome_provenance.sql'), 'ALTER TABLE engagement_outcome_events ADD COLUMN IF NOT EXISTS verification_actor_id VARCHAR(255), ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP, ADD COLUMN IF NOT EXISTS verification_evidence_hash VARCHAR(64); CREATE INDEX IF NOT EXISTS engagement_outcome_events_verified_index ON engagement_outcome_events (verification_status, verified_at DESC);')
-      await fs.writeFile(path.join(fakeRepository, 'packages/backend/scripts/verify-migration-006-ai-evaluation-foundation.mjs'), "const duplicateEvaluationExample = '23505'\n")
-      await fs.writeFile(path.join(fakeRepository, 'packages/backend/scripts/verify-migration-007-discovery-impressions.mjs'), "const duplicateQueryCandidate = '23505'\n")
-      await fs.writeFile(path.join(fakeRepository, 'packages/backend/scripts/verify-migration-008-production-telemetry.mjs'), "const duplicateEventId = '23505'\n")
-      await fs.writeFile(path.join(fakeRepository, 'packages/backend/scripts/verify-migration-009-verified-outcome-provenance.mjs'), "const invalidStatus = '23514'\n")
+      for (const migration of migrationIds) {
+        const [id, ...name] = migration.split('_')
+        await fs.writeFile(path.join(fakeRepository, 'packages/backend/migrations', `${id}_${name.join('_')}.sql`), '')
+        await fs.writeFile(path.join(fakeRepository, 'packages/backend/scripts', `verify-migration-${id}-${name.join('-')}.mjs`), '')
+      }
       const outputPath = path.join(directory, 'traceability.json')
       expect(() => execFileSync(process.execPath, [scriptPath, fakeRepository, outputPath], {
         cwd: backendDirectory,
@@ -67,7 +90,7 @@ describe('PostgreSQL assertion traceability', () => {
       })).toThrow()
       const report = JSON.parse(await fs.readFile(outputPath, 'utf8'))
       expect(report.valid).toBe(false)
-      expect(report.errors).toHaveLength(4)
+      expect(report.errors).toHaveLength(9)
       expect(report.errors.every((error) => error.result.valid === false)).toBe(true)
       expect(report.releaseEligible).toBe(false)
       expect(report.settlementAuthority).toBe(false)

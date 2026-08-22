@@ -65,6 +65,11 @@ jobs:
           mkdir -p artifacts
           MIGRATION_RUNTIME_RACE_OUTPUT_PATH=artifacts/migration-runtime-races.json npm run backend:release:migrations:runtime:races:trace:check
           sha256sum artifacts/migration-runtime-races.json | tee artifacts/migration-runtime-races.json.sha256
+      - name: Verify future migration absence boundary
+        run: |
+          mkdir -p artifacts
+          MIGRATION_FUTURE_BOUNDARY_OUTPUT_PATH=artifacts/migration-future-boundary.json npm run backend:release:migrations:future-boundary:check
+          sha256sum artifacts/migration-future-boundary.json | tee artifacts/migration-future-boundary.json.sha256
       - name: Verify verifier-worker configuration contract
         run: npm run backend:verifier:worker:check
         env:

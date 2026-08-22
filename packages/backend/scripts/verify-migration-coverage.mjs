@@ -63,14 +63,14 @@ async function collectCoverage() {
 
 async function main() {
   if (!ISOLATED) {
-    console.error(json({ status: 'blocked', reason: 'MIGRATION_COVERAGE_AUDIT_ISOLATED=true is required', authority: 'coverage_audit_only', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }))
+    console.error(json({ status: 'blocked', reason: 'MIGRATION_COVERAGE_AUDIT_ISOLATED=true is required', authority: 'coverage_audit_only', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false }))
     process.exitCode = 1
     return
   }
   try {
     console.log(json(await collectCoverage()))
   } catch (error) {
-    console.error(json({ status: 'blocked', reason: error.message, authority: 'coverage_audit_only', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' }))
+    console.error(json({ status: 'blocked', reason: error.message, authority: 'coverage_audit_only', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false }))
     process.exitCode = 1
   }
 }

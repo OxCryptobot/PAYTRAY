@@ -42,7 +42,9 @@ const DEFAULT_ARTIFACTS = [
   'artifacts/restored-migration-015-trust-signals.json',
   'artifacts/restored-migration-014-webhook-replay-claims.json',
   'artifacts/restored-migration-013-verifier-cursors.json',
+  'artifacts/restored-migration-001-bootstrap.json',
   'artifacts/restored-migration-002-financial-core.json',
+  'artifacts/restored-migration-003-discovery-v1.json',
   'artifacts/restored-migration-004-engagement-context.json',
   'artifacts/restored-migration-005-outcome-lineage.json',
   'artifacts/restored-migration-006-ai-evaluation-foundation.json',
@@ -358,7 +360,9 @@ function classifyArtifact(artifactPath, artifact) {
   if (name === 'restored-migration-015-trust-signals.json') return validateContract(artifact, name, '015_verified_trust_signals')
   if (name === 'restored-migration-014-webhook-replay-claims.json') return validateContract(artifact, name, '014_webhook_replay_claims')
   if (name === 'restored-migration-013-verifier-cursors.json') return validateContract(artifact, name, '013_verifier_cursors')
+  if (name === 'restored-migration-001-bootstrap.json') return validateContract(artifact, name, '001_init')
   if (name === 'restored-migration-002-financial-core.json') return validateContract(artifact, name, '002_financial_core')
+  if (name === 'restored-migration-003-discovery-v1.json') return validateContract(artifact, name, '003_discovery_v1')
   if (name === 'restored-migration-004-engagement-context.json') return validateContract(artifact, name, '004_engagement_context')
   if (name === 'restored-migration-005-outcome-lineage.json') return validateContract(artifact, name, '005_outcomes_and_metrics')
   if (name === 'restored-migration-006-ai-evaluation-foundation.json') return validateContract(artifact, name, '006_ai_evaluation_foundation')

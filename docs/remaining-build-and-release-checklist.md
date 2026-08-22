@@ -290,6 +290,15 @@ npm run backend:release:payload:verify /protected/path/signed-release-payload.js
 
 The last two commands must remain blocked until real approval, Railway, migration/recovery, and signing-key evidence are available. A blocked result is the correct security outcome, not a reason to weaken the gate.
 
+### Migration-001/003 foundation and discovery contract hardening batch
+
+| Migration | Scope | Status | Evidence |
+|---|---|---|---|
+| 001 bootstrap schema | Six base tables, source-defined columns, primary keys, seven foreign keys, wallet/schema-migration uniqueness, cascade delete, required-field and FK negatives, bounded schema-migration identity race | Implemented and locally verified | `migration-001-verifier-local.json`; isolated/restored CI and recovery checksum wiring added |
+| 003 discovery v1 | Ten profile extension columns, array/JSONB/numeric defaults, four profile indexes, required-field negatives, valid discovery round-trip | Implemented and locally verified | `migration-003-verifier-local.json`; isolated/restored CI and recovery checksum wiring added |
+
+Migration-003 defines no SQL CHECK, unique, or atomic state-transition boundary, so its verifier explicitly reports `concurrencyBoundary.status=not_applicable` rather than fabricating a race. Both reports remain disposable engineering evidence with `releaseEligible=false`, `settlementAuthority=false`, and `mutation=read_only`.
+
 ### Migration-002 financial-core contract hardening batch
 
 | Scope | Status | Evidence |

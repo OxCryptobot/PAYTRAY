@@ -75,6 +75,85 @@ describe('recovery artifact timing contract', () => {
     }
   })
 
+  it('accepts the allowlisted restored migration-001 bootstrap contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-001-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-001-bootstrap.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '001_init',
+        cases: {
+          catalog: { status: 'passed' },
+          duplicateWallet: { status: 'passed', sqlState: '23505' },
+          duplicateMigrationName: { status: 'passed', sqlState: '23505' },
+          missingProfileUser: { status: 'passed', sqlState: '23503' },
+          missingStreamSender: { status: 'passed', sqlState: '23503' },
+          missingStreamRecipient: { status: 'passed', sqlState: '23503' },
+          missingCallInitiator: { status: 'passed', sqlState: '23503' },
+          missingCallRecipient: { status: 'passed', sqlState: '23503' },
+          missingConnectionUser: { status: 'passed', sqlState: '23503' },
+          nullWalletAddress: { status: 'passed', sqlState: '23502' },
+          nullProfileUser: { status: 'passed', sqlState: '23502' },
+          nullStreamAssetSymbol: { status: 'passed', sqlState: '23502' },
+          nullConnectionWallet: { status: 'passed', sqlState: '23502' },
+          cascadeDelete: { status: 'passed' },
+          schemaMigrationIdempotencyRace: { status: 'verified', attempts: 4, repetitions: 3, totalAttempts: 12 }
+        },
+        cleanupRows: { verifierUsers: 'all prefixed users', schemaMigrations: 'all prefixed records' },
+        databaseIsolation: true,
+        cleanupPerformed: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-001-bootstrap.json']).toMatchObject({ status: 'verified', migration: '001_init', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('accepts the allowlisted restored migration-003 discovery-v1 contract', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-003-'))
+    try {
+      const artifactPath = path.join(directory, 'restored-migration-003-discovery-v1.json')
+      await fs.writeFile(artifactPath, JSON.stringify({
+        status: 'verified',
+        migration: '003_discovery_v1',
+        cases: {
+          catalog: { status: 'passed' },
+          defaults: { status: 'passed' },
+          roundTrip: { status: 'passed' },
+          nullAvailability: { status: 'passed', sqlState: '23502' },
+          nullLanguages: { status: 'passed', sqlState: '23502' },
+          nullVerification: { status: 'passed', sqlState: '23502' },
+          nullEvidenceLinks: { status: 'passed', sqlState: '23502' },
+          nullCompletionRate: { status: 'passed', sqlState: '23502' },
+          nullRepeatBookingRate: { status: 'passed', sqlState: '23502' },
+          nullPaidMinutes: { status: 'passed', sqlState: '23502' },
+          nullDisputesCount: { status: 'passed', sqlState: '23502' },
+          concurrencyBoundary: { status: 'not_applicable' }
+        },
+        cleanupRows: { profiles: 'all profiles for verifier users', users: 'all verifier users' },
+        databaseIsolation: true,
+        cleanupPerformed: true,
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false
+      }))
+      const result = await validateRecoveryArtifactBundle({ artifactPaths: [artifactPath] })
+      expect(result.status).toBe('verified')
+      expect(result.artifacts['restored-migration-003-discovery-v1.json']).toMatchObject({ status: 'verified', migration: '003_discovery_v1', databaseIsolation: true })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('accepts the allowlisted restored migration-002 financial-core contract', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-migration-002-'))
     try {

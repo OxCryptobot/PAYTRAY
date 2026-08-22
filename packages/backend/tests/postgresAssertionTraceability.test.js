@@ -17,11 +17,14 @@ const migrationIds = [
   '006_ai_evaluation_foundation',
   '007_discovery_impressions',
   '008_production_telemetry',
-  '009_verified_outcome_provenance'
+  '009_verified_outcome_provenance',
+  '010_ledger_intent_idempotency',
+  '011_payment_stream_verifier_provenance',
+  '012_shadow_run_review'
 ]
 
 describe('PostgreSQL assertion traceability', () => {
-  it('maps migration-001 through migration-009 verifier cases to SQLSTATE and schema contracts', async () => {
+  it('maps migration-001 through migration-012 verifier cases to SQLSTATE and schema contracts', async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-postgres-trace-'))
     try {
       const outputPath = path.join(directory, 'traceability.json')
@@ -32,7 +35,7 @@ describe('PostgreSQL assertion traceability', () => {
       const summary = JSON.parse(stdout)
       const report = JSON.parse(await fs.readFile(outputPath, 'utf8'))
       expect(summary.valid).toBe(true)
-      expect(report.migrations).toHaveLength(9)
+      expect(report.migrations).toHaveLength(12)
       expect(report.migrations.map((migration) => migration.migration)).toEqual(migrationIds)
       expect(report.migrations.every((migration) => migration.valid)).toBe(true)
       expect(report.migrations[0].expectedCaseStates).toMatchObject({
@@ -60,6 +63,11 @@ describe('PostgreSQL assertion traceability', () => {
         oversizedHash: '22001'
       })
       expect(report.migrations[8].racePresence.status).toBe('not_applicable')
+      expect(report.migrations[9].expectedCaseStates).toEqual({ duplicateIntentEntry: '23505', missingProvenance: '23514' })
+      expect(report.migrations[9].racePresence).toMatchObject({ status: 'present', cases: { intentEntryRace: true } })
+      expect(report.migrations[10].expectedCaseStates).toEqual({ nullProvenance: '23502' })
+      expect(report.migrations[10].racePresence.status).toBe('not_applicable')
+      expect(report.migrations[11].racePresence).toMatchObject({ status: 'present', cases: { reviewWithTransaction: true, reviewRace: true } })
       expect(report.expectedSqlStateLiterals).toEqual(['23505', '23503', '23502', '23514', '22001'])
       expect(report.authority).toBe('assertion_traceability_audit_only')
       expect(report.releaseEligible).toBe(false)
@@ -78,10 +86,15 @@ describe('PostgreSQL assertion traceability', () => {
       const fakeRepository = path.join(directory, 'repo')
       await fs.mkdir(path.join(fakeRepository, 'packages/backend/migrations'), { recursive: true })
       await fs.mkdir(path.join(fakeRepository, 'packages/backend/scripts'), { recursive: true })
+      const verifierNames = {
+        '011_payment_stream_verifier_provenance': 'verify-migration-011-payment-provenance.mjs',
+        '012_shadow_run_review': 'verify-migration-012-shadow-run-review.mjs'
+      }
       for (const migration of migrationIds) {
         const [id, ...name] = migration.split('_')
         await fs.writeFile(path.join(fakeRepository, 'packages/backend/migrations', `${id}_${name.join('_')}.sql`), '')
-        await fs.writeFile(path.join(fakeRepository, 'packages/backend/scripts', `verify-migration-${id}-${name.join('-')}.mjs`), '')
+        const verifierName = verifierNames[migration] ?? `verify-migration-${id}-${name.join('-')}.mjs`
+        await fs.writeFile(path.join(fakeRepository, 'packages/backend/scripts', verifierName), '')
       }
       const outputPath = path.join(directory, 'traceability.json')
       expect(() => execFileSync(process.execPath, [scriptPath, fakeRepository, outputPath], {
@@ -90,7 +103,7 @@ describe('PostgreSQL assertion traceability', () => {
       })).toThrow()
       const report = JSON.parse(await fs.readFile(outputPath, 'utf8'))
       expect(report.valid).toBe(false)
-      expect(report.errors).toHaveLength(9)
+      expect(report.errors).toHaveLength(12)
       expect(report.errors.every((error) => error.result.valid === false)).toBe(true)
       expect(report.releaseEligible).toBe(false)
       expect(report.settlementAuthority).toBe(false)

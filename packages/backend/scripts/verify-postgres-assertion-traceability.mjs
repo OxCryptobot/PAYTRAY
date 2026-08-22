@@ -198,6 +198,47 @@ const migrations = [
       /ADD COLUMN IF NOT EXISTS verification_evidence_hash VARCHAR\(64\)/i,
       /CREATE INDEX IF NOT EXISTS engagement_outcome_events_verified_index/i
     ]
+  },
+  {
+    migration: '010_ledger_intent_idempotency',
+    sqlFile: 'packages/backend/migrations/010_ledger_intent_idempotency.sql',
+    verifier: 'packages/backend/scripts/verify-migration-010-ledger-intent-idempotency.mjs',
+    tableMatchers: ['ledger_entries'],
+    caseStates: { duplicateIntentEntry: '23505', missingProvenance: '23514' },
+    raceCases: ['intentEntryRace'],
+    sqlMatchers: [
+      /CREATE UNIQUE INDEX IF NOT EXISTS ledger_entries_intent_type_unique/i,
+      /ON ledger_entries \(source_intent_id, entry_type\)/i,
+      /WHERE source_intent_id IS NOT NULL/i
+    ]
+  },
+  {
+    migration: '011_payment_stream_verifier_provenance',
+    sqlFile: 'packages/backend/migrations/011_payment_stream_verifier_provenance.sql',
+    verifier: 'packages/backend/scripts/verify-migration-011-payment-provenance.mjs',
+    tableMatchers: ['payment_streams'],
+    caseStates: { nullProvenance: '23502' },
+    raceCases: [],
+    noRaceReason: 'not_applicable: migration-011 adds one required JSONB provenance column and does not define a duplicate-write identity boundary',
+    sqlMatchers: [
+      /ALTER TABLE payment_streams/i,
+      /ADD COLUMN IF NOT EXISTS last_verified_event JSONB NOT NULL DEFAULT '\{\}'::jsonb/i
+    ]
+  },
+  {
+    migration: '012_shadow_run_review',
+    sqlFile: 'packages/backend/migrations/012_shadow_run_review.sql',
+    verifier: 'packages/backend/scripts/verify-migration-012-shadow-run-review.mjs',
+    tableMatchers: ['ai_evaluation_runs'],
+    caseStates: {},
+    raceCases: ['reviewWithTransaction', 'reviewRace'],
+    sqlMatchers: [
+      /ALTER TABLE ai_evaluation_runs/i,
+      /ADD COLUMN IF NOT EXISTS reviewer_id VARCHAR\(255\)/i,
+      /ADD COLUMN IF NOT EXISTS reviewer_notes TEXT/i,
+      /ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP/i,
+      /CREATE INDEX IF NOT EXISTS ai_evaluation_runs_review_index/i
+    ]
   }
 ]
 

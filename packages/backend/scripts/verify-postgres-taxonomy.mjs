@@ -46,7 +46,7 @@ for (const record of records) {
   if (!Number.isInteger(logLine) || logLine < 1) errors.push({ record, error: 'invalid log line number' })
   if (lineNumbers.has(logLine)) errors.push({ logLine, error: 'duplicate log line number' })
   lineNumbers.add(logLine)
-  if (!raw.includes('ERROR:')) errors.push({ logLine, error: 'missing PostgreSQL ERROR marker' })
+  if (!/(?:ERROR:|["']error["']\s*:)/i.test(raw)) errors.push({ logLine, error: 'missing PostgreSQL error marker' })
 
   const matches = Object.entries(familyPatterns).filter(([, pattern]) => pattern.test(raw)).map(([family]) => family)
   if (matches.length !== 1) errors.push({ logLine, error: `expected one constraint family; found ${matches.join(',') || 'none'}` })

@@ -75,7 +75,7 @@ describe('PostgreSQL taxonomy verifier', () => {
       expect(report.valid).toBe(false)
       expect(report.errors.map((error) => error.error)).toEqual(expect.arrayContaining([
         'duplicate log line number',
-        'missing PostgreSQL ERROR marker',
+        'missing PostgreSQL error marker',
         'expected one constraint family; found none',
         'unexpected owning job',
         'missing owning step'

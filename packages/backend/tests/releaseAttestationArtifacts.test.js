@@ -12,7 +12,8 @@ const authorities = {
   'migration-source-traceability.json': 'assertion_traceability_audit_only',
   'migration-race-boundaries.json': 'race_boundary_audit_only',
   'migration-runtime-races.json': 'runtime_race_traceability_audit_only',
-  'migration-future-boundary.json': 'future_migration_boundary_audit_only'
+  'migration-future-boundary.json': 'future_migration_boundary_audit_only',
+  'downstream-integration-boundary.json': 'downstream_integration_boundary_audit_only'
 }
 const safety = {
   releaseEligible: false,
@@ -81,7 +82,7 @@ function runAudit(directory) {
 }
 
 describe('release-attestation artifact retention contract', () => {
-  it('verifies all four reports, sidecars, authority fields, and repeated execution', async () => {
+  it('verifies all five reports, sidecars, authority fields, and repeated execution', async () => {
     const directory = await createBundle()
     try {
       const first = runAudit(directory)
@@ -97,6 +98,10 @@ describe('release-attestation artifact retention contract', () => {
       const packageJson = JSON.parse(await fs.readFile(path.join(repositoryDirectory, 'package.json'), 'utf8'))
       const workflow = await fs.readFile(path.join(repositoryDirectory, '.github/workflows/paytray-quality.yml'), 'utf8')
       expect(packageJson.scripts['backend:release:attestation:artifacts:check']).toBe('node packages/backend/scripts/verify-release-attestation-artifacts.mjs')
+      expect(packageJson.scripts['backend:release:downstream:boundary:check']).toBe('node packages/backend/scripts/verify-downstream-integration-boundaries.mjs')
+      expect(workflow).toContain('Verify downstream integration boundary')
+      expect(workflow).toContain('DOWNSTREAM_INTEGRATION_BOUNDARY_OUTPUT_PATH=artifacts/downstream-integration-boundary.json')
+      expect(workflow).toContain('artifacts/downstream-integration-boundary.json.sha256')
       expect(workflow).toContain('Verify release-attestation artifact retention')
       expect(workflow).toContain('RELEASE_ATTESTATION_ARTIFACT_OUTPUT_PATH=artifacts/release-attestation-artifacts.json')
       expect(workflow).toContain('artifacts/release-attestation-artifacts.json.sha256')

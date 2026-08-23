@@ -70,6 +70,7 @@
     "backend:release:migrations:coverage:check": "MIGRATION_COVERAGE_AUDIT_ISOLATED=true node packages/backend/scripts/verify-migration-coverage.mjs",
     "backend:release:migrations:future-boundary:check": "node packages/backend/scripts/verify-future-migration-boundary.mjs",
     "backend:release:attestation:artifacts:check": "node packages/backend/scripts/verify-release-attestation-artifacts.mjs",
+    "backend:release:downstream:boundary:check": "node packages/backend/scripts/verify-downstream-integration-boundaries.mjs",
     "backend:release:postgres:taxonomy:check": "node packages/backend/scripts/verify-postgres-taxonomy.mjs",
     "backend:release:postgres:assertions:trace:check": "node packages/backend/scripts/verify-postgres-assertion-traceability.mjs",
     "backend:release:migrations:races:trace:check": "node packages/backend/scripts/verify-migration-race-boundaries.mjs",

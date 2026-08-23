@@ -70,6 +70,11 @@ jobs:
           mkdir -p artifacts
           MIGRATION_FUTURE_BOUNDARY_OUTPUT_PATH=artifacts/migration-future-boundary.json npm run backend:release:migrations:future-boundary:check
           sha256sum artifacts/migration-future-boundary.json | tee artifacts/migration-future-boundary.json.sha256
+      - name: Verify downstream integration boundary
+        run: |
+          mkdir -p artifacts
+          DOWNSTREAM_INTEGRATION_BOUNDARY_OUTPUT_PATH=artifacts/downstream-integration-boundary.json npm run backend:release:downstream:boundary:check
+          sha256sum artifacts/downstream-integration-boundary.json | tee artifacts/downstream-integration-boundary.json.sha256
       - name: Verify release-attestation artifact retention
         run: |
           mkdir -p artifacts
@@ -99,6 +104,8 @@ jobs:
             artifacts/migration-runtime-races.json.sha256
             artifacts/migration-future-boundary.json
             artifacts/migration-future-boundary.json.sha256
+            artifacts/downstream-integration-boundary.json
+            artifacts/downstream-integration-boundary.json.sha256
             artifacts/release-attestation-artifacts.json
             artifacts/release-attestation-artifacts.json.sha256
           if-no-files-found: error

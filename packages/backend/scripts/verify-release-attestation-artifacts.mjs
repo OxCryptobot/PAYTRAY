@@ -12,7 +12,8 @@ const requiredArtifacts = {
   'migration-source-traceability.json': 'assertion_traceability_audit_only',
   'migration-race-boundaries.json': 'race_boundary_audit_only',
   'migration-runtime-races.json': 'runtime_race_traceability_audit_only',
-  'migration-future-boundary.json': 'future_migration_boundary_audit_only'
+  'migration-future-boundary.json': 'future_migration_boundary_audit_only',
+  'downstream-integration-boundary.json': 'downstream_integration_boundary_audit_only'
 }
 const safety = {
   releaseEligible: false,

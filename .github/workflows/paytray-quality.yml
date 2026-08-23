@@ -9,6 +9,13 @@ on:
     branches:
       - paytray/batch-delivery
       - main
+  workflow_dispatch:
+    inputs:
+      profile_operations_quality:
+        description: 'Run opt-in operations-quality profiling against disposable CI configuration'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -135,6 +142,27 @@ jobs:
         env:
           DATABASE_URL: ''
           OPERATIONS_QUALITY_STRICT: 'false'
+      - name: Profile operations-quality matrix (opt-in)
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.profile_operations_quality == true }}
+        run: |
+          mkdir -p artifacts/operations-quality-profile-checks
+          set +e
+          OPERATIONS_QUALITY_PROFILE_OUTPUT_DIR=artifacts/operations-quality-profile-checks \
+          OPERATIONS_QUALITY_PROFILE_OUTPUT_PATH=artifacts/operations-quality-profile.json \
+          OPERATIONS_QUALITY_PROFILE_CONCURRENCY=4 \
+          OPERATIONS_QUALITY_STRICT=false \
+          DATABASE_URL='' \
+          npm run backend:release:operations:quality:profile
+          profile_status=$?
+          node packages/backend/scripts/verify-operations-quality-profile.mjs \
+            artifacts/operations-quality-profile.json \
+            artifacts/operations-quality-profile-verification.json
+          verify_status=$?
+          cat artifacts/operations-quality-profile.json
+          cat artifacts/operations-quality-profile-verification.json
+          if [ "$profile_status" -ne 0 ] || [ "$verify_status" -ne 0 ]; then
+            exit 1
+          fi
       - name: Verify operations-quality artifact contract
         if: always()
         run: node packages/backend/scripts/verify-ci-matrix-artifact.mjs artifacts/operations-quality.json operations_quality
@@ -145,7 +173,12 @@ jobs:
           OPERATIONS_QUALITY_ARTIFACT_ISOLATED: 'true'
       - name: Fingerprint operations-quality evidence
         if: always()
-        run: sha256sum artifacts/operations-quality.json | tee artifacts/operations-quality.json.sha256
+        run: |
+          sha256sum artifacts/operations-quality.json | tee artifacts/operations-quality.json.sha256
+          if [ -f artifacts/operations-quality-profile.json ]; then
+            sha256sum artifacts/operations-quality-profile.json | tee artifacts/operations-quality-profile.json.sha256
+            sha256sum artifacts/operations-quality-profile-verification.json | tee artifacts/operations-quality-profile-verification.json.sha256
+          fi
       - name: Upload operations-quality evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -154,6 +187,19 @@ jobs:
           path: |
             artifacts/operations-quality.json
             artifacts/operations-quality.json.sha256
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload operations-quality profiling evidence (opt-in)
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.profile_operations_quality == true }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: operations-quality-profile-${{ github.run_id }}
+          path: |
+            artifacts/operations-quality-profile.json
+            artifacts/operations-quality-profile.json.sha256
+            artifacts/operations-quality-profile-verification.json
+            artifacts/operations-quality-profile-verification.json.sha256
+            artifacts/operations-quality-profile-checks/*.json
           if-no-files-found: error
           retention-days: 7
 

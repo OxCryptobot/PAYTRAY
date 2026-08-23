@@ -44,6 +44,16 @@ async function createBundle(overrides = {}) {
     await fs.writeFile(path.join(directory, `${name}.sha256`), `${digest(content)}  artifacts/${name}\n`)
   }
   if (overrides.unexpected) await fs.writeFile(path.join(directory, 'unexpected.json'), '{}\n')
+  if (overrides.unexpectedSidecar) await fs.writeFile(path.join(directory, 'unexpected.sha256'), `${'0'.repeat(64)}  artifacts/unexpected.json\n`)
+  if (overrides.sidecarReference) {
+    const reportPath = path.join(directory, 'migration-source-traceability.json')
+    const content = await fs.readFile(reportPath, 'utf8')
+    await fs.writeFile(`${reportPath}.sha256`, `${digest(content)}  ${overrides.sidecarReference}\n`)
+  }
+  if (overrides.symlink) {
+    await fs.rm(path.join(directory, overrides.symlink), { force: true })
+    await fs.symlink(path.join(directory, 'migration-source-traceability.json'), path.join(directory, overrides.symlink))
+  }
   if (overrides.tamper) await fs.appendFile(path.join(directory, overrides.tamper), '\n')
   return directory
 }
@@ -81,6 +91,8 @@ describe('release-attestation artifact retention contract', () => {
       expect(workflow).toContain('Verify release-attestation artifact retention')
       expect(workflow).toContain('RELEASE_ATTESTATION_ARTIFACT_OUTPUT_PATH=artifacts/release-attestation-artifacts.json')
       expect(workflow).toContain('artifacts/release-attestation-artifacts.json.sha256')
+      expect(workflow).toContain('if-no-files-found: error')
+      expect(workflow).toContain('retention-days: 7')
     } finally {
       await fs.rm(directory, { recursive: true, force: true })
     }
@@ -90,6 +102,9 @@ describe('release-attestation artifact retention contract', () => {
     ['a missing report', {}, 'migration-runtime-races.json'],
     ['a checksum mismatch', { tamper: 'migration-source-traceability.json' }, 'migration-source-traceability.json'],
     ['unexpected JSON', { unexpected: true }, 'unexpected.json'],
+    ['unexpected sidecar', { unexpectedSidecar: true }, 'unexpected.sha256'],
+    ['a substituted sidecar path', { sidecarReference: 'artifacts/other.json' }, 'migration-source-traceability.json'],
+    ['a symlinked report', { symlink: 'migration-source-traceability.json' }, 'migration-source-traceability.json'],
     ['sensitive material', { 'migration-future-boundary.json': { secret: 'PRIVATE_KEY=forbidden' } }, 'migration-future-boundary.json'],
     ['an authority mismatch', { 'migration-race-boundaries.json': { authority: 'release_authority' } }, 'migration-race-boundaries.json']
   ])('blocks %s while preserving immutable safety fields', async (_label, overrides, expectedArtifact) => {

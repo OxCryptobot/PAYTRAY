@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -55,11 +55,22 @@ function sha256(content) {
   return createHash('sha256').update(content).digest('hex')
 }
 
-function readSidecar(sidecarPath) {
+function readSidecar(sidecarPath, expectedReportName) {
   const value = readFileSync(sidecarPath, 'utf8').trim()
-  const match = value.match(/^([a-f0-9]{64})\s+/i)
-  if (!match) throw new Error('sidecar must begin with a 64-character SHA-256 digest')
+  const match = value.match(/^([a-f0-9]{64}) {2}(.+)$/i)
+  if (!match) throw new Error('sidecar must contain a SHA-256 digest followed by the exact report path')
+  if (match[2] !== `artifacts/${expectedReportName}`) throw new Error(`sidecar path must equal artifacts/${expectedReportName}`)
   return match[1].toLowerCase()
+}
+
+function regularFileState(filePath) {
+  try {
+    const stat = lstatSync(filePath)
+    if (stat.isSymbolicLink() || !stat.isFile()) return 'unsafe'
+    return 'file'
+  } catch {
+    return 'missing'
+  }
 }
 
 function verifyArtifact(name, authority) {
@@ -67,12 +78,22 @@ function verifyArtifact(name, authority) {
   const sidecarPath = `${reportPath}.sha256`
   const check = { report: name, sidecar: `${name}.sha256`, authority, present: false, checksumMatches: false, jsonValid: false, safe: false, valid: false }
   checks[name] = check
-  if (!existsSync(reportPath)) {
+  const reportState = regularFileState(reportPath)
+  const sidecarState = regularFileState(sidecarPath)
+  if (reportState === 'missing') {
     addError(name, 'required report is missing')
     return
   }
-  if (!existsSync(sidecarPath)) {
+  if (reportState === 'unsafe') {
+    addError(name, 'report must be a regular non-symlink file')
+    return
+  }
+  if (sidecarState === 'missing') {
     addError(name, 'required SHA-256 sidecar is missing')
+    return
+  }
+  if (sidecarState === 'unsafe') {
+    addError(name, 'SHA-256 sidecar must be a regular non-symlink file')
     return
   }
   check.present = true
@@ -87,7 +108,7 @@ function verifyArtifact(name, authority) {
     return
   }
   try {
-    const expected = readSidecar(sidecarPath)
+    const expected = readSidecar(sidecarPath, name)
     check.checksumMatches = expected === sha256(content)
     if (!check.checksumMatches) addError(name, 'SHA-256 sidecar does not match report bytes')
   } catch (error) {
@@ -108,8 +129,10 @@ function verifyArtifact(name, authority) {
 if (!existsSync(artifactDirectory)) errors.push({ artifact: artifactDirectory, reason: 'artifact directory is missing' })
 else {
   for (const [name, authority] of Object.entries(requiredArtifacts)) verifyArtifact(name, authority)
+  const allowedEntries = new Set([...Object.keys(requiredArtifacts), ...Object.keys(requiredArtifacts).map((name) => `${name}.sha256`), path.basename(outputPath)])
   for (const name of readdirSync(artifactDirectory)) {
-    if (name.endsWith('.json') && name !== path.basename(outputPath) && !Object.hasOwn(requiredArtifacts, name)) addError(name, 'unexpected JSON artifact in release-attestation bundle')
+    if (!allowedEntries.has(name)) addError(name, 'unexpected entry in release-attestation bundle')
+    else if (name !== path.basename(outputPath) && regularFileState(path.join(artifactDirectory, name)) !== 'file') addError(name, 'bundle entry must be a regular non-symlink file')
   }
 }
 

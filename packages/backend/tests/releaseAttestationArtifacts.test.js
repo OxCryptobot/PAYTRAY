@@ -44,6 +44,15 @@ async function createBundle(overrides = {}) {
     await fs.writeFile(path.join(directory, `${name}.sha256`), `${digest(content)}  artifacts/${name}\n`)
   }
   if (overrides.unexpected) await fs.writeFile(path.join(directory, 'unexpected.json'), '{}\n')
+  if (overrides.unexpectedDirectory) await fs.mkdir(path.join(directory, 'unexpected-directory'))
+  if (overrides.invalidJson) await fs.writeFile(path.join(directory, overrides.invalidJson), '{not-json\n')
+  if (overrides.missingSidecar) await fs.rm(path.join(directory, `${overrides.missingSidecar}.sha256`), { force: true })
+  if (overrides.malformedSidecar) await fs.writeFile(path.join(directory, `${overrides.malformedSidecar}.sha256`), 'not-a-sha256-sidecar\n')
+  if (overrides.symlinkSidecar) {
+    const sidecarPath = path.join(directory, `${overrides.symlinkSidecar}.sha256`)
+    await fs.rm(sidecarPath, { force: true })
+    await fs.symlink(sidecarPath, sidecarPath)
+  }
   if (overrides.unexpectedSidecar) await fs.writeFile(path.join(directory, 'unexpected.sha256'), `${'0'.repeat(64)}  artifacts/unexpected.json\n`)
   if (overrides.sidecarReference) {
     const reportPath = path.join(directory, 'migration-source-traceability.json')
@@ -103,10 +112,16 @@ describe('release-attestation artifact retention contract', () => {
     ['a checksum mismatch', { tamper: 'migration-source-traceability.json' }, 'migration-source-traceability.json'],
     ['unexpected JSON', { unexpected: true }, 'unexpected.json'],
     ['unexpected sidecar', { unexpectedSidecar: true }, 'unexpected.sha256'],
+    ['unexpected directory', { unexpectedDirectory: true }, 'unexpected-directory'],
+    ['invalid JSON', { invalidJson: 'migration-source-traceability.json' }, 'migration-source-traceability.json'],
+    ['a missing sidecar', { missingSidecar: 'migration-runtime-races.json' }, 'migration-runtime-races.json'],
+    ['a malformed sidecar', { malformedSidecar: 'migration-runtime-races.json' }, 'migration-runtime-races.json'],
     ['a substituted sidecar path', { sidecarReference: 'artifacts/other.json' }, 'migration-source-traceability.json'],
     ['a symlinked report', { symlink: 'migration-source-traceability.json' }, 'migration-source-traceability.json'],
+    ['a symlinked sidecar', { symlinkSidecar: 'migration-source-traceability.json' }, 'migration-source-traceability.json'],
     ['sensitive material', { 'migration-future-boundary.json': { secret: 'PRIVATE_KEY=forbidden' } }, 'migration-future-boundary.json'],
-    ['an authority mismatch', { 'migration-race-boundaries.json': { authority: 'release_authority' } }, 'migration-race-boundaries.json']
+    ['an authority mismatch', { 'migration-race-boundaries.json': { authority: 'release_authority' } }, 'migration-race-boundaries.json'],
+    ['an unsafe release field', { 'migration-future-boundary.json': { releaseEligible: true } }, 'migration-future-boundary.json']
   ])('blocks %s while preserving immutable safety fields', async (_label, overrides, expectedArtifact) => {
     const directory = await createBundle(overrides)
     try {

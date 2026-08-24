@@ -6,6 +6,8 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const MAX_ARCHIVE_BYTES = 50 * 1024 * 1024
+const MAX_ARCHIVE_ENTRIES = 512
+const MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
 const ALLOWED_TOP_LEVEL = new Set(['SKILL.md', 'references', 'scripts'])
 const SECRET_PATTERNS = Object.freeze({
   privateKeyPem: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/,
@@ -40,6 +42,13 @@ function listEntries(archivePath) {
   const output = execFileSync('unzip', ['-Z1', archivePath], { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 })
   const entries = output.split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean)
   if (entries.length === 0) fail('skill archive contains no entries')
+  if (entries.length > MAX_ARCHIVE_ENTRIES) fail(`skill archive contains too many entries: ${entries.length}`)
+  const listing = execFileSync('unzip', ['-l', archivePath], { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 })
+  const totalMatch = listing.match(/^\s*(\d+)\s+\d+\s+files?\s*$/m)
+  if (!totalMatch) fail('skill archive listing has no safe total size')
+  const uncompressedBytes = Number(totalMatch[1])
+  if (!Number.isSafeInteger(uncompressedBytes) || uncompressedBytes < 0) fail('skill archive uncompressed size is invalid')
+  if (uncompressedBytes > MAX_UNCOMPRESSED_BYTES) fail(`skill archive uncompressed size exceeds ${MAX_UNCOMPRESSED_BYTES} bytes`)
   const seen = new Set()
   for (const entry of entries) {
     if (seen.has(entry)) fail(`skill archive contains duplicate entry: ${entry}`)
@@ -52,7 +61,7 @@ function listEntries(archivePath) {
   if (!entries.includes('SKILL.md')) fail('skill archive is missing root SKILL.md')
   if (!entries.some((entry) => entry.startsWith('references/'))) fail('skill archive is missing references/')
   if (!entries.some((entry) => entry.startsWith('scripts/'))) fail('skill archive is missing scripts/')
-  return entries
+  return { entries, uncompressedBytes }
 }
 
 function scanExtractedText(root) {
@@ -110,7 +119,7 @@ export function verifyExternalSkillBundle({ archivePath, sidecarPath, outputPath
     const expectedSha256 = parseSidecar(normalizedSidecarPath, normalizedArchivePath)
     const actualSha256 = crypto.createHash('sha256').update(fs.readFileSync(normalizedArchivePath)).digest('hex')
     if (actualSha256 !== expectedSha256) fail(`SHA-256 mismatch: expected ${expectedSha256}, got ${actualSha256}`)
-    const entries = listEntries(normalizedArchivePath)
+    const { entries, uncompressedBytes } = listEntries(normalizedArchivePath)
     const extractedRoot = path.join(tempRoot, 'extracted')
     fs.mkdirSync(extractedRoot)
     const unzip = spawnSync('unzip', ['-q', normalizedArchivePath, '-d', extractedRoot], { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 })
@@ -126,6 +135,7 @@ export function verifyExternalSkillBundle({ archivePath, sidecarPath, outputPath
       expectedSha256,
       sha256Matches: true,
       archiveEntryCount: entries.length,
+      archiveUncompressedBytes: uncompressedBytes,
       hasSkillMd: entries.includes('SKILL.md'),
       hasReferences: entries.some((entry) => entry.startsWith('references/')),
       hasScripts: entries.some((entry) => entry.startsWith('scripts/')),

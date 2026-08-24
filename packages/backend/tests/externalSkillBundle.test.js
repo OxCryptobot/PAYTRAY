@@ -44,6 +44,7 @@ describe('external skill-bundle verifier', () => {
       hasSkillMd: true,
       hasReferences: true,
       hasScripts: true,
+      archiveUncompressedBytes: expect.any(Number),
       authority: 'external_skill_bundle_integrity_only',
       releaseEligible: false,
       settlementAuthority: false,
@@ -67,6 +68,21 @@ describe('external skill-bundle verifier', () => {
       settlementMutationPerformed: false
     })
     expect(result.error).toContain('SHA-256 mismatch')
+  })
+
+  it('blocks an archive with too many entries before extraction', () => {
+    const { archive, sidecar } = createSafeBundle(root)
+    const source = path.join(root, 'source')
+    const extraEntries = Array.from({ length: 513 }, (_, index) => {
+      const relative = path.join('references', `extra-${index}.md`)
+      fs.writeFileSync(path.join(source, relative), 'extra\n')
+      return relative
+    })
+    execFileSync('zip', ['-q', '-9', archive, ...extraEntries], { cwd: source })
+    writeSidecar(archive, sidecar)
+    const result = verifyExternalSkillBundle({ archivePath: archive, sidecarPath: sidecar })
+    expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    expect(result.error).toContain('too many entries')
   })
 
   it('blocks a sidecar filename mismatch before trusting the digest', () => {

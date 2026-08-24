@@ -122,4 +122,20 @@ describe('release-evidence reference verifier', () => {
       fs.rmSync(root, { recursive: true, force: true })
     }
   })
+
+  it('rejects symlinked and non-regular release-evidence inputs', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-release-evidence-inputs-'))
+    try {
+      const reportPath = writeJson(root, 'release.json', releaseEnvelope())
+      const symlinkPath = path.join(root, 'release-link.json')
+      const directoryPath = path.join(root, 'release-directory')
+      fs.symlinkSync(reportPath, symlinkPath)
+      fs.mkdirSync(directoryPath)
+
+      expect(() => buildReleaseEvidenceReference({ evidenceFile: symlinkPath, target: 'local_disposable', releaseCommit })).toThrow('must not be a symlink')
+      expect(() => buildReleaseEvidenceReference({ evidenceFile: directoryPath, target: 'local_disposable', releaseCommit })).toThrow('must be a regular file')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 })

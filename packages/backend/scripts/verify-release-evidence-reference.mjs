@@ -29,10 +29,22 @@ function requireCommit(value) {
   return value.trim()
 }
 
+function assertRegularNonSymlinkFile(filePath) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch {
+    fail('release-evidence reference file is not a regular file')
+  }
+  if (stat.isSymbolicLink()) fail('release-evidence reference file must not be a symlink')
+  if (!stat.isFile()) fail('release-evidence reference file must be a regular file')
+}
+
 function loadReport(filePath, { target, releaseCommit }) {
   if (!filePath) fail('RELEASE_EVIDENCE_REFERENCE_FILE is required')
   const protectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT || '/protected/paytray'
   const resolvedPath = validateEvidencePath(filePath, { label: 'release-evidence reference', target, protectedRoot })
+  assertRegularNonSymlinkFile(resolvedPath)
   const raw = fs.readFileSync(resolvedPath, 'utf8')
   let envelope
   try {

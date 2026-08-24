@@ -10,13 +10,13 @@ function writeSidecar(archivePath, sidecarPath, digest = crypto.createHash('sha2
   fs.writeFileSync(sidecarPath, `${digest}  ${path.basename(archivePath)}\n`)
 }
 
-function createSafeBundle(root) {
+function createSafeBundle(root, integrity = { valid: true, errors: [], warnings: [], lineCount: 1, workflowStepCount: 1 }) {
   const source = path.join(root, 'source')
   fs.mkdirSync(path.join(source, 'references'), { recursive: true })
   fs.mkdirSync(path.join(source, 'scripts'), { recursive: true })
   fs.writeFileSync(path.join(source, 'SKILL.md'), '# fixture skill\n')
   fs.writeFileSync(path.join(source, 'references', 'contract.md'), 'contract\n')
-  fs.writeFileSync(path.join(source, 'scripts', 'verify-skill-execution-integrity.mjs'), "console.log(JSON.stringify({ valid: true, errors: [], warnings: [], lineCount: 1, workflowStepCount: 1 }))\n")
+  fs.writeFileSync(path.join(source, 'scripts', 'verify-skill-execution-integrity.mjs'), `console.log(JSON.stringify(${JSON.stringify(integrity)}))\n`)
   const archive = path.join(root, 'fixture.skill')
   execFileSync('zip', ['-q', '-9', archive, 'SKILL.md', 'references/contract.md', 'scripts/verify-skill-execution-integrity.mjs'], { cwd: source })
   const sidecar = path.join(root, 'fixture.skill.sha256')
@@ -67,6 +67,34 @@ describe('external skill-bundle verifier', () => {
       settlementMutationPerformed: false
     })
     expect(result.error).toContain('SHA-256 mismatch')
+  })
+
+  it('blocks a sidecar filename mismatch before trusting the digest', () => {
+    const { archive, sidecar } = createSafeBundle(root)
+    const digest = crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex')
+    fs.writeFileSync(sidecar, `${digest}  different.skill\n`)
+    const result = verifyExternalSkillBundle({ archivePath: archive, sidecarPath: sidecar })
+    expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    expect(result.error).toContain('filename does not match')
+  })
+
+  it('blocks archives without the .skill extension', () => {
+    const { archive, sidecar } = createSafeBundle(root)
+    const renamed = path.join(root, 'fixture.zip')
+    fs.renameSync(archive, renamed)
+    const renamedSidecar = path.join(root, 'fixture.zip.sha256')
+    fs.renameSync(sidecar, renamedSidecar)
+    writeSidecar(renamed, renamedSidecar)
+    const result = verifyExternalSkillBundle({ archivePath: renamed, sidecarPath: renamedSidecar })
+    expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    expect(result.error).toContain('.skill extension')
+  })
+
+  it('blocks extracted integrity warnings even when the verifier says valid', () => {
+    const { archive, sidecar } = createSafeBundle(root, { valid: true, errors: [], warnings: ['warning'], lineCount: 1, workflowStepCount: 1 })
+    const result = verifyExternalSkillBundle({ archivePath: archive, sidecarPath: sidecar })
+    expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    expect(result.error).toContain('execution-integrity validation failed or emitted warnings')
   })
 
   it('blocks traversal entries before extraction', () => {

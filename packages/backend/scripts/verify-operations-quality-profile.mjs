@@ -18,6 +18,7 @@ const EXPECTED_CHECKS = Object.freeze([
   ['secret-manager-custody', 'backend:release:key:secret-manager:check']
 ].map(([name, script], index) => Object.freeze({ index, name, script })))
 const PARALLEL_SAFE_CHECKS = Object.freeze(['extension-contract', 'sdk-contract', 'verifier-worker-config'])
+const SAFE_CHECK_MUTATIONS = new Set(['none', 'read_only', 'verifier_projection_only'])
 
 function fail(message) {
   throw new Error(message)
@@ -78,12 +79,23 @@ export function validateOperationsQualityProfile({ artifactPath, content } = {})
     if (!Number.isFinite(check.elapsedMs) || check.elapsedMs < 0) fail(`${expected.name} elapsedMs is invalid`)
     if (check.timingBasis !== 'ci_step_diagnostic') fail(`${expected.name} timingBasis is invalid`)
     if (check.releaseEligible !== false || check.settlementAuthority !== false) fail(`${expected.name} authority fields must remain false`)
-    if (check.mutation !== null && !['none', 'read_only'].includes(check.mutation)) fail(`${expected.name} mutation is invalid`)
+    if (check.mutation !== null && !SAFE_CHECK_MUTATIONS.has(check.mutation)) fail(`${expected.name} mutation is invalid`)
+    if (check.state === 'passed' && check.expectedBlocked !== false) fail(`${expected.name} passed state cannot be expected-blocked`)
+    if (check.state === 'operator_blocked' && check.expectedBlocked !== true) fail(`${expected.name} operator-blocked state must be expected-blocked`)
+    if (check.state === 'failed' && check.expectedBlocked !== false) fail(`${expected.name} failed state cannot be expected-blocked`)
   }
   const counts = [report.passedCount, report.operatorBlockerCount, report.unexpectedFailureCount]
   if (!counts.every(Number.isInteger) || counts.some((value) => value < 0)) fail('operations-quality profile counts are invalid')
   if (counts.reduce((sum, value) => sum + value, 0) !== report.checkCount) fail('operations-quality profile counts do not reconcile')
-  if (!Array.isArray(report.operatorBlockers) || report.operatorBlockers.length !== report.operatorBlockerCount) fail('operations-quality profile operator blockers do not reconcile')
+  const derivedCounts = {
+    passed: report.checks.filter((check) => check.state === 'passed').length,
+    operatorBlocked: report.checks.filter((check) => check.state === 'operator_blocked').length,
+    failed: report.checks.filter((check) => check.state === 'failed').length
+  }
+  if (report.passedCount !== derivedCounts.passed || report.operatorBlockerCount !== derivedCounts.operatorBlocked || report.unexpectedFailureCount !== derivedCounts.failed) fail('operations-quality profile state/count reconciliation is invalid')
+  const expectedBlockerNames = report.checks.filter((check) => check.state === 'operator_blocked').map((check) => check.name)
+  const actualBlockerNames = Array.isArray(report.operatorBlockers) ? report.operatorBlockers.map((blocker) => blocker?.name) : []
+  if (JSON.stringify(actualBlockerNames) !== JSON.stringify(expectedBlockerNames)) fail('operations-quality profile operator blockers do not reconcile with check states')
   if (!Array.isArray(report.unexpectedFailures) || report.unexpectedFailures.length !== report.unexpectedFailureCount) fail('operations-quality profile unexpected failures do not reconcile')
   if (report.status === 'failed' && report.unexpectedFailureCount === 0) fail('failed operations-quality profile must contain an unexpected failure')
   if (report.status === 'passed' && report.operatorBlockerCount !== 0) fail('passed operations-quality profile cannot contain operator blockers')

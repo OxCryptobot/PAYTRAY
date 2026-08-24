@@ -101,6 +101,22 @@ describe('operations-quality profile artifact verifier', () => {
     expect(() => validateOperationsQualityProfile({ content: JSON.stringify(profile) })).toThrow('counts do not reconcile')
   })
 
+  it('accepts the verifier projection-only mutation boundary', () => {
+    const profile = makeProfile()
+    profile.checks[4].mutation = 'verifier_projection_only'
+    expect(validateOperationsQualityProfile({ content: JSON.stringify(profile) })).toMatchObject({
+      status: 'verified',
+      mutation: 'read_only',
+      releaseEligible: false,
+      settlementAuthority: false
+    })
+  })
+
+  it('rejects state/count reconciliation drift even when aggregate totals match', () => {
+    const profile = makeProfile({ passedCount: 2, operatorBlockerCount: 8, unexpectedFailureCount: 1 })
+    expect(() => validateOperationsQualityProfile({ content: JSON.stringify(profile) })).toThrow('state/count reconciliation')
+  })
+
   it('rejects sensitive fields and authority-positive values', () => {
     const sensitive = makeProfile({ operatorBlockers: [{ name: 'x', reviewerNotes: 'forbidden' }] })
     expect(() => validateOperationsQualityProfile({ content: JSON.stringify(sensitive) })).toThrow('sensitive key')

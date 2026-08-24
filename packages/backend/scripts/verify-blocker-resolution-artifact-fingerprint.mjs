@@ -9,8 +9,20 @@ function fail(message) {
   throw new Error(message)
 }
 
-function readJson(filePath, label) {
+function assertRegularNonSymlinkFile(filePath, label) {
   if (!filePath) fail(`${label} is required`)
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch {
+    fail(`${label} is not a regular file`)
+  }
+  if (stat.isSymbolicLink()) fail(`${label} must not be a symlink`)
+  if (!stat.isFile()) fail(`${label} must be a regular file`)
+}
+
+function readJson(filePath, label) {
+  assertRegularNonSymlinkFile(filePath, label)
   const raw = fs.readFileSync(filePath, 'utf8')
   let value
   try {
@@ -22,6 +34,7 @@ function readJson(filePath, label) {
 }
 
 function parseSidecar(sidecarPath, artifactPath) {
+  assertRegularNonSymlinkFile(sidecarPath, 'sidecarFile')
   const raw = fs.readFileSync(sidecarPath, 'utf8').trim()
   const match = raw.match(/^([0-9a-f]{64})\s+(.+)$/)
   if (!match) fail('blocker-resolution SHA-256 sidecar is malformed')

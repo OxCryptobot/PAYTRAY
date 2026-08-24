@@ -80,4 +80,25 @@ describe('blocker-resolution artifact fingerprint verifier', () => {
       fs.rmSync(root, { recursive: true, force: true })
     }
   })
+
+  it('rejects symlinked and non-regular report or sidecar inputs', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-resolution-fingerprint-inputs-'))
+    try {
+      const files = writeArtifact(root, 'release-blocker-resolution.json')
+      const symlinkedArtifact = path.join(root, 'release-blocker-resolution-link.json')
+      const symlinkedSidecar = path.join(root, 'release-blocker-resolution-link.sha256')
+      fs.symlinkSync(files.artifactFile, symlinkedArtifact)
+      fs.symlinkSync(files.sidecarFile, symlinkedSidecar)
+      expect(() => buildBlockerResolutionArtifactFingerprint({ artifactFile: symlinkedArtifact, sidecarFile: files.sidecarFile, releaseCommit })).toThrow('artifactFile must not be a symlink')
+      expect(() => buildBlockerResolutionArtifactFingerprint({ artifactFile: files.artifactFile, sidecarFile: symlinkedSidecar, releaseCommit })).toThrow('sidecarFile must not be a symlink')
+      const reportDirectory = path.join(root, 'report-directory')
+      const sidecarDirectory = path.join(root, 'sidecar-directory')
+      fs.mkdirSync(reportDirectory)
+      fs.mkdirSync(sidecarDirectory)
+      expect(() => buildBlockerResolutionArtifactFingerprint({ artifactFile: reportDirectory, sidecarFile: files.sidecarFile, releaseCommit })).toThrow('artifactFile must be a regular file')
+      expect(() => buildBlockerResolutionArtifactFingerprint({ artifactFile: files.artifactFile, sidecarFile: sidecarDirectory, releaseCommit })).toThrow('sidecarFile must be a regular file')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 })

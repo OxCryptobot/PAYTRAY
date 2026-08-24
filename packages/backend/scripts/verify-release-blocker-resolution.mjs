@@ -15,6 +15,7 @@ const DEPENDENCIES = Object.freeze({
   'quality-gate': [],
   'sdk-contract': [],
   'extension-contract': [],
+  'deployment-preflight': [],
   migrations: [],
   recovery: ['migrations'],
   'railway-trial': [],

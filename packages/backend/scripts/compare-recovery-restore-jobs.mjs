@@ -93,7 +93,9 @@ function validateReport(report, { expectedCommit, expectedConcurrency, jobLabel 
   assertDurationSummary(report.phaseLatencyMs.restore, `${label}.phaseLatencyMs.restore`)
   assertObject(report.childProcessTelemetry, `${label}.childProcessTelemetry`)
   if (report.childProcessTelemetry.basis !== 'procfs_child_process') fail(`${label}.childProcessTelemetry.basis is invalid`)
-  for (const field of ['elapsedMs', 'userCpuTimeMs', 'systemCpuTimeMs', 'peakRssKb']) assertNonnegativeNumber(report.childProcessTelemetry[field], `${label}.childProcessTelemetry.${field}`)
+  assertObject(report.childProcessTelemetry.totals, `${label}.childProcessTelemetry.totals`)
+  for (const field of ['elapsedMs', 'userCpuTimeMs', 'systemCpuTimeMs']) assertNonnegativeNumber(report.childProcessTelemetry.totals[field], `${label}.childProcessTelemetry.totals.${field}`)
+  assertNonnegativeNumber(report.childProcessTelemetry.peakRssKb, `${label}.childProcessTelemetry.peakRssKb`)
   assertObject(report.databaseTelemetry, `${label}.databaseTelemetry`)
   if (report.databaseTelemetry.basis !== 'postgresql_observability') fail(`${label}.databaseTelemetry.basis is invalid`)
   assertNonnegativeInteger(report.databaseTelemetry.sampleCount, `${label}.databaseTelemetry.sampleCount`)
@@ -109,9 +111,9 @@ function validateReport(report, { expectedCommit, expectedConcurrency, jobLabel 
     sequenceP95Ms: report.sequenceElapsedMs.p95,
     throughputPerSecond: report.throughputPerSecond,
     connectionAcquisitionP95Ms: report.databaseTelemetry.connectionAcquisitionMs.max,
-    childRestoreElapsedMs: report.childProcessTelemetry.elapsedMs,
-    childUserCpuTimeMs: report.childProcessTelemetry.userCpuTimeMs,
-    childSystemCpuTimeMs: report.childProcessTelemetry.systemCpuTimeMs,
+    childRestoreElapsedMs: report.childProcessTelemetry.totals.elapsedMs,
+    childUserCpuTimeMs: report.childProcessTelemetry.totals.userCpuTimeMs,
+    childSystemCpuTimeMs: report.childProcessTelemetry.totals.systemCpuTimeMs,
     childPeakRssKb: report.childProcessTelemetry.peakRssKb,
     poolMaxWaitingCount: report.databaseTelemetry.poolPressure.maxWaitingCount,
     poolMaxUtilizationRatio: report.databaseTelemetry.poolPressure.maxUtilizationRatio

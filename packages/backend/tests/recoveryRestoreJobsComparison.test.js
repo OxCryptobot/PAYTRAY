@@ -28,9 +28,12 @@ function report(jobLabel, { restoreP95Ms = 1000, sequenceP95Ms = 1500, throughpu
     },
     childProcessTelemetry: {
       basis: 'procfs_child_process',
-      elapsedMs: restoreP95Ms,
-      userCpuTimeMs: 100,
-      systemCpuTimeMs: 10,
+      sampleCount: 8,
+      totals: {
+        elapsedMs: restoreP95Ms,
+        userCpuTimeMs: 100,
+        systemCpuTimeMs: 10
+      },
       peakRssKb: 500
     },
     databaseTelemetry: {

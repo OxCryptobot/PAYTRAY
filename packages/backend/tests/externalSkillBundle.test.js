@@ -51,7 +51,11 @@ describe('external skill-bundle verifier', () => {
       mutation: 'read_only',
       deploymentPerformed: false,
       settlementMutationPerformed: false,
-      errors: []
+      errors: [],
+      dependencyScan: {
+        status: 'no_manifest',
+        note: expect.stringContaining('contains no package manifest or lockfile')
+      }
     })
   })
 

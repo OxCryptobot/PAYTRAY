@@ -168,8 +168,8 @@ export function verifyExternalSkillBundle({ archivePath, sidecarPath, outputPath
       },
       sensitiveFindings,
       dependencyScan: {
-        status: 'consumer_repository_scope',
-        note: 'The .skill archive is resource-only; audit consumer dependencies separately.'
+        status: 'no_manifest',
+        note: 'The .skill archive contains no package manifest or lockfile; audit consumer repository dependencies separately.'
       },
       authority: 'external_skill_bundle_integrity_only',
       releaseEligible: false,

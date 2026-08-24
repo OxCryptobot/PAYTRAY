@@ -20,6 +20,7 @@
     "backend:recovery:stress:wait-events:check": "node packages/backend/scripts/aggregate-recovery-wait-events.mjs",
     "backend:recovery:stress:wait-throughput:check": "node packages/backend/scripts/analyze-recovery-wait-throughput.mjs",
     "backend:recovery:stress:db-counters:check": "node packages/backend/scripts/analyze-recovery-db-counters.mjs",
+    "backend:recovery:stress:restore-jobs:compare": "node packages/backend/scripts/compare-recovery-restore-jobs.mjs",
     "backend:tests:profile:recovery-postgres": "node packages/backend/scripts/profile-recovery-postgres-tests.mjs",
     "backend:dependencies:lockfile:check": "node packages/backend/scripts/verify-lockfile-drift.mjs",
     "backend:verifier:operations:check": "node packages/backend/scripts/inspect-verifier-operations.mjs",

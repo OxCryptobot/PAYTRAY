@@ -16,6 +16,11 @@ on:
         required: false
         type: boolean
         default: false
+      recovery_restore_jobs_experiment:
+        description: 'Run opt-in c8 disposable recovery restore-jobs comparison'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -1152,6 +1157,105 @@ jobs:
           grep -q '"status": "verified"' artifacts/recovery-wait-throughput.json
           test -s artifacts/recovery-db-counters.json
           grep -q '"status": "verified"' artifacts/recovery-db-counters.json
+
+  recovery-restore-jobs:
+    name: Opt-in c8 restore-jobs comparison
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.recovery_restore_jobs_experiment == true }}
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: paytray_ci
+          POSTGRES_PASSWORD: paytray_ci
+          POSTGRES_DB: paytray_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U paytray_ci -d paytray_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run serial and bounded restore-jobs c8 reports
+        run: |
+          mkdir -p artifacts
+          overall=0
+          for setting in serial 1 2 4; do
+            set +e
+            if [ "$setting" = "serial" ]; then
+              RECOVERY_STRESS_ENVIRONMENT=local_disposable \
+              RECOVERY_STRESS_RELEASE_COMMIT=${{ github.sha }} \
+              RECOVERY_STRESS_ADMIN_URL=postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/postgres \
+              RECOVERY_STRESS_CONCURRENCY=8 \
+              RECOVERY_CAPTURE_CHILD_RESOURCE=true \
+              RECOVERY_CAPTURE_DATABASE_TELEMETRY=true \
+              RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS=25 \
+              RECOVERY_DATABASE_TELEMETRY_MAX_SAMPLES=120 \
+              node packages/backend/scripts/stress-recovery-sequence.mjs > artifacts/recovery-restore-jobs-serial.json 2>&1
+            else
+              RECOVERY_STRESS_ENVIRONMENT=local_disposable \
+              RECOVERY_STRESS_RELEASE_COMMIT=${{ github.sha }} \
+              RECOVERY_STRESS_ADMIN_URL=postgresql://paytray_ci:paytray_ci@127.0.0.1:5432/postgres \
+              RECOVERY_STRESS_CONCURRENCY=8 \
+              RECOVERY_RESTORE_JOBS=$setting \
+              RECOVERY_RESTORE_EXPERIMENT=local_disposable \
+              RECOVERY_CAPTURE_CHILD_RESOURCE=true \
+              RECOVERY_CAPTURE_DATABASE_TELEMETRY=true \
+              RECOVERY_DATABASE_TELEMETRY_INTERVAL_MS=25 \
+              RECOVERY_DATABASE_TELEMETRY_MAX_SAMPLES=120 \
+              node packages/backend/scripts/stress-recovery-sequence.mjs > artifacts/recovery-restore-jobs-$setting.json 2>&1
+            fi
+            status=$?
+            if [ "$status" -ne 0 ]; then overall=$status; fi
+            cat artifacts/recovery-restore-jobs-$setting.json
+          done
+          exit $overall
+      - name: Compare serial and bounded restore-jobs reports
+        if: always()
+        run: |
+          set +e
+          RECOVERY_RESTORE_JOBS_EXPECTED_COMMIT=${{ github.sha }} \
+          RECOVERY_RESTORE_JOBS_EXPECTED_CONCURRENCY=8 \
+          RECOVERY_RESTORE_JOBS_LABELS=serial,1,2,4 \
+          RECOVERY_RESTORE_JOBS_REPORTS=artifacts/recovery-restore-jobs-serial.json,artifacts/recovery-restore-jobs-1.json,artifacts/recovery-restore-jobs-2.json,artifacts/recovery-restore-jobs-4.json \
+          RECOVERY_RESTORE_JOBS_OUTPUT_PATH=artifacts/recovery-restore-jobs-comparison.json \
+          npm run backend:recovery:stress:restore-jobs:compare > artifacts/recovery-restore-jobs-comparison.log 2>&1
+          status=$?
+          cat artifacts/recovery-restore-jobs-comparison.log
+          exit 0
+      - name: Fingerprint restore-jobs artifacts
+        if: always()
+        run: sha256sum artifacts/recovery-restore-jobs-serial.json artifacts/recovery-restore-jobs-1.json artifacts/recovery-restore-jobs-2.json artifacts/recovery-restore-jobs-4.json artifacts/recovery-restore-jobs-comparison.json artifacts/recovery-restore-jobs-comparison.log | tee artifacts/recovery-restore-jobs.sha256
+      - name: Upload restore-jobs evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: recovery-restore-jobs-${{ github.run_id }}
+          path: |
+            artifacts/recovery-restore-jobs-serial.json
+            artifacts/recovery-restore-jobs-1.json
+            artifacts/recovery-restore-jobs-2.json
+            artifacts/recovery-restore-jobs-4.json
+            artifacts/recovery-restore-jobs-comparison.json
+            artifacts/recovery-restore-jobs-comparison.log
+            artifacts/recovery-restore-jobs.sha256
+          if-no-files-found: error
+          retention-days: 7
+      - name: Enforce verified restore-jobs comparison
+        if: always()
+        run: |
+          test -s artifacts/recovery-restore-jobs-comparison.json
+          jq -e '.status == "verified" and .expectedCommit == "${{ github.sha }}" and .expectedConcurrency == 8 and .jobLabels == ["serial","1","2","4"] and .releaseEligible == false and .settlementAuthority == false and .mutation == "read_only" and .deploymentPerformed == false and .settlementMutationPerformed == false' artifacts/recovery-restore-jobs-comparison.json >/dev/null
 
   recovery-confidence:
     name: Repeated c2/c4/c8 confidence artifacts

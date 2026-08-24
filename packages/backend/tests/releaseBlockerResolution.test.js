@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -194,5 +195,38 @@ describe('release blocker resolution tracking', () => {
   it('returns a non-authoritative complete status only when every release-gate check passed', () => {
     const report = buildReleaseBlockerResolution({ report: makeReport([check('quality-gate', 'passed'), check('release-manifest', 'passed')]), releaseCommit })
     expect(report).toMatchObject({ status: 'ready', trackingStatus: 'complete', resolvedByAutomatedGateCount: 2, openBlockerCount: 0, unexpectedFailureCount: 0, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+  })
+
+  it('rejects symlinked top-level release-gate and tracking inputs', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-blocker-inputs-'))
+    try {
+      const releaseGatesPath = path.join(root, 'release-gates.json')
+      const trackingPath = path.join(root, 'tracking.json')
+      const releaseGatesLink = path.join(root, 'release-gates-link.json')
+      const trackingLink = path.join(root, 'tracking-link.json')
+      const releaseGatesRaw = JSON.stringify(makeReport([check('quality-gate', 'passed')]))
+      const trackingRaw = JSON.stringify({ reportKind: 'release_blocker_resolution_tracking', releaseCommit, entries: [], releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+      fs.writeFileSync(releaseGatesPath, releaseGatesRaw, { mode: 0o600 })
+      fs.writeFileSync(trackingPath, trackingRaw, { mode: 0o600 })
+      fs.symlinkSync(releaseGatesPath, releaseGatesLink)
+      fs.symlinkSync(trackingPath, trackingLink)
+
+      const invoke = (env) => {
+        const result = spawnSync(process.execPath, [path.resolve(process.cwd(), 'scripts/verify-release-blocker-resolution.mjs')], { cwd: process.cwd(), env: { ...process.env, ...env }, encoding: 'utf8' })
+        return { status: result.status, output: JSON.parse(result.stdout) }
+      }
+
+      const gateResult = invoke({ BLOCKER_RESOLUTION_RELEASE_GATES_FILE: releaseGatesLink, BLOCKER_RESOLUTION_COMMIT: releaseCommit })
+      expect(gateResult.status).toBe(1)
+      expect(gateResult.output).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+      expect(gateResult.output.reason).toContain('must be a regular non-symlink file')
+
+      const trackingResult = invoke({ BLOCKER_RESOLUTION_RELEASE_GATES_FILE: releaseGatesPath, BLOCKER_RESOLUTION_TRACKING_FILE: trackingLink, BLOCKER_RESOLUTION_COMMIT: releaseCommit })
+      expect(trackingResult.status).toBe(1)
+      expect(trackingResult.output).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+      expect(trackingResult.output.reason).toContain('must be a regular non-symlink file')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

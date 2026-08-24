@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { validateEvidencePath } from './verify-human-evidence-custody.mjs'
@@ -62,14 +63,22 @@ function requireCommit(value, field = 'releaseCommit') {
 
 function loadJson(filePath, label) {
   if (!filePath) fail(`${label} is required`)
-  const raw = fs.readFileSync(filePath, 'utf8')
+  const resolvedPath = path.resolve(filePath)
+  let stat
+  try {
+    stat = fs.lstatSync(resolvedPath)
+  } catch (error) {
+    fail(`${label} could not be inspected: ${error.message}`)
+  }
+  if (!stat.isFile() || stat.isSymbolicLink()) fail(`${label} must be a regular non-symlink file`)
+  const raw = fs.readFileSync(resolvedPath, 'utf8')
   let value
   try {
     value = JSON.parse(raw)
   } catch {
     fail(`${label} is not valid JSON`)
   }
-  return { value, sourceSha256: createHash('sha256').update(raw, 'utf8').digest('hex'), filePath }
+  return { value, sourceSha256: createHash('sha256').update(raw, 'utf8').digest('hex'), filePath: resolvedPath }
 }
 
 function loadVerifiedEvidenceReference(reference, { name, commit }) {

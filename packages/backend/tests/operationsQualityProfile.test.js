@@ -117,6 +117,24 @@ describe('operations-quality profile artifact verifier', () => {
     expect(() => validateOperationsQualityProfile({ content: JSON.stringify(profile) })).toThrow('state/count reconciliation')
   })
 
+  it('rejects report status drift even when aggregate counts reconcile', () => {
+    const profile = makeProfile({ status: 'passed' })
+    expect(() => validateOperationsQualityProfile({ content: JSON.stringify(profile) })).toThrow('status does not reconcile')
+  })
+
+  it('rejects unexpected-failure name drift against failed check states', () => {
+    const profile = makeProfile()
+    profile.status = 'failed'
+    profile.checks[0].state = 'failed'
+    profile.checks[0].exitCode = 1
+    profile.checks[0].expectedBlocked = false
+    profile.passedCount = 0
+    profile.operatorBlockerCount = 10
+    profile.unexpectedFailureCount = 1
+    profile.unexpectedFailures = [{ name: 'not-quality-gate' }]
+    expect(() => validateOperationsQualityProfile({ content: JSON.stringify(profile) })).toThrow('unexpected failures do not reconcile')
+  })
+
   it('rejects sensitive fields and authority-positive values', () => {
     const sensitive = makeProfile({ operatorBlockers: [{ name: 'x', reviewerNotes: 'forbidden' }] })
     expect(() => validateOperationsQualityProfile({ content: JSON.stringify(sensitive) })).toThrow('sensitive key')

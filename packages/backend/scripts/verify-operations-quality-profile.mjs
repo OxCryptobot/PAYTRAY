@@ -96,10 +96,11 @@ export function validateOperationsQualityProfile({ artifactPath, content } = {})
   const expectedBlockerNames = report.checks.filter((check) => check.state === 'operator_blocked').map((check) => check.name)
   const actualBlockerNames = Array.isArray(report.operatorBlockers) ? report.operatorBlockers.map((blocker) => blocker?.name) : []
   if (JSON.stringify(actualBlockerNames) !== JSON.stringify(expectedBlockerNames)) fail('operations-quality profile operator blockers do not reconcile with check states')
-  if (!Array.isArray(report.unexpectedFailures) || report.unexpectedFailures.length !== report.unexpectedFailureCount) fail('operations-quality profile unexpected failures do not reconcile')
-  if (report.status === 'failed' && report.unexpectedFailureCount === 0) fail('failed operations-quality profile must contain an unexpected failure')
-  if (report.status === 'passed' && report.operatorBlockerCount !== 0) fail('passed operations-quality profile cannot contain operator blockers')
-  if (report.status === 'operator_blocked' && report.operatorBlockerCount === 0) fail('operator_blocked profile must contain operator blockers')
+  const expectedFailureNames = report.checks.filter((check) => check.state === 'failed').map((check) => check.name)
+  const actualFailureNames = Array.isArray(report.unexpectedFailures) ? report.unexpectedFailures.map((failure) => failure?.name) : []
+  if (JSON.stringify(actualFailureNames) !== JSON.stringify(expectedFailureNames)) fail('operations-quality profile unexpected failures do not reconcile with check states')
+  const expectedStatus = derivedCounts.failed > 0 ? 'failed' : derivedCounts.operatorBlocked > 0 ? 'operator_blocked' : 'passed'
+  if (report.status !== expectedStatus) fail('operations-quality profile status does not reconcile with check states')
   return {
     status: 'verified',
     reportKind: report.reportKind,

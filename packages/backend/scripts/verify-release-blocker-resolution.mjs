@@ -12,6 +12,9 @@ const TRACKING_STATUSES = new Set(['unassigned', 'operator_in_progress', 'eviden
 const EVIDENCE_REFERENCE_KINDS = new Set(['release_evidence', 'release_approval', 'shadow_review_status', 'verifier_operations', 'verifier_cursor', 'reconciliation', 'recovery', 'verifier_reconciliation', 'durable_worker', 'verifier_durable_operations', 'railway_settings', 'outbox_health', 'idempotency_cleanup', 'target_operations',
  'operator_key_custody', 'secret_manager_custody', 'release_manifest', 'release_payload', 'cryptographic_sequence', 'authority_readiness', 'advisory_ai', 'token_metadata', 'downstream_operational'])
 const DEPENDENCIES = Object.freeze({
+  'quality-gate': [],
+  'sdk-contract': [],
+  'extension-contract': [],
   migrations: [],
   recovery: ['migrations'],
   'railway-trial': [],
@@ -194,6 +197,11 @@ export function buildReleaseBlockerResolution({ report, sourceSha256 = null, tra
   if (!Array.isArray(report.checks)) fail('release-gates report checks must be an array')
   const commit = requireCommit(releaseCommit, 'releaseCommit')
   const trackingEntries = tracking ? normalizeTracking(tracking, commit) : []
+  const knownCheckNames = new Set(Object.keys(DEPENDENCIES))
+  const unknownCheckNames = report.checks
+    .map((check) => check?.name)
+    .filter((name) => typeof name !== 'string' || !knownCheckNames.has(name))
+  if (unknownCheckNames.length) fail(`release-gates report contains unsupported checks: ${unknownCheckNames.join(', ')}`)
   const trackingByName = new Map(trackingEntries.map((entry) => [entry.name, entry]))
   const gateStates = new Map(report.checks.map((check) => [check?.name, check?.state]))
   const checkNames = new Set()

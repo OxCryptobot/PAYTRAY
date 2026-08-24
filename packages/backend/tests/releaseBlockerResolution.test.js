@@ -137,6 +137,10 @@ describe('release blocker resolution tracking', () => {
     expect(() => buildReleaseBlockerResolution({ report: makeReport([check('quality-gate', 'passed')]), releaseCommit, tracking: { reportKind: 'release_blocker_resolution_tracking', releaseCommit, entries: [{ name: 'not-a-gate', status: 'unassigned' }] } })).toThrow('do not match release-gates checks')
   })
 
+  it('rejects unsupported release-gate check names', () => {
+    expect(() => buildReleaseBlockerResolution({ report: makeReport([check('unknown-check')]), releaseCommit })).toThrow('release-gates report contains unsupported checks: unknown-check')
+  })
+
   it('rejects sensitive fields and authority violations', () => {
     expect(() => buildReleaseBlockerResolution({ report: { ...makeReport([check('quality-gate', 'passed')]), privateKey: 'never' }, releaseCommit })).toThrow('sensitive key is not allowed')
     expect(() => buildReleaseBlockerResolution({ report: { ...makeReport([check('quality-gate', 'passed')]), releaseEligible: true }, releaseCommit })).toThrow('immutable authority violation')

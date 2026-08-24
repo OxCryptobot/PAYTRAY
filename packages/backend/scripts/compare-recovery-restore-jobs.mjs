@@ -54,6 +54,13 @@ function parseReportPaths(raw, expectedLength = 4) {
 
 async function loadJson(filePath) {
   const resolved = path.resolve(filePath)
+  let stat
+  try {
+    stat = await fs.lstat(resolved)
+  } catch (error) {
+    fail(`${resolved} could not be inspected: ${error.message}`)
+  }
+  if (!stat.isFile() || stat.isSymbolicLink()) fail(`${resolved} must be a regular non-symlink file`)
   let raw
   try {
     raw = await fs.readFile(resolved, 'utf8')
@@ -131,7 +138,9 @@ export async function compareRecoveryRestoreJobs({ reportPaths, expectedCommit, 
   if (!Array.isArray(jobLabels) || jobLabels.length !== 4) fail('jobLabels must contain exactly four labels')
   const normalizedLabels = jobLabels.map(normalizeJobLabel)
   if (new Set(normalizedLabels).size !== 4 || normalizedLabels[0] !== 'serial') fail('jobLabels must be serial,1,2,4 exactly once and serial must be first')
-  const reports = await Promise.all(reportPaths.map((reportPath) => loadJson(reportPath)))
+  const resolvedReportPaths = reportPaths.map((reportPath) => path.resolve(reportPath))
+  if (new Set(resolvedReportPaths).size !== resolvedReportPaths.length) fail('reportPaths must reference four distinct files')
+  const reports = await Promise.all(resolvedReportPaths.map((reportPath) => loadJson(reportPath)))
   const levels = reports.map((report, index) => validateReport(report, { expectedCommit, expectedConcurrency, jobLabel: normalizedLabels[index] }))
   const serial = levels[0]
   const bounded = levels.slice(1)

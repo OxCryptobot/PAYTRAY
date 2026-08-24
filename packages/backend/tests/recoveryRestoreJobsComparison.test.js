@@ -137,4 +137,24 @@ describe('recovery restore-jobs comparison', () => {
       await fs.rm(fixture.directory, { recursive: true, force: true })
     }
   })
+
+  it('blocks duplicate report paths before reading evidence', async () => {
+    const fixture = await writeFixture([report('serial'), report('1'), report('2'), report('4')])
+    try {
+      await expect(compareRecoveryRestoreJobs({ reportPaths: [fixture.paths[0], fixture.paths[1], fixture.paths[1], fixture.paths[3]], expectedCommit: COMMIT })).rejects.toThrow('reportPaths must reference four distinct files')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks symlinked report inputs', async () => {
+    const fixture = await writeFixture([report('serial'), report('1'), report('2'), report('4')])
+    const symlinkPath = path.join(fixture.directory, 'report-link.json')
+    await fs.symlink(fixture.paths[1], symlinkPath)
+    try {
+      await expect(compareRecoveryRestoreJobs({ reportPaths: [fixture.paths[0], symlinkPath, fixture.paths[2], fixture.paths[3]], expectedCommit: COMMIT })).rejects.toThrow('must be a regular non-symlink file')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
 })

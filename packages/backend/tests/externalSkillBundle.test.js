@@ -70,6 +70,18 @@ describe('external skill-bundle verifier', () => {
     expect(result.error).toContain('SHA-256 mismatch')
   })
 
+  it('blocks extracted members with unsafe permissions', () => {
+    const { archive, sidecar } = createSafeBundle(root)
+    const source = path.join(root, 'source')
+    const verifier = path.join(source, 'scripts', 'verify-skill-execution-integrity.mjs')
+    fs.chmodSync(verifier, 0o777)
+    execFileSync('zip', ['-q', '-9', archive, 'scripts/verify-skill-execution-integrity.mjs'], { cwd: source })
+    writeSidecar(archive, sidecar)
+    const result = verifyExternalSkillBundle({ archivePath: archive, sidecarPath: sidecar })
+    expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    expect(result.error).toContain('unsafe permissions')
+  })
+
   it('blocks an archive with too many entries before extraction', () => {
     const { archive, sidecar } = createSafeBundle(root)
     const source = path.join(root, 'source')

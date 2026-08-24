@@ -70,6 +70,8 @@ function scanExtractedText(root) {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const target = path.join(current, entry.name)
       if (entry.isSymbolicLink()) fail(`extracted skill contains a symlink: ${path.relative(root, target)}`)
+      const mode = fs.lstatSync(target).mode
+      if ((mode & 0o6000) !== 0 || (mode & 0o022) !== 0) fail(`extracted skill contains unsafe permissions: ${path.relative(root, target)}`)
       if (entry.isDirectory()) {
         scan(target)
         continue

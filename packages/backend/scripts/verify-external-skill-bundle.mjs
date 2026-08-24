@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 const MAX_ARCHIVE_BYTES = 50 * 1024 * 1024
 const MAX_ARCHIVE_ENTRIES = 512
 const MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+const INTEGRITY_VERIFIER_TIMEOUT_MS = 2_000
 const ALLOWED_TOP_LEVEL = new Set(['SKILL.md', 'references', 'scripts'])
 const SECRET_PATTERNS = Object.freeze({
   privateKeyPem: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/,
@@ -94,8 +95,25 @@ function scanExtractedText(root) {
 
 function runExtractedIntegrity(extractedRoot) {
   const verifier = path.join(extractedRoot, 'scripts', 'verify-skill-execution-integrity.mjs')
+  const integrityOutputPath = path.join(extractedRoot, '.paytray-execution-integrity.json')
   requireRegularFile(verifier, 'extracted execution-integrity verifier')
-  const result = spawnSync(process.execPath, [verifier, extractedRoot], { encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 })
+  const result = spawnSync(process.execPath, [
+    '--experimental-permission',
+    `--allow-fs-read=${extractedRoot}`,
+    `--allow-fs-write=${integrityOutputPath}`,
+    verifier,
+    extractedRoot,
+    integrityOutputPath
+  ], {
+    encoding: 'utf8',
+    env: {},
+    maxBuffer: 2 * 1024 * 1024,
+    timeout: INTEGRITY_VERIFIER_TIMEOUT_MS
+  })
+  if (result.error) {
+    if (result.error.code === 'ETIMEDOUT') fail(`extracted skill integrity verifier timed out after ${INTEGRITY_VERIFIER_TIMEOUT_MS}ms`)
+    fail(`extracted skill integrity verifier could not execute: ${result.error.message}`)
+  }
   let report
   try {
     report = JSON.parse(result.stdout || '')

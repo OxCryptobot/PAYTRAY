@@ -10,13 +10,13 @@ function writeSidecar(archivePath, sidecarPath, digest = crypto.createHash('sha2
   fs.writeFileSync(sidecarPath, `${digest}  ${path.basename(archivePath)}\n`)
 }
 
-function createSafeBundle(root, integrity = { valid: true, errors: [], warnings: [], lineCount: 1, workflowStepCount: 1 }) {
+function createSafeBundle(root, integrity = { valid: true, errors: [], warnings: [], lineCount: 1, workflowStepCount: 1 }, verifierSource = null) {
   const source = path.join(root, 'source')
   fs.mkdirSync(path.join(source, 'references'), { recursive: true })
   fs.mkdirSync(path.join(source, 'scripts'), { recursive: true })
   fs.writeFileSync(path.join(source, 'SKILL.md'), '# fixture skill\n')
   fs.writeFileSync(path.join(source, 'references', 'contract.md'), 'contract\n')
-  fs.writeFileSync(path.join(source, 'scripts', 'verify-skill-execution-integrity.mjs'), `console.log(JSON.stringify(${JSON.stringify(integrity)}))\n`)
+  fs.writeFileSync(path.join(source, 'scripts', 'verify-skill-execution-integrity.mjs'), verifierSource ?? `console.log(JSON.stringify(${JSON.stringify(integrity)}))\n`)
   const archive = path.join(root, 'fixture.skill')
   execFileSync('zip', ['-q', '-9', archive, 'SKILL.md', 'references/contract.md', 'scripts/verify-skill-execution-integrity.mjs'], { cwd: source })
   const sidecar = path.join(root, 'fixture.skill.sha256')
@@ -80,6 +80,30 @@ describe('external skill-bundle verifier', () => {
     const result = verifyExternalSkillBundle({ archivePath: archive, sidecarPath: sidecar })
     expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
     expect(result.error).toContain('unsafe permissions')
+  })
+
+  it('does not inherit ambient verifier path overrides from the consumer process', () => {
+    const { archive, sidecar } = createSafeBundle(root)
+    const previousSkillDir = process.env.SKILL_DIR
+    const previousOutputPath = process.env.SKILL_INTEGRITY_OUTPUT_PATH
+    process.env.SKILL_DIR = path.join(root, 'untrusted-path')
+    process.env.SKILL_INTEGRITY_OUTPUT_PATH = path.join(root, 'untrusted-output.json')
+    try {
+      const result = verifyExternalSkillBundle({ archivePath: archive, sidecarPath: sidecar })
+      expect(result).toMatchObject({ status: 'verified', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    } finally {
+      if (previousSkillDir === undefined) delete process.env.SKILL_DIR
+      else process.env.SKILL_DIR = previousSkillDir
+      if (previousOutputPath === undefined) delete process.env.SKILL_INTEGRITY_OUTPUT_PATH
+      else process.env.SKILL_INTEGRITY_OUTPUT_PATH = previousOutputPath
+    }
+  })
+
+  it('blocks an integrity verifier that exceeds the execution timeout', () => {
+    const { archive, sidecar } = createSafeBundle(root, undefined, 'while (true) {}\n')
+    const result = verifyExternalSkillBundle({ archivePath: archive, sidecarPath: sidecar })
+    expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+    expect(result.error).toContain('timed out')
   })
 
   it('blocks an archive with too many entries before extraction', () => {

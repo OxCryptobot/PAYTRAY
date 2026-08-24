@@ -1,5 +1,11 @@
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildVerifierCursorEvidence } from '../scripts/verify-verifier-cursor-evidence.mjs'
+
+const script = path.resolve(process.cwd(), 'scripts/verify-verifier-cursor-evidence.mjs')
 
 function operationsReport({ status = 'ready', cursor = { last_scanned_block: '123', updated_at: '2026-08-17T19:00:00.000Z' }, verifierStatus = 'fresh', unlinkedEvidenceCount = 0 } = {}) {
   return {
@@ -79,5 +85,38 @@ describe('verifier cursor evidence', () => {
     expect(() => buildVerifierCursorEvidence({
       operations: { ...operationsReport(), value: { privateKey: 'must-not-appear' } }
     })).toThrow('sensitive key is not allowed')
+  })
+
+  it('rejects symlinked and non-regular CLI operations reports', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-verifier-cursor-inputs-'))
+    try {
+      const reportPath = path.join(root, 'operations.json')
+      const symlinkPath = path.join(root, 'operations-link.json')
+      const directoryPath = path.join(root, 'operations-directory')
+      fs.writeFileSync(reportPath, JSON.stringify(operationsReport().value), { mode: 0o600 })
+      fs.symlinkSync(reportPath, symlinkPath)
+      fs.mkdirSync(directoryPath)
+
+      const invoke = (filePath) => {
+        const result = spawnSync(process.execPath, [script], {
+          cwd: process.cwd(),
+          env: { ...process.env, VERIFIER_OPERATIONS_FILE: filePath },
+          encoding: 'utf8'
+        })
+        return { status: result.status, output: JSON.parse(result.stdout) }
+      }
+
+      const symlinkResult = invoke(symlinkPath)
+      expect(symlinkResult.status).toBe(1)
+      expect(symlinkResult.output).toMatchObject({ status: 'operator_blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false, authority: 'verifier_cursor_evidence_only' })
+      expect(symlinkResult.output.reason).toContain('must not be a symlink')
+
+      const directoryResult = invoke(directoryPath)
+      expect(directoryResult.status).toBe(1)
+      expect(directoryResult.output).toMatchObject({ status: 'operator_blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+      expect(directoryResult.output.reason).toContain('must be a regular file')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

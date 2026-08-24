@@ -6,7 +6,7 @@ import { validateEvidencePath } from './verify-human-evidence-custody.mjs'
 const COMMIT40 = /^[0-9a-f]{40}$/
 const TARGETS = new Set(['local_disposable', 'authenticated_target'])
 const SENSITIVE_KEY = /(?:private.?key|secret|password|authorization|cookie|jwt|token|signature|raw.?content|reviewer.?notes|transcript|recording|audio|video)/i
-const EXPECTED_MIGRATIONS = ['001_init', '002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims', '015_verified_trust_signals', '016_webhook_inbox', '017_extension_hooks', '018_operations_quality_runs', '019_reviewer_attestations']
+const EXPECTED_MIGRATIONS = ['001_init', '002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims', '015_verified_trust_signals', '016_webhook_inbox', '017_extension_hooks', '018_operations_quality_runs', '019_reviewer_attestations', '020_outbox_lease_state']
 
 function fail(message) {
   throw new Error(message)
@@ -35,9 +35,21 @@ function assertSafeFields(report, label) {
   if (report.mutation !== 'read_only') fail(`${label} mutation must be read_only`)
 }
 
+function assertRegularNonSymlinkFile(filePath, label) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch {
+    fail(`${label} file is not a regular file`)
+  }
+  if (stat.isSymbolicLink()) fail(`${label} file must not be a symlink`)
+  if (!stat.isFile()) fail(`${label} file must be a regular file`)
+}
+
 function loadEvidence(filePath, { label, target, commit }) {
   const protectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT || '/protected/paytray'
   const resolvedPath = validateEvidencePath(filePath, { label, target, protectedRoot })
+  assertRegularNonSymlinkFile(resolvedPath, label)
   const raw = fs.readFileSync(resolvedPath, 'utf8')
   const sha256 = createHash('sha256').update(raw, 'utf8').digest('hex')
   let report

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { buildFoundationBlockerEvidence } from '../scripts/verify-foundation-blocker-evidence.mjs'
 
 const releaseCommit = 'a'.repeat(40)
-const migrationNames = ['001_init', '002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims', '015_verified_trust_signals', '016_webhook_inbox', '017_extension_hooks', '018_operations_quality_runs', '019_reviewer_attestations']
+const migrationNames = ['001_init', '002_financial_core', '003_discovery_v1', '004_engagement_context', '005_outcomes_and_metrics', '006_ai_evaluation_foundation', '007_discovery_impressions', '008_production_telemetry', '009_verified_outcome_provenance', '010_ledger_intent_idempotency', '011_payment_stream_verifier_provenance', '012_shadow_run_review', '013_verifier_cursors', '014_webhook_replay_claims', '015_verified_trust_signals', '016_webhook_inbox', '017_extension_hooks', '018_operations_quality_runs', '019_reviewer_attestations', '020_outbox_lease_state']
 
 function writeFixture(root, name, report) {
   const filePath = path.join(root, name)
@@ -30,6 +30,7 @@ describe('foundation blocker evidence verifier', () => {
       const railwayPath = writeFixture(root, 'railway.json', baseRailway())
       const result = buildFoundationBlockerEvidence({ migrationEvidenceFile: migrationPath, railwayEvidenceFile: railwayPath, target: 'local_disposable', releaseCommit })
       expect(result).toMatchObject({ reportKind: 'foundation_blocker_evidence', status: 'verified_reference', evidenceCount: 2, verifiedReferenceCount: 2, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', applied: false })
+      expect(result.blockers[0]).toMatchObject({ blocker: 'migrations', status: 'verified_reference', expectedMigrationCount: 20, observedMigrationCount: 20, schemaContractsPassed: true })
       expect(result.blockers.map((item) => item.status)).toEqual(['verified_reference', 'verified_reference'])
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
@@ -85,6 +86,23 @@ describe('foundation blocker evidence verifier', () => {
       const result = buildFoundationBlockerEvidence({ migrationEvidenceFile: migrationPath, railwayEvidenceFile: railwayPath, target: 'local_disposable', releaseCommit })
       expect(result.blockers[1].sourceSha256).toBe(createHash('sha256').update(railwayRaw).digest('hex'))
       expect(result.blockers[1].releaseCommit).toBe(releaseCommit)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects symlinked and non-regular migration or Railway evidence inputs', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-foundation-inputs-'))
+    try {
+      const migrationPath = writeFixture(root, 'migration.json', baseMigration())
+      const railwayPath = writeFixture(root, 'railway.json', baseRailway())
+      const migrationLink = path.join(root, 'migration-link.json')
+      const railwayDirectory = path.join(root, 'railway-directory')
+      fs.symlinkSync(migrationPath, migrationLink)
+      fs.mkdirSync(railwayDirectory)
+
+      expect(() => buildFoundationBlockerEvidence({ migrationEvidenceFile: migrationLink, railwayEvidenceFile: railwayPath, target: 'local_disposable', releaseCommit })).toThrow('migration evidence file must not be a symlink')
+      expect(() => buildFoundationBlockerEvidence({ migrationEvidenceFile: migrationPath, railwayEvidenceFile: railwayDirectory, target: 'local_disposable', releaseCommit })).toThrow('Railway evidence file must be a regular file')
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

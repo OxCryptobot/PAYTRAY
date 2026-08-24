@@ -1,5 +1,11 @@
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildReleaseBlockerClearancePlan } from '../scripts/verify-release-blocker-clearance-plan.mjs'
+
+const script = path.resolve(process.cwd(), 'scripts/verify-release-blocker-clearance-plan.mjs')
 
 function makeReport(operatorBlockers = []) {
   return {
@@ -41,5 +47,34 @@ describe('release blocker clearance plan', () => {
     expect(() => buildReleaseBlockerClearancePlan({ report: unsafe })).toThrow('immutable authority violation')
     const result = buildReleaseBlockerClearancePlan({ report: makeReport([]), target: 'authenticated_target' })
     expect(result).toMatchObject({ status: 'ready', planStatus: 'complete', blockerCount: 0, releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+  })
+
+  it('rejects symlinked and non-regular CLI release-gates inputs', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-clearance-inputs-'))
+    try {
+      const reportPath = path.join(root, 'release-gates.json')
+      const linkPath = path.join(root, 'release-gates-link.json')
+      const directoryPath = path.join(root, 'release-gates-directory')
+      fs.writeFileSync(reportPath, JSON.stringify(makeReport([{ name: 'migrations', status: 'operator_blocked', reason: 'database unavailable', clearanceCriteria: 'ready target database' }])), { mode: 0o600 })
+      fs.symlinkSync(reportPath, linkPath)
+      fs.mkdirSync(directoryPath)
+
+      const invoke = (filePath) => {
+        const result = spawnSync(process.execPath, [script], { cwd: process.cwd(), env: { ...process.env, BLOCKER_CLEARANCE_RELEASE_GATES_FILE: filePath }, encoding: 'utf8' })
+        return { status: result.status, output: JSON.parse(result.stdout) }
+      }
+
+      const symlinkResult = invoke(linkPath)
+      expect(symlinkResult.status).toBe(1)
+      expect(symlinkResult.output).toMatchObject({ status: 'blocked', planStatus: 'incomplete', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false, authority: 'release_blocker_clearance_plan_only' })
+      expect(symlinkResult.output.reason).toContain('must not be a symlink')
+
+      const directoryResult = invoke(directoryPath)
+      expect(directoryResult.status).toBe(1)
+      expect(directoryResult.output).toMatchObject({ status: 'blocked', planStatus: 'incomplete', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+      expect(directoryResult.output.reason).toContain('must be a regular file')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

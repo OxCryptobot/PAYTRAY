@@ -115,8 +115,20 @@ export function validateReviewerAttestationBundle({ content } = {}) {
   }
 }
 
+function assertRegularNonSymlinkFile(filePath) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch {
+    fail('reviewer attestation bundle file is not a regular file')
+  }
+  if (stat.isSymbolicLink()) fail('reviewer attestation bundle file must not be a symlink')
+  if (!stat.isFile()) fail('reviewer attestation bundle file must be a regular file')
+}
+
 function loadReport(filePath) {
   if (!filePath) fail('REVIEWER_ATTESTATIONS_FILE is required')
+  assertRegularNonSymlinkFile(filePath)
   const raw = fs.readFileSync(filePath, 'utf8')
   return {
     report: JSON.parse(raw),

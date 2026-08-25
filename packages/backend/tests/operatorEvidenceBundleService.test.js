@@ -1,3 +1,7 @@
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildOperatorEvidenceBundle, verifyOperatorEvidenceBundle } from '../lib/operatorEvidenceBundleService.js'
 
@@ -15,6 +19,12 @@ const reconciliationEvidence = {
   settlementAuthority: false,
   mutation: 'read_only'
 }
+const cliScript = path.resolve(process.cwd(), 'scripts/verify-operator-evidence-bundle.mjs')
+
+function runCli(filePath) {
+  return spawnSync(process.execPath, [cliScript, filePath], { encoding: 'utf8', env: { ...process.env, DATABASE_URL: '' } })
+}
+
 const operationsQualityRuns = {
   runs: [
     {
@@ -91,5 +101,27 @@ describe('operator evidence bundle service', () => {
     expect(result.blockers).toContainEqual({ name: 'reconciliation', reason: 'reconciliation evidence is not verified' })
     expect(result.references.reconciliationEvidenceHash).toBe(null)
     expect(result.quality).toEqual({ count: 0, latest: null })
+  })
+
+  it('rejects symlinked and non-regular CLI bundle inputs before parsing', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-operator-bundle-inputs-'))
+    try {
+      const targetPath = path.join(directory, 'bundle.json')
+      const symlinkPath = path.join(directory, 'bundle-link.json')
+      const directoryPath = path.join(directory, 'bundle-directory')
+      fs.writeFileSync(targetPath, '{}')
+      fs.symlinkSync(targetPath, symlinkPath)
+      fs.mkdirSync(directoryPath)
+
+      const symlinkResult = runCli(symlinkPath)
+      expect(symlinkResult.status).toBe(1)
+      expect(JSON.parse(symlinkResult.stdout)).toMatchObject({ status: 'blocked', verified: false, reason: 'bundle file must not be a symlink', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+
+      const directoryResult = runCli(directoryPath)
+      expect(directoryResult.status).toBe(1)
+      expect(JSON.parse(directoryResult.stdout)).toMatchObject({ status: 'blocked', verified: false, reason: 'bundle file must be a regular file', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
   })
 })

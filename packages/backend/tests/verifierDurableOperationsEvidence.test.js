@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import { createHash } from 'node:crypto'
 import os from 'node:os'
@@ -6,6 +7,21 @@ import { describe, expect, it } from 'vitest'
 import { buildVerifierDurableOperationsEvidence } from '../scripts/verify-verifier-durable-operations-evidence.mjs'
 
 const releaseCommit = 'a'.repeat(40)
+const script = path.resolve(process.cwd(), 'scripts/verify-verifier-durable-operations-evidence.mjs')
+
+function runCli(recoveryFile, verifierReconciliationFile, durableWorkerFile) {
+  return spawnSync(process.execPath, [script], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      VERIFIER_DURABLE_RECOVERY_FILE: recoveryFile,
+      VERIFIER_RECONCILIATION_FILE: verifierReconciliationFile,
+      DURABLE_WORKER_EVIDENCE_FILE: durableWorkerFile,
+      VERIFIER_DURABLE_EVIDENCE_TARGET: 'local_disposable',
+      VERIFIER_DURABLE_EVIDENCE_COMMIT: releaseCommit
+    }
+  })
+}
 
 function writeJson(root, name, value) {
   const filePath = path.join(root, name)
@@ -90,6 +106,48 @@ describe('verifier durable operations evidence', () => {
       const report = buildVerifierDurableOperationsEvidence({ recoveryFile: recoveryFile.filePath, verifierReconciliationFile: verifierFile.filePath, durableWorkerFile: durableFile.filePath, target: 'local_disposable', releaseCommit })
       expect(report.status).toBe('blocked')
       expect(report.verifiedReferenceCount).toBe(0)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects symlinked and non-regular direct inputs with structured blocked output', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-verifier-durable-inputs-'))
+    try {
+      const recoveryFile = writeJson(root, 'recovery.json', recovery()).filePath
+      const verifierFile = writeJson(root, 'verifier-reconciliation.json', verifierReconciliation()).filePath
+      const durableFile = writeJson(root, 'durable-worker.json', durableWorker()).filePath
+      const recoverySymlinkPath = path.join(root, 'recovery-link.json')
+      const durableDirectoryPath = path.join(root, 'durable-directory')
+      fs.symlinkSync(recoveryFile, recoverySymlinkPath)
+      fs.mkdirSync(durableDirectoryPath)
+
+      const symlinkResult = runCli(recoverySymlinkPath, verifierFile, durableFile)
+      expect(symlinkResult.status).toBe(1)
+      expect(JSON.parse(symlinkResult.stdout)).toMatchObject({
+        reportKind: 'verifier_durable_operations_evidence',
+        status: 'blocked',
+        reason: 'recovery evidence must not be a symlink',
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        applied: false,
+        deploymentPerformed: false,
+        settlementMutationPerformed: false,
+        authority: 'verifier_durable_operations_evidence_only'
+      })
+
+      const directoryResult = runCli(recoveryFile, verifierFile, durableDirectoryPath)
+      expect(directoryResult.status).toBe(1)
+      expect(JSON.parse(directoryResult.stdout)).toMatchObject({
+        reportKind: 'verifier_durable_operations_evidence',
+        status: 'blocked',
+        reason: 'durable-worker evidence must be a regular file',
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        authority: 'verifier_durable_operations_evidence_only'
+      })
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

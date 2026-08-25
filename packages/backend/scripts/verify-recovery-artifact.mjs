@@ -68,6 +68,17 @@ function assertObject(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label} must be an object`)
 }
 
+function assertRegularNonSymlinkFile(filePath, label) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch (error) {
+    fail(`${label} cannot be inspected: ${error.message}`)
+  }
+  if (stat.isSymbolicLink()) fail(`${label} must not be a symlink`)
+  if (!stat.isFile()) fail(`${label} must be a regular file`)
+}
+
 function assertNoSensitiveKeys(value, currentPath = '$') {
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertNoSensitiveKeys(item, `${currentPath}[${index}]`))
@@ -81,6 +92,7 @@ function assertNoSensitiveKeys(value, currentPath = '$') {
 }
 
 function loadJson(artifactPath) {
+  assertRegularNonSymlinkFile(artifactPath, `recovery artifact ${artifactPath}`)
   let raw
   try {
     raw = fs.readFileSync(artifactPath, 'utf8')
@@ -391,12 +403,14 @@ function classifyArtifact(artifactPath, artifact) {
 }
 
 async function sha256File(filePath) {
+  assertRegularNonSymlinkFile(filePath, `recovery artifact ${filePath}`)
   const hash = createHash('sha256')
   hash.update(await fs.promises.readFile(filePath))
   return hash.digest('hex')
 }
 
 async function validateSidecar(artifactPaths, sidecarPath) {
+  assertRegularNonSymlinkFile(sidecarPath, 'recovery SHA-256 sidecar')
   let raw
   try {
     raw = await fs.promises.readFile(sidecarPath, 'utf8')

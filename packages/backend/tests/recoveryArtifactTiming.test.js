@@ -864,3 +864,50 @@ describe('recovery artifact child-process telemetry contract', () => {
     }
   })
 })
+
+
+describe('recovery artifact file identity contract', () => {
+  const validTiming = {
+    startedAt: '2026-08-18T23:00:00.000Z',
+    completedAt: '2026-08-18T23:00:02.000Z',
+    elapsedMs: 2000,
+    phases: { restore: { status: 'ok', durationMs: 2000 } },
+    rto: { targetMs: 5000, targetConfigured: true, withinTarget: true, basis: 'operator_supplied' }
+  }
+
+  it('rejects symlinked and non-regular recovery artifact inputs before parsing', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-inputs-'))
+    try {
+      const artifactPath = path.join(directory, 'recovery-evidence.json')
+      const symlinkPath = path.join(directory, 'recovery-evidence-link.json')
+      const directoryPath = path.join(directory, 'recovery-evidence-directory')
+      await fs.writeFile(artifactPath, JSON.stringify(recoveryArtifact(validTiming)))
+      await fs.symlink(artifactPath, symlinkPath)
+      await fs.mkdir(directoryPath)
+
+      await expect(validateRecoveryArtifactBundle({ artifactPaths: [symlinkPath] })).rejects.toThrow('must not be a symlink')
+      await expect(validateRecoveryArtifactBundle({ artifactPaths: [directoryPath] })).rejects.toThrow('must be a regular file')
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects symlinked and non-regular recovery SHA-256 sidecars before reading', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-recovery-sidecar-inputs-'))
+    try {
+      const artifactPath = path.join(directory, 'recovery-evidence.json')
+      const sidecarTarget = path.join(directory, 'recovery.sha256.target')
+      const sidecarSymlink = path.join(directory, 'recovery.sha256.link')
+      const sidecarDirectory = path.join(directory, 'recovery.sha256.directory')
+      await fs.writeFile(artifactPath, JSON.stringify(recoveryArtifact(validTiming)))
+      await fs.writeFile(sidecarTarget, '')
+      await fs.symlink(sidecarTarget, sidecarSymlink)
+      await fs.mkdir(sidecarDirectory)
+
+      await expect(validateRecoveryArtifactBundle({ artifactPaths: [artifactPath], sidecarPath: sidecarSymlink })).rejects.toThrow('recovery SHA-256 sidecar must not be a symlink')
+      await expect(validateRecoveryArtifactBundle({ artifactPaths: [artifactPath], sidecarPath: sidecarDirectory })).rejects.toThrow('recovery SHA-256 sidecar must be a regular file')
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+})

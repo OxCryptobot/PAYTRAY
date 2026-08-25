@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import { createHash } from 'node:crypto'
 import os from 'node:os'
@@ -6,7 +7,21 @@ import { describe, expect, it } from 'vitest'
 import { buildDownstreamOperationalEvidence } from '../scripts/verify-downstream-operational-evidence.mjs'
 
 const releaseCommit = 'a'.repeat(40)
+const script = path.resolve(process.cwd(), 'scripts/verify-downstream-operational-evidence.mjs')
 const targetCheckNames = ['deploymentConfiguration', 'railwayTrialUrl', 'railwaySettings', 'database', 'paymentRpc', 'baseSepoliaPolicy', 'verifierWorker', 'outboxWorker', 'idempotencyHousekeeping']
+
+function runCli(targetOperationsFile, tokenMetadataFile) {
+  return spawnSync(process.execPath, [script], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      DOWNSTREAM_TARGET_OPERATIONS_FILE: targetOperationsFile,
+      DOWNSTREAM_TOKEN_METADATA_FILE: tokenMetadataFile,
+      DOWNSTREAM_EVIDENCE_TARGET: 'local_disposable',
+      DOWNSTREAM_EVIDENCE_COMMIT: releaseCommit
+    }
+  })
+}
 
 function writeJson(root, name, value) {
   const filePath = path.join(root, name)
@@ -72,6 +87,47 @@ describe('downstream operational evidence verifier', () => {
       const result = buildDownstreamOperationalEvidence({ targetOperationsFile: target.filePath, tokenMetadataFile: metadata.filePath, target: 'local_disposable', releaseCommit })
       expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
       expect(result.blockers.every((blocker) => blocker.status === 'blocked')).toBe(true)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects symlinked and non-regular direct inputs with structured blocked output', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-downstream-inputs-'))
+    try {
+      const target = writeJson(root, 'target-operations.json', targetOperations()).filePath
+      const metadata = writeJson(root, 'token-metadata.json', tokenMetadata()).filePath
+      const targetSymlinkPath = path.join(root, 'target-operations-link.json')
+      const metadataDirectoryPath = path.join(root, 'token-metadata-directory')
+      fs.symlinkSync(target, targetSymlinkPath)
+      fs.mkdirSync(metadataDirectoryPath)
+
+      const symlinkResult = runCli(targetSymlinkPath, metadata)
+      expect(symlinkResult.status).toBe(1)
+      expect(JSON.parse(symlinkResult.stdout)).toMatchObject({
+        reportKind: 'downstream_operational_evidence',
+        status: 'blocked',
+        reason: 'target operations evidence must not be a symlink',
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        applied: false,
+        deploymentPerformed: false,
+        settlementMutationPerformed: false,
+        authority: 'downstream_operational_evidence_only'
+      })
+
+      const directoryResult = runCli(target, metadataDirectoryPath)
+      expect(directoryResult.status).toBe(1)
+      expect(JSON.parse(directoryResult.stdout)).toMatchObject({
+        reportKind: 'downstream_operational_evidence',
+        status: 'blocked',
+        reason: 'token metadata evidence must be a regular file',
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        authority: 'downstream_operational_evidence_only'
+      })
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

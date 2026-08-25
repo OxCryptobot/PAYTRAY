@@ -29,8 +29,20 @@ function requireCommit(value) {
   return value.trim()
 }
 
+function assertRegularNonSymlinkFile(filePath, label) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch {
+    fail(`${label} is not a regular file`)
+  }
+  if (stat.isSymbolicLink()) fail(`${label} must not be a symlink`)
+  if (!stat.isFile()) fail(`${label} must be a regular file`)
+}
+
 function loadReport(filePath, { label, target, releaseCommit, reportKind }) {
   if (!filePath) fail(`${label} is required`)
+  assertRegularNonSymlinkFile(filePath, label)
   const protectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT || '/protected/paytray'
   const resolvedPath = validateEvidencePath(filePath, { label, target, protectedRoot })
   const raw = fs.readFileSync(resolvedPath, 'utf8')

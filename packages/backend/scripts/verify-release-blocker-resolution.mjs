@@ -65,16 +65,20 @@ function requireCommit(value, field = 'releaseCommit') {
   return value.trim()
 }
 
-function loadJson(filePath, label) {
+function assertRegularNonSymlinkFile(filePath, label) {
   if (!filePath) fail(`${label} is required`)
-  const resolvedPath = path.resolve(filePath)
   let stat
   try {
-    stat = fs.lstatSync(resolvedPath)
+    stat = fs.lstatSync(filePath)
   } catch (error) {
     fail(`${label} could not be inspected: ${error.message}`)
   }
   if (!stat.isFile() || stat.isSymbolicLink()) fail(`${label} must be a regular non-symlink file`)
+}
+
+function loadJson(filePath, label) {
+  assertRegularNonSymlinkFile(filePath, label)
+  const resolvedPath = path.resolve(filePath)
   const raw = fs.readFileSync(resolvedPath, 'utf8')
   let value
   try {
@@ -96,7 +100,9 @@ function loadVerifiedEvidenceReference(reference, { name, commit }) {
   if (referenceCommit !== commit) fail(`tracking entry ${name} evidenceReference releaseCommit does not match the release-gates commit`)
   if (typeof reference.reportKind !== 'string' || reference.reportKind.trim() === '') fail(`tracking entry ${name} evidenceReference reportKind is required`)
   const protectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT || '/protected/paytray'
-  const resolvedPath = validateEvidencePath(reference.path, { label: `tracking entry ${name} evidenceReference`, target, protectedRoot })
+  const referenceLabel = `tracking entry ${name} evidenceReference`
+  assertRegularNonSymlinkFile(reference.path, referenceLabel)
+  const resolvedPath = validateEvidencePath(reference.path, { label: referenceLabel, target, protectedRoot })
   const raw = fs.readFileSync(resolvedPath, 'utf8')
   const sourceSha256 = createHash('sha256').update(raw, 'utf8').digest('hex')
   if (sourceSha256 !== reference.sha256) fail(`tracking entry ${name} evidenceReference sha256 does not match file content`)

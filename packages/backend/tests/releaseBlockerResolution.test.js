@@ -109,6 +109,13 @@ describe('release blocker resolution tracking', () => {
       fs.writeFileSync(outsidePath, raw, { mode: 0o600 })
       const outsideReference = { ...baseReference, target: 'authenticated_target', path: outsidePath }
       expect(() => buildReleaseBlockerResolution({ report: makeReport([check('release-evidence')]), releaseCommit, tracking: { reportKind: 'release_blocker_resolution_tracking', releaseCommit, entries: [{ name: 'release-evidence', evidenceReference: outsideReference }] } })).toThrow('must be inside the protected evidence root')
+
+      const symlinkPath = path.join(root, 'release-evidence-link.json')
+      const directoryPath = path.join(root, 'release-evidence-directory')
+      fs.symlinkSync(referencePath, symlinkPath)
+      fs.mkdirSync(directoryPath)
+      expect(() => buildReleaseBlockerResolution({ report: makeReport([check('release-evidence')]), releaseCommit, tracking: { reportKind: 'release_blocker_resolution_tracking', releaseCommit, entries: [{ name: 'release-evidence', evidenceReference: { ...baseReference, path: symlinkPath } }] } })).toThrow('must be a regular non-symlink file')
+      expect(() => buildReleaseBlockerResolution({ report: makeReport([check('release-evidence')]), releaseCommit, tracking: { reportKind: 'release_blocker_resolution_tracking', releaseCommit, entries: [{ name: 'release-evidence', evidenceReference: { ...baseReference, path: directoryPath } }] } })).toThrow('must be a regular non-symlink file')
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
       fs.rmSync(outsideRoot, { recursive: true, force: true })

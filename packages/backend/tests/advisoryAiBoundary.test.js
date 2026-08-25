@@ -68,4 +68,12 @@ describe('advisory AI boundary', () => {
     const overBudget = await runBoundedAdvisory({ provider: { async complete() { return { output: {}, costMicrounits: 101 } } }, request, config })
     expect(overBudget).toMatchObject({ status: 'blocked', reason: 'advisory AI provider exceeded cost budget' })
   })
+
+  it('blocks primitive and array provider outputs before they cross the advisory boundary', async () => {
+    const request = makeRequest()
+    for (const output of ['raw provider content', ['not', 'an', 'object']]) {
+      const result = await runBoundedAdvisory({ provider: { async complete() { return { output, costMicrounits: 1 } } }, request, config })
+      expect(result).toMatchObject({ status: 'blocked', reason: 'provider response output must be an object', rawContentPersisted: false, humanOverrideRequired: true, applied: false, promotionStatus: 'shadow_only', settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+    }
+  })
 })

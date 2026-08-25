@@ -133,10 +133,11 @@ export async function runBoundedAdvisory({ provider, request, config, now = new 
     const costMicrounits = Number(response?.costMicrounits)
     if (!Number.isInteger(costMicrounits) || costMicrounits < 0) throw new AdvisoryAiBoundaryError('provider response costMicrounits must be a non-negative integer')
     if (costMicrounits > config.advisoryAi.maxCostMicrounits) throw new AdvisoryAiBoundaryError('advisory AI provider exceeded cost budget')
-    assertNoRawContent(response?.output || {}, 'output')
+    if (!response?.output || typeof response.output !== 'object' || Array.isArray(response.output)) throw new AdvisoryAiBoundaryError('provider response output must be an object')
+    assertNoRawContent(response.output, 'output')
     return {
       status: 'advisory',
-      output: response.output || {},
+      output: response.output,
       providerRequestHash: request.inputHash,
       provenance: request.provenance,
       retrievalEvidence: request.retrievalEvidence,

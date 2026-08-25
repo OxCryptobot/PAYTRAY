@@ -21,8 +21,20 @@ function scanSensitiveKeys(value, path = '$') {
   }
 }
 
+function assertRegularNonSymlinkFile(filePath, label) {
+  let stats
+  try {
+    stats = fs.lstatSync(filePath)
+  } catch (error) {
+    fail(`${label} file cannot be inspected: ${error.message}`)
+  }
+  if (stats.isSymbolicLink()) fail(`${label} file must not be a symlink`)
+  if (!stats.isFile()) fail(`${label} file must be a regular file`)
+}
+
 function loadJson(filePath, label) {
   if (!filePath) fail(`${label} file is required`)
+  assertRegularNonSymlinkFile(filePath, label)
   const raw = fs.readFileSync(filePath, 'utf8')
   const start = raw.indexOf('{')
   if (start < 0) fail(`${label} file does not contain a JSON object`)

@@ -1,5 +1,29 @@
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildVerifierReconciliationEvidence } from '../scripts/verify-verifier-reconciliation-evidence.mjs'
+
+const script = path.resolve(process.cwd(), 'scripts/verify-verifier-reconciliation-evidence.mjs')
+
+function runCli(verifierPath, reconciliationPath) {
+  return spawnSync(process.execPath, [script], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      VERIFIER_OPERATIONS_FILE: verifierPath,
+      RECONCILIATION_EVIDENCE_FILE: reconciliationPath,
+      VERIFIER_RECONCILIATION_EVIDENCE_TARGET: 'local_disposable'
+    }
+  })
+}
+
+function writeJson(root, filename, value) {
+  const filePath = path.join(root, filename)
+  fs.writeFileSync(filePath, JSON.stringify(value), { mode: 0o600 })
+  return filePath
+}
 
 function verifierReport(status = 'ready') {
   return {
@@ -66,6 +90,46 @@ describe('verifier/reconciliation evidence composer', () => {
       { label: 'reconciliation', reason: 'reconciliation status is attention' },
       { label: 'reconciliation-issues', reason: 'reconciliation issue count is 1' }
     ])
+  })
+
+  it('rejects symlinked and non-regular direct inputs with structured blocked output', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-verifier-reconciliation-inputs-'))
+    try {
+      const verifierPath = writeJson(root, 'verifier.json', verifierReport().value)
+      const reconciliationPath = writeJson(root, 'reconciliation.json', reconciliationReport().value)
+      const verifierSymlinkPath = path.join(root, 'verifier-link.json')
+      const reconciliationDirectoryPath = path.join(root, 'reconciliation-directory')
+      fs.symlinkSync(verifierPath, verifierSymlinkPath)
+      fs.mkdirSync(reconciliationDirectoryPath)
+
+      const symlinkResult = runCli(verifierSymlinkPath, reconciliationPath)
+      expect(symlinkResult.status).toBe(1)
+      expect(JSON.parse(symlinkResult.stdout)).toMatchObject({
+        reportKind: 'verifier_reconciliation_evidence',
+        status: 'operator_blocked',
+        reason: 'VERIFIER_OPERATIONS_FILE file must not be a symlink',
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        deploymentPerformed: false,
+        settlementMutationPerformed: false,
+        authority: 'verifier_reconciliation_evidence_only'
+      })
+
+      const directoryResult = runCli(verifierPath, reconciliationDirectoryPath)
+      expect(directoryResult.status).toBe(1)
+      expect(JSON.parse(directoryResult.stdout)).toMatchObject({
+        reportKind: 'verifier_reconciliation_evidence',
+        status: 'operator_blocked',
+        reason: 'RECONCILIATION_EVIDENCE_FILE file must be a regular file',
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        authority: 'verifier_reconciliation_evidence_only'
+      })
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 
   it('rejects sensitive evidence keys rather than redacting them implicitly', () => {

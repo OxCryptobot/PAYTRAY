@@ -45,8 +45,8 @@ function assertRegularNonSymlinkFile(filePath, label) {
 }
 
 function readReport(filePath, label, { target, protectedRoot }) {
+  assertRegularNonSymlinkFile(filePath, label)
   const resolvedPath = validateEvidencePath(filePath, { label, target, protectedRoot })
-  assertRegularNonSymlinkFile(resolvedPath, label)
   const raw = fs.readFileSync(resolvedPath, 'utf8')
   let value
   try {

@@ -92,6 +92,22 @@ describe('smoke-phase2 evidence verifier', () => {
       fs.rmSync(root, { recursive: true, force: true })
     }
   })
+
+  it('rejects symlinked and non-regular smoke evidence inputs', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-smoke-evidence-inputs-'))
+    try {
+      const reportPath = writeJson(root, 'smoke.json', smokeReport())
+      const symlinkPath = path.join(root, 'smoke-link.json')
+      const directoryPath = path.join(root, 'smoke-directory')
+      fs.symlinkSync(reportPath, symlinkPath)
+      fs.mkdirSync(directoryPath)
+
+      expect(() => buildSmokePhase2Evidence({ evidenceFile: symlinkPath, target: 'local_disposable', releaseCommit })).toThrow('must not be a symlink')
+      expect(() => buildSmokePhase2Evidence({ evidenceFile: directoryPath, target: 'local_disposable', releaseCommit })).toThrow('must be a regular file')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('release-evidence reference verifier', () => {

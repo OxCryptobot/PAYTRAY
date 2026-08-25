@@ -250,3 +250,30 @@ describe('recovery stress baseline verification', () => {
     }
   })
 })
+
+
+describe('recovery stress baseline report input identity', () => {
+  it('rejects a symlinked report before parsing', async () => {
+    const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency)))
+    try {
+      const symlinkPath = path.join(fixture.directory, 'c2-link.json')
+      await fs.symlink(fixture.paths[0], symlinkPath)
+      const reportPaths = [symlinkPath, fixture.paths[1], fixture.paths[2]]
+      await expect(validateRecoveryStressBaseline({ reportPaths, expectedCommit: COMMIT })).rejects.toThrow('must not be a symlink')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a non-regular report before parsing', async () => {
+    const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency)))
+    try {
+      const directoryPath = path.join(fixture.directory, 'c2-directory.json')
+      await fs.mkdir(directoryPath)
+      const reportPaths = [directoryPath, fixture.paths[1], fixture.paths[2]]
+      await expect(validateRecoveryStressBaseline({ reportPaths, expectedCommit: COMMIT })).rejects.toThrow('must be a regular file')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+})

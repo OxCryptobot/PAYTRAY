@@ -140,6 +140,14 @@ function validateDatabaseTelemetry(report, expectedConcurrency, requireContentio
 }
 
 async function loadReport(filePath) {
+  let stat
+  try {
+    stat = await fs.lstat(filePath)
+  } catch (error) {
+    fail(`${filePath} cannot be inspected: ${error.message}`)
+  }
+  if (stat.isSymbolicLink()) fail(`${filePath} must not be a symlink`)
+  if (!stat.isFile()) fail(`${filePath} must be a regular file`)
   const raw = await fs.readFile(filePath, 'utf8')
   const jsonStart = raw.indexOf('\n{')
   const json = jsonStart >= 0 ? raw.slice(jsonStart + 1) : raw

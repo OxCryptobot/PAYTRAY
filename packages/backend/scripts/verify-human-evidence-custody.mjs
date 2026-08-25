@@ -11,6 +11,18 @@ function fail(message) {
   throw new Error(message)
 }
 
+function assertRegularNonSymlinkFile(filePath, label) {
+  if (!filePath) fail(`${label} file is required`)
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch {
+    fail(`${label} must be a regular file`)
+  }
+  if (stat.isSymbolicLink()) fail(`${label} must not be a symlink`)
+  if (!stat.isFile()) fail(`${label} must be a regular file`)
+}
+
 function scanSensitiveKeys(value, path = '$') {
   if (Array.isArray(value)) {
     value.forEach((item, index) => scanSensitiveKeys(item, `${path}[${index}]`))
@@ -41,6 +53,7 @@ export function validateEvidencePath(filePath, { label = 'evidence', target = 'l
 }
 
 function loadJson(filePath, label, options = {}) {
+  assertRegularNonSymlinkFile(filePath, label)
   const resolvedPath = validateEvidencePath(filePath, { label, ...options })
   const raw = fs.readFileSync(resolvedPath, 'utf8')
   let value

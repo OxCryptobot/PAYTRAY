@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -5,11 +6,24 @@ import { describe, expect, it } from 'vitest'
 import { buildAdvisoryAiEvidence } from '../scripts/verify-advisory-ai-evidence.mjs'
 
 const releaseCommit = 'a'.repeat(40)
+const script = path.resolve(process.cwd(), 'scripts/verify-advisory-ai-evidence.mjs')
 
 function writeFixture(root, report) {
   const filePath = path.join(root, 'advisory-ai.json')
   fs.writeFileSync(filePath, JSON.stringify(report), { mode: 0o600 })
   return filePath
+}
+
+function runCli(filePath) {
+  return spawnSync(process.execPath, [script], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      ADVISORY_AI_EVIDENCE_FILE: filePath,
+      ADVISORY_AI_EVIDENCE_TARGET: 'local_disposable',
+      ADVISORY_AI_EVIDENCE_COMMIT: releaseCommit
+    }
+  })
 }
 
 function baseReport(overrides = {}) {
@@ -64,6 +78,46 @@ describe('advisory-AI evidence verifier', () => {
       const result = buildAdvisoryAiEvidence({ evidenceFile: writeFixture(root, baseReport({ status: 'blocked', capabilities: { ...baseReport().capabilities, enabled: false } })), target: 'local_disposable', releaseCommit })
       expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
       expect(result.capabilityChecks.enabled).toBe(false)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects symlinked and non-regular evidence inputs with structured blocked output', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-advisory-inputs-'))
+    try {
+      const reportPath = writeFixture(root, baseReport())
+      const symlinkPath = path.join(root, 'advisory-ai-link.json')
+      const directoryPath = path.join(root, 'advisory-ai-directory')
+      fs.symlinkSync(reportPath, symlinkPath)
+      fs.mkdirSync(directoryPath)
+
+      const symlinkResult = runCli(symlinkPath)
+      expect(symlinkResult.status).toBe(1)
+      expect(JSON.parse(symlinkResult.stdout)).toMatchObject({
+        reportKind: 'advisory_ai_evidence_verification',
+        status: 'blocked',
+        reason: 'advisory-AI evidence file must not be a symlink',
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        applied: false,
+        deploymentPerformed: false,
+        settlementMutationPerformed: false,
+        authority: 'advisory_ai_evidence_only'
+      })
+
+      const directoryResult = runCli(directoryPath)
+      expect(directoryResult.status).toBe(1)
+      expect(JSON.parse(directoryResult.stdout)).toMatchObject({
+        reportKind: 'advisory_ai_evidence_verification',
+        status: 'blocked',
+        reason: 'advisory-AI evidence file must be a regular file',
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only',
+        authority: 'advisory_ai_evidence_only'
+      })
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

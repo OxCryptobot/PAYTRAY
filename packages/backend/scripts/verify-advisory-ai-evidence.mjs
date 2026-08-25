@@ -28,8 +28,20 @@ function requireCommit(value) {
   return value.trim()
 }
 
+function assertRegularNonSymlinkFile(filePath) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch {
+    fail('advisory-AI evidence file is not a regular file')
+  }
+  if (stat.isSymbolicLink()) fail('advisory-AI evidence file must not be a symlink')
+  if (!stat.isFile()) fail('advisory-AI evidence file must be a regular file')
+}
+
 function loadEvidence(filePath, { target, releaseCommit }) {
   if (!filePath) fail('ADVISORY_AI_EVIDENCE_FILE is required')
+  assertRegularNonSymlinkFile(filePath)
   const protectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT || '/protected/paytray'
   const resolvedPath = validateEvidencePath(filePath, { label: 'advisory-AI evidence', target, protectedRoot })
   const raw = fs.readFileSync(resolvedPath, 'utf8')

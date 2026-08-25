@@ -1,3 +1,7 @@
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { validateHumanEvidenceWorksheet } from '../scripts/verify-human-evidence-worksheet.mjs'
 
@@ -10,6 +14,11 @@ const runIds = [
   '7b0f934d-8bda-4b10-aa4c-d7fc019078e4'
 ]
 const roles = ['release_operator', 'protocol_finance', 'ai_data', 'security']
+const cliScript = path.resolve(process.cwd(), 'scripts/verify-human-evidence-worksheet.mjs')
+
+function runCli(filePath) {
+  return spawnSync(process.execPath, [cliScript, filePath], { encoding: 'utf8', env: { ...process.env, DATABASE_URL: '' } })
+}
 
 function worksheet() {
   return {
@@ -69,5 +78,27 @@ describe('human evidence worksheet validator', () => {
     const result = validateHumanEvidenceWorksheet({ content: value })
     expect(result.prepared).toBe(false)
     expect(result.errors).toEqual(expect.arrayContaining([expect.stringContaining('duplicate sign-off role'), expect.stringContaining('duplicate shadow run'), expect.stringContaining('decision must be approved_pilot or rejected')]))
+  })
+
+  it('rejects symlinked and non-regular CLI worksheet paths before parsing', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-human-evidence-worksheet-inputs-'))
+    try {
+      const target = path.join(root, 'worksheet.json')
+      const symlink = path.join(root, 'worksheet-link.json')
+      const directory = path.join(root, 'worksheet-directory')
+      fs.writeFileSync(target, JSON.stringify(worksheet(), null, 2), { mode: 0o600 })
+      fs.symlinkSync(target, symlink)
+      fs.mkdirSync(directory)
+
+      const symlinkResult = runCli(symlink)
+      expect(symlinkResult.status).toBe(1)
+      expect(JSON.parse(symlinkResult.stdout)).toMatchObject({ status: 'blocked', reason: 'human-evidence worksheet file must not be a symlink', prepared: false, draftPrepared: false, submissionPermitted: false, submissionPerformed: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false, authority: 'human_evidence_worksheet_only' })
+
+      const directoryResult = runCli(directory)
+      expect(directoryResult.status).toBe(1)
+      expect(JSON.parse(directoryResult.stdout)).toMatchObject({ status: 'blocked', reason: 'human-evidence worksheet file must be a regular file', prepared: false, draftPrepared: false, submissionPermitted: false, submissionPerformed: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false, authority: 'human_evidence_worksheet_only' })
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

@@ -41,6 +41,17 @@ function validTimestamp(value, field) {
   if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) fail(`${field} must be an ISO-8601 timestamp`)
 }
 
+function assertRegularNonSymlinkFile(filePath) {
+  let stats
+  try {
+    stats = fs.lstatSync(filePath)
+  } catch (error) {
+    fail(`human-evidence worksheet file cannot be inspected: ${error.message}`)
+  }
+  if (stats.isSymbolicLink()) fail('human-evidence worksheet file must not be a symlink')
+  if (!stats.isFile()) fail('human-evidence worksheet file must be a regular file')
+}
+
 export function validateHumanEvidenceWorksheet({ content } = {}) {
   if (content == null) throw new TypeError('content is required')
   let worksheet
@@ -129,6 +140,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   try {
     const worksheetPath = process.argv[2] || process.env.HUMAN_EVIDENCE_WORKSHEET_FILE
     if (!worksheetPath) throw new Error('worksheet path or HUMAN_EVIDENCE_WORKSHEET_FILE is required')
+    assertRegularNonSymlinkFile(worksheetPath)
     const result = validateHumanEvidenceWorksheet({ content: fs.readFileSync(worksheetPath, 'utf8') })
     console.log(JSON.stringify(result, null, 2))
     process.exitCode = result.prepared || result.draftPrepared ? 0 : 1

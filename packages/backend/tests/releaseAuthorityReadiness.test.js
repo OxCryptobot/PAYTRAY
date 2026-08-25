@@ -134,6 +134,46 @@ describe('release authority readiness', () => {
     }
   })
 
+  it('rejects symlinked and non-regular direct evidence inputs for every readiness report', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-authority-inputs-'))
+    try {
+      const files = writeEvidenceFiles(root, evidence())
+      const inputs = [
+        ['releaseApproval', 'RELEASE_APPROVAL_FILE', 'release approval'],
+        ['releaseEvidence', 'RELEASE_EVIDENCE_FILE', 'release evidence'],
+        ['shadowReviewStatus', 'SHADOW_REVIEW_STATUS_FILE', 'shadow review status'],
+        ['cryptographicSequence', 'CRYPTOGRAPHIC_SEQUENCE_FILE', 'cryptographic sequence'],
+        ['signedPayload', 'SIGNED_RELEASE_PAYLOAD_FILE', 'signed release payload']
+      ]
+      const baseEnv = {
+        RELEASE_AUTHORITY_TARGET: 'local_disposable',
+        RELEASE_APPROVAL_FILE: files.releaseApproval,
+        RELEASE_EVIDENCE_FILE: files.releaseEvidence,
+        SHADOW_REVIEW_STATUS_FILE: files.shadowReviewStatus,
+        CRYPTOGRAPHIC_SEQUENCE_FILE: files.cryptographicSequence,
+        SIGNED_RELEASE_PAYLOAD_FILE: files.signedPayload,
+        RELEASE_AUTHORITY_COMMIT: releaseCommit
+      }
+
+      for (const [name, envVar, label] of inputs) {
+        const symlinkPath = path.join(root, `${name}-link.json`)
+        fs.symlinkSync(files[name], symlinkPath)
+        const symlinkResult = runCli({ ...baseEnv, [envVar]: symlinkPath })
+        expect(symlinkResult.status).toBe(1)
+        expect(JSON.parse(symlinkResult.stdout)).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', applied: false, deploymentPerformed: false, settlementMutationPerformed: false })
+        expect(JSON.parse(symlinkResult.stdout).reason).toBe(`${label} file must not be a symlink`)
+
+        const directoryPath = path.join(root, `${name}-directory`)
+        fs.mkdirSync(directoryPath)
+        const directoryResult = runCli({ ...baseEnv, [envVar]: directoryPath })
+        expect(directoryResult.status).toBe(1)
+        expect(JSON.parse(directoryResult.stdout).reason).toBe(`${label} file must be a regular file`)
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('enforces protected-root path validation for authenticated target evidence', () => {
     const protectedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-authority-protected-'))
     const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-authority-outside-'))

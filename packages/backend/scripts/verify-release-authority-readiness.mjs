@@ -33,8 +33,20 @@ function requireCommit(value, field = 'releaseCommit') {
   return value.trim()
 }
 
+function assertRegularNonSymlinkFile(filePath, label) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch {
+    fail(`${label} file is not a regular file`)
+  }
+  if (stat.isSymbolicLink()) fail(`${label} file must not be a symlink`)
+  if (!stat.isFile()) fail(`${label} file must be a regular file`)
+}
+
 function readReport(filePath, label, { target, protectedRoot }) {
   const resolvedPath = validateEvidencePath(filePath, { label, target, protectedRoot })
+  assertRegularNonSymlinkFile(resolvedPath, label)
   const raw = fs.readFileSync(resolvedPath, 'utf8')
   let value
   try {

@@ -47,9 +47,9 @@ function assertRegularNonSymlinkFile(filePath, label) {
 }
 
 function loadEvidence(filePath, { label, target, commit }) {
+  assertRegularNonSymlinkFile(filePath, label)
   const protectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT || '/protected/paytray'
   const resolvedPath = validateEvidencePath(filePath, { label, target, protectedRoot })
-  assertRegularNonSymlinkFile(resolvedPath, label)
   const raw = fs.readFileSync(resolvedPath, 'utf8')
   const sha256 = createHash('sha256').update(raw, 'utf8').digest('hex')
   let report

@@ -37,8 +37,20 @@ function assertSafeTree(value, path = '$') {
   }
 }
 
+function assertRegularNonSymlinkFile(filePath) {
+  let stats
+  try {
+    stats = fs.lstatSync(filePath)
+  } catch (error) {
+    fail(`review worksheet file cannot be inspected: ${error.message}`)
+  }
+  if (stats.isSymbolicLink()) fail('review worksheet file must not be a symlink')
+  if (!stats.isFile()) fail('review worksheet file must be a regular file')
+}
+
 function loadWorksheet(filePath) {
   if (!filePath) fail('PAYTRAY_REVIEW_WORKSHEET_FILE is required')
+  assertRegularNonSymlinkFile(filePath)
   const content = fs.readFileSync(filePath, 'utf8')
   let worksheet
   try {

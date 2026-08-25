@@ -34,6 +34,10 @@ function worksheet(overrides = {}) {
 function runCli(root, value, extraEnv = {}) {
   const file = path.join(root, 'worksheet.json')
   fs.writeFileSync(file, JSON.stringify(value, null, 2), { mode: 0o600 })
+  return runCliFile(file, extraEnv)
+}
+
+function runCliFile(file, extraEnv = {}) {
   const env = {
     ...process.env,
     PAYTRAY_REVIEW_WORKSHEET_FILE: file,
@@ -86,6 +90,28 @@ describe('shadow-review submission CLI contract', () => {
       const artifactMismatch = runCli(root, worksheet(), { ...submitGuardEnv, PAYTRAY_REVIEW_EXPECTED_COMMIT: releaseCommit, PAYTRAY_REVIEW_EXPECTED_ARTIFACT_SHA256: 'b'.repeat(64) })
       expect(artifactMismatch.status).toBe(1)
       expect(artifactMismatch.report.reason).toContain('PAYTRAY_REVIEW_WORKSHEET_ARTIFACT_SHA256')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects symlinked and non-regular worksheet paths before parsing or submission', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-shadow-cli-inputs-'))
+    try {
+      const target = path.join(root, 'worksheet-target.json')
+      const symlink = path.join(root, 'worksheet-link.json')
+      const directory = path.join(root, 'worksheet-directory')
+      fs.writeFileSync(target, JSON.stringify(worksheet(), null, 2), { mode: 0o600 })
+      fs.symlinkSync(target, symlink)
+      fs.mkdirSync(directory)
+
+      const symlinkResult = runCliFile(symlink)
+      expect(symlinkResult.status).toBe(1)
+      expect(symlinkResult.report).toMatchObject({ status: 'blocked', reason: 'review worksheet file must not be a symlink', networkRequestsPerformed: false, submissionPerformed: false, applied: false, promotionStatus: 'shadow_only', authority: 'human_review_required', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+
+      const directoryResult = runCliFile(directory)
+      expect(directoryResult.status).toBe(1)
+      expect(directoryResult.report).toMatchObject({ status: 'blocked', reason: 'review worksheet file must be a regular file', networkRequestsPerformed: false, submissionPerformed: false, applied: false, promotionStatus: 'shadow_only', authority: 'human_review_required', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
     } finally {
       fs.rmSync(root, { recursive: true, force: true })
     }

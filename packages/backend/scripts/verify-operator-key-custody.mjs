@@ -1,14 +1,26 @@
 import fs from 'node:fs/promises'
 import { buildOperatorKeyCustodyEvidence } from '../lib/operatorKeyCustodyService.js'
 
-async function readOptionalJson(filePath) {
+async function assertRegularNonSymlinkFile(filePath, label) {
+  let stats
+  try {
+    stats = await fs.lstat(filePath)
+  } catch (error) {
+    throw new Error(`${label} file cannot be inspected: ${error.message}`, { cause: error })
+  }
+  if (stats.isSymbolicLink()) throw new Error(`${label} file must not be a symlink`)
+  if (!stats.isFile()) throw new Error(`${label} file must be a regular file`)
+}
+
+async function readOptionalJson(filePath, label) {
   if (!filePath) return null
+  await assertRegularNonSymlinkFile(filePath, label)
   return JSON.parse(await fs.readFile(filePath, 'utf8'))
 }
 
 try {
-  const fingerprintAttestation = await readOptionalJson(process.env.RELEASE_SIGNING_FINGERPRINT_ATTESTATION_FILE)
-  const custodyManifest = await readOptionalJson(process.env.RELEASE_SIGNING_CUSTODY_MANIFEST_FILE)
+  const fingerprintAttestation = await readOptionalJson(process.env.RELEASE_SIGNING_FINGERPRINT_ATTESTATION_FILE, 'RELEASE_SIGNING_FINGERPRINT_ATTESTATION_FILE')
+  const custodyManifest = await readOptionalJson(process.env.RELEASE_SIGNING_CUSTODY_MANIFEST_FILE, 'RELEASE_SIGNING_CUSTODY_MANIFEST_FILE')
   const evidence = buildOperatorKeyCustodyEvidence({
     privateKeyPem: process.env.RELEASE_SIGNING_KEY_PEM || null,
     publicKeyPem: process.env.RELEASE_SIGNING_PUBLIC_KEY_PEM || null,

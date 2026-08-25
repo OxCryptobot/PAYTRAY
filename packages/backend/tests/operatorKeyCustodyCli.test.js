@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import { execFile as execFileCallback } from 'node:child_process'
-import { mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -72,5 +72,28 @@ describe('operator key custody CLI', () => {
     expect(stdout).not.toContain(privateKeyPem)
     expect(stdout).not.toContain(publicKeyPem)
     expect(stdout).not.toContain(signature)
+  })
+
+  it('rejects symlinked and non-regular optional custody evidence before reading', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'paytray-key-custody-inputs-'))
+    const target = path.join(directory, 'attestation-target.json')
+    const symlinkPath = path.join(directory, 'attestation-link.json')
+    const manifestDirectory = path.join(directory, 'custody-manifest-directory')
+    await writeFile(target, JSON.stringify({}), { mode: 0o600 })
+    await symlink(target, symlinkPath)
+    await mkdir(manifestDirectory)
+    const baseEnv = {
+      ...process.env,
+      RELEASE_SIGNING_FINGERPRINT_ATTESTATION_FILE: symlinkPath,
+      RELEASE_SIGNING_CUSTODY_MANIFEST_FILE: '',
+      RELEASE_SIGNING_KEY_PEM: '',
+      RELEASE_SIGNING_PUBLIC_KEY_PEM: '',
+      RELEASE_SIGNING_PUBLIC_KEY_SHA256: '',
+      RELEASE_SIGNING_PUBLIC_KEY_FINGERPRINT_VERIFIED: 'false',
+      RELEASE_SIGNING_KEY_PROTECTED: 'false'
+    }
+
+    await expect(execFile('node', [script], { env: baseEnv })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('RELEASE_SIGNING_FINGERPRINT_ATTESTATION_FILE file must not be a symlink') })
+    await expect(execFile('node', [script], { env: { ...baseEnv, RELEASE_SIGNING_FINGERPRINT_ATTESTATION_FILE: '', RELEASE_SIGNING_CUSTODY_MANIFEST_FILE: manifestDirectory } })).rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('RELEASE_SIGNING_CUSTODY_MANIFEST_FILE file must be a regular file') })
   })
 })

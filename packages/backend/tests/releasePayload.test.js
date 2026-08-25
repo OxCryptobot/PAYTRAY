@@ -1,6 +1,12 @@
+import { spawnSync } from 'node:child_process'
 import crypto from 'crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildSignedReleasePayload, verifySignedReleasePayload } from '../lib/releasePayload.js'
+
+const script = path.resolve(process.cwd(), 'scripts/verify-release-payload.mjs')
 
 function keyPair() {
   return crypto.generateKeyPairSync('ed25519')
@@ -43,5 +49,38 @@ describe('signed release payload', () => {
   it('remains blocked without a signing key', () => {
     const payload = buildSignedReleasePayload(base)
     expect(payload).toMatchObject({ status: 'blocked', signature: null, publicKeyPem: null })
+  })
+
+  it('rejects symlinked and non-regular CLI payload inputs', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-release-payload-inputs-'))
+    try {
+      const payloadPath = path.join(root, 'payload.json')
+      const symlinkPath = path.join(root, 'payload-link.json')
+      const directoryPath = path.join(root, 'payload-directory')
+      fs.writeFileSync(payloadPath, '{}', { mode: 0o600 })
+      fs.symlinkSync(payloadPath, symlinkPath)
+      fs.mkdirSync(directoryPath)
+
+      const invoke = (filePath) => {
+        const result = spawnSync(process.execPath, [script, filePath], {
+          cwd: process.cwd(),
+          encoding: 'utf8'
+        })
+        const serialized = (result.stderr || result.stdout).trim()
+        return { status: result.status, output: JSON.parse(serialized) }
+      }
+
+      const symlinkResult = invoke(symlinkPath)
+      expect(symlinkResult.status).toBe(1)
+      expect(symlinkResult.output).toMatchObject({ status: 'blocked', reason: 'payload could not be parsed or read', mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+      expect(symlinkResult.output.error).toContain('must not be a symlink')
+
+      const directoryResult = invoke(directoryPath)
+      expect(directoryResult.status).toBe(1)
+      expect(directoryResult.output).toMatchObject({ status: 'blocked', reason: 'payload could not be parsed or read', mutation: 'read_only' })
+      expect(directoryResult.output.error).toContain('must be a regular file')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

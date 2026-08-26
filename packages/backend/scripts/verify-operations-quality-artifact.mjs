@@ -10,7 +10,19 @@ function requireIsolatedMode() {
   if (process.env.OPERATIONS_QUALITY_ARTIFACT_ISOLATED !== 'true') fail('OPERATIONS_QUALITY_ARTIFACT_ISOLATED=true is required')
 }
 
+function assertRegularNonSymlinkFile(artifactPath) {
+  let stat
+  try {
+    stat = fs.lstatSync(artifactPath)
+  } catch (error) {
+    fail(`${artifactPath} cannot be inspected: ${error.message}`)
+  }
+  if (stat.isSymbolicLink()) fail(`${artifactPath} must not be a symlink`)
+  if (!stat.isFile()) fail(`${artifactPath} must be a regular file`)
+}
+
 function loadArtifact(artifactPath) {
+  assertRegularNonSymlinkFile(artifactPath)
   let raw
   try {
     raw = fs.readFileSync(artifactPath, 'utf8')
@@ -85,6 +97,7 @@ try {
   if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main()
 } catch (error) {
   console.error(JSON.stringify({
+    reportKind: 'operations_quality',
     status: 'blocked',
     reason: error.message,
     authority: 'operations_quality_artifact_verification_only',

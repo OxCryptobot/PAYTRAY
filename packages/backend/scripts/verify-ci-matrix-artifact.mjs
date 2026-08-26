@@ -9,6 +9,26 @@ function fail(message) {
   throw new Error(message)
 }
 
+function assertRegularNonSymlinkFile(artifactPath) {
+  let stat
+  try {
+    stat = fs.lstatSync(artifactPath)
+  } catch (error) {
+    fail(`${artifactPath} cannot be inspected: ${error.message}`)
+  }
+  if (stat.isSymbolicLink()) fail(`${artifactPath} must not be a symlink`)
+  if (!stat.isFile()) fail(`${artifactPath} must be a regular file`)
+}
+
+function loadArtifact(artifactPath) {
+  assertRegularNonSymlinkFile(artifactPath)
+  try {
+    return fs.readFileSync(artifactPath, 'utf8')
+  } catch (error) {
+    fail(`CI matrix artifact cannot be read: ${error.message}`)
+  }
+}
+
 function assertNoSensitiveKeys(value, path = '$') {
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertNoSensitiveKeys(item, `${path}[${index}]`))
@@ -24,7 +44,7 @@ function assertNoSensitiveKeys(value, path = '$') {
 export function validateCiMatrixArtifact({ artifactPath, expectedReportKind, content, requiredCheckNames = [] } = {}) {
   if (!artifactPath && content == null) throw new TypeError('artifactPath or content is required')
   if (!SAFE_REPORT_KINDS.has(String(expectedReportKind))) throw new TypeError('expectedReportKind is invalid')
-  const raw = content == null ? fs.readFileSync(artifactPath, 'utf8') : String(content)
+  const raw = content == null ? loadArtifact(artifactPath) : String(content)
   let artifact
   try {
     artifact = JSON.parse(raw)
@@ -84,6 +104,21 @@ export function validateCiMatrixArtifact({ artifactPath, expectedReportKind, con
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const [artifactPath, expectedReportKind, ...requiredCheckNames] = process.argv.slice(2)
-  const result = validateCiMatrixArtifact({ artifactPath, expectedReportKind, requiredCheckNames })
-  console.log(JSON.stringify(result, null, 2))
+  try {
+    const result = validateCiMatrixArtifact({ artifactPath, expectedReportKind, requiredCheckNames })
+    console.log(JSON.stringify(result, null, 2))
+  } catch (error) {
+    console.error(JSON.stringify({
+      reportKind: expectedReportKind || null,
+      status: 'blocked',
+      reason: error.message,
+      authority: 'ci_matrix_artifact_verification_only',
+      mutation: 'read_only',
+      releaseEligible: false,
+      settlementAuthority: false,
+      deploymentPerformed: false,
+      settlementMutationPerformed: false
+    }, null, 2))
+    process.exitCode = 1
+  }
 }

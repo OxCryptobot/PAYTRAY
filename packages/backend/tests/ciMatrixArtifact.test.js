@@ -1,3 +1,8 @@
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { validateCiMatrixArtifact } from '../scripts/verify-ci-matrix-artifact.mjs'
 
@@ -131,5 +136,46 @@ describe('CI matrix artifact verifier', () => {
   it('rejects wrong report provenance and recursive sensitive fields', () => {
     expect(() => validateCiMatrixArtifact({ expectedReportKind: 'operations_quality', content: JSON.stringify(artifact()) })).toThrow('reportKind')
     expect(() => validateCiMatrixArtifact({ expectedReportKind: 'release_gates', content: JSON.stringify(artifact({ checks: [{ name: 'release-gates', metadata: { signingSecret: 'never' } }, { name: 'quality-gate', state: 'passed' }] })) })).toThrow('sensitive key')
+  })
+
+  it('blocks symlink and directory CLI inputs with an evidence-only envelope', () => {
+    const tempDir = mkdtempSync(path.join(os.tmpdir(), 'paytray-ci-matrix-'))
+    const regularPath = path.join(tempDir, 'artifact.json')
+    const symlinkPath = path.join(tempDir, 'artifact-link.json')
+    const directoryPath = path.join(tempDir, 'artifact-directory')
+    const scriptPath = fileURLToPath(new URL('../scripts/verify-ci-matrix-artifact.mjs', import.meta.url))
+    writeFileSync(regularPath, JSON.stringify(artifact()))
+    symlinkSync(regularPath, symlinkPath)
+    mkdirSync(directoryPath)
+
+    const runBlocked = (artifactPath) => {
+      try {
+        execFileSync(process.execPath, [scriptPath, artifactPath, 'release_gates'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+        throw new Error('expected CI-matrix CLI to reject the input')
+      } catch (error) {
+        expect(error.status).toBe(1)
+        return JSON.parse(String(error.stderr))
+      }
+    }
+
+    try {
+      const symlinkBlocked = runBlocked(symlinkPath)
+      const directoryBlocked = runBlocked(directoryPath)
+      for (const [blocked, reason] of [[symlinkBlocked, 'symlink'], [directoryBlocked, 'regular file']]) {
+        expect(blocked).toMatchObject({
+          reportKind: 'release_gates',
+          status: 'blocked',
+          authority: 'ci_matrix_artifact_verification_only',
+          mutation: 'read_only',
+          releaseEligible: false,
+          settlementAuthority: false,
+          deploymentPerformed: false,
+          settlementMutationPerformed: false
+        })
+        expect(blocked.reason).toContain(reason)
+      }
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 })

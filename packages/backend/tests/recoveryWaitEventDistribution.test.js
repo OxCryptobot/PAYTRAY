@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import fs from 'node:fs/promises'
 import os from 'node:os'
@@ -5,6 +6,8 @@ import path from 'node:path'
 import { aggregateRecoveryWaitEvents } from '../scripts/aggregate-recovery-wait-events.mjs'
 
 const COMMIT = 'ea78e6677f86532dedae0a55045c731d325558a6'
+const backendDirectory = process.cwd()
+const waitEventScriptPath = path.join(backendDirectory, 'scripts', 'aggregate-recovery-wait-events.mjs')
 const PHASES = ['backup', 'backup_integrity', 'catalog', 'restore', 'restore_verification']
 
 function sampleReport(concurrency, { unsafe = false, commit = COMMIT, waitEvent = 'DataFileImmediateSync' } = {}) {
@@ -89,6 +92,37 @@ describe('recovery wait-event distribution aggregation', () => {
       expect(report.settlementAuthority).toBe(false)
       expect(report.mutation).toBe('read_only')
     } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects symlinked and non-regular report inputs in the CLI before parsing', async () => {
+    const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency)))
+    const inputDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-wait-event-inputs-'))
+    try {
+      const symlinkPath = path.join(inputDirectory, 'c2-link.json')
+      const directoryPath = path.join(inputDirectory, 'c2-directory')
+      await fs.symlink(fixture.paths[0], symlinkPath)
+      await fs.mkdir(directoryPath)
+
+      for (const [inputPath, reason] of [[symlinkPath, `${symlinkPath} must not be a symlink`], [directoryPath, `${directoryPath} must be a regular file`]]) {
+        const reportPaths = [inputPath, fixture.paths[1], fixture.paths[2]].join(',')
+        let error
+        try {
+          execFileSync(process.execPath, [waitEventScriptPath], {
+            cwd: backendDirectory,
+            encoding: 'utf8',
+            env: { ...process.env, RECOVERY_STRESS_REPORTS: reportPaths, RECOVERY_STRESS_EXPECTED_COMMIT: COMMIT }
+          })
+        } catch (caught) {
+          error = caught
+        }
+        expect(error?.status).toBe(1)
+        const output = error?.stderr || error?.stdout
+        expect(JSON.parse(output)).toMatchObject({ reportKind: 'local_disposable_recovery_wait_event_distribution', status: 'blocked', reason, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+      }
+    } finally {
+      await fs.rm(inputDirectory, { recursive: true, force: true })
       await fs.rm(fixture.directory, { recursive: true, force: true })
     }
   })

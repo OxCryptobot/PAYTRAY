@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { validateOperationsQualityProfile } from '../scripts/verify-operations-quality-profile.mjs'
 
@@ -14,6 +18,9 @@ const expectedNames = [
   'release-gates',
   'secret-manager-custody'
 ]
+const backendDirectory = process.cwd()
+const profileScriptPath = path.join(backendDirectory, 'scripts', 'verify-operations-quality-profile.mjs')
+
 const expectedScripts = [
   'backend:quality:check',
   'backend:migrations:check',
@@ -85,6 +92,30 @@ describe('operations-quality profile artifact verifier', () => {
       releaseEligible: false,
       settlementAuthority: false
     })
+  })
+
+  it('rejects symlinked and non-regular profile inputs in the CLI before parsing', async () => {
+    const inputDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-operations-profile-inputs-'))
+    const profilePath = path.join(inputDirectory, 'profile.json')
+    const symlinkPath = path.join(inputDirectory, 'profile-link.json')
+    const directoryPath = path.join(inputDirectory, 'profile-directory')
+    await fs.writeFile(profilePath, JSON.stringify(makeProfile()))
+    await fs.symlink(profilePath, symlinkPath)
+    await fs.mkdir(directoryPath)
+    try {
+      for (const [inputPath, reason] of [[symlinkPath, `${symlinkPath} must not be a symlink`], [directoryPath, `${directoryPath} must be a regular file`]]) {
+        let error
+        try {
+          execFileSync(process.execPath, [profileScriptPath, inputPath], { cwd: backendDirectory, encoding: 'utf8' })
+        } catch (caught) {
+          error = caught
+        }
+        expect(error?.status).toBe(1)
+        expect(JSON.parse(error?.stderr || error?.stdout)).toMatchObject({ reportKind: 'operations_quality_profile', status: 'blocked', reason, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+      }
+    } finally {
+      await fs.rm(inputDirectory, { recursive: true, force: true })
+    }
   })
 
   it('rejects check order or script binding drift', () => {

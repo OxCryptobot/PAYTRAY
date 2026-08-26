@@ -36,6 +36,17 @@ function assertNoSensitiveKeys(value, location = '$') {
   }
 }
 
+function assertRegularNonSymlinkFile(filePath) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch (error) {
+    fail(`${filePath} cannot be inspected: ${error.message}`)
+  }
+  if (stat.isSymbolicLink()) fail(`${filePath} must not be a symlink`)
+  if (!stat.isFile()) fail(`${filePath} must be a regular file`)
+}
+
 function parseContent(content) {
   try {
     return JSON.parse(String(content))
@@ -53,6 +64,7 @@ function assertSafety(report) {
 
 export function validateOperationsQualityProfile({ artifactPath, content } = {}) {
   if (!artifactPath && content == null) throw new TypeError('artifactPath or content is required')
+  if (content == null) assertRegularNonSymlinkFile(artifactPath)
   const raw = content == null ? fs.readFileSync(artifactPath, 'utf8') : String(content)
   const report = parseContent(raw)
   assertNoSensitiveKeys(report)
@@ -120,11 +132,25 @@ export function validateOperationsQualityProfile({ artifactPath, content } = {})
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const [artifactPath, outputPath] = process.argv.slice(2)
-  const result = validateOperationsQualityProfile({ artifactPath })
-  if (outputPath) {
-    fs.mkdirSync(path.dirname(path.resolve(outputPath)), { recursive: true })
-    fs.writeFileSync(path.resolve(outputPath), `${JSON.stringify(result, null, 2)}\n`)
+  try {
+    const [artifactPath, outputPath] = process.argv.slice(2)
+    const result = validateOperationsQualityProfile({ artifactPath })
+    if (outputPath) {
+      fs.mkdirSync(path.dirname(path.resolve(outputPath)), { recursive: true })
+      fs.writeFileSync(path.resolve(outputPath), `${JSON.stringify(result, null, 2)}\n`)
+    }
+    console.log(JSON.stringify(result, null, 2))
+  } catch (error) {
+    console.error(JSON.stringify({
+      reportKind: 'operations_quality_profile',
+      status: 'blocked',
+      reason: error.message,
+      releaseEligible: false,
+      settlementAuthority: false,
+      mutation: 'read_only',
+      deploymentPerformed: false,
+      settlementMutationPerformed: false
+    }, null, 2))
+    process.exitCode = 1
   }
-  console.log(JSON.stringify(result, null, 2))
 }

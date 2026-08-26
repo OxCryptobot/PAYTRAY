@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { buildEvidenceFingerprint } from '../lib/evidenceFingerprint.js'
 
@@ -26,6 +25,14 @@ function assertNonnegativeNumber(value, label) {
 }
 
 async function loadReport(filePath) {
+  let stat
+  try {
+    stat = await fs.lstat(filePath)
+  } catch (error) {
+    fail(`${filePath} cannot be inspected: ${error.message}`)
+  }
+  if (stat.isSymbolicLink()) fail(`${filePath} must not be a symlink`)
+  if (!stat.isFile()) fail(`${filePath} must be a regular file`)
   const raw = await fs.readFile(filePath, 'utf8')
   const jsonStart = raw.indexOf('\n{')
   const json = jsonStart >= 0 ? raw.slice(jsonStart + 1) : raw
@@ -121,7 +128,7 @@ function addScalingMetrics(levels) {
 export async function analyzeRecoveryWaitThroughput({ reportPaths, expectedCommit, expectedConcurrencies = REQUIRED_CONCURRENCIES } = {}) {
   if (!Array.isArray(reportPaths) || reportPaths.length !== expectedConcurrencies.length) fail('reportPaths must contain one report per expected concurrency')
   if (!/^[a-f0-9]{40}$/.test(expectedCommit || '')) fail('expectedCommit must be a lowercase 40-character hexadecimal commit')
-  const reports = await Promise.all(reportPaths.map((filePath) => loadReport(path.resolve(filePath))))
+  const reports = await Promise.all(reportPaths.map((filePath) => loadReport(filePath)))
   const levels = reports.map((report, index) => validateReport(report, expectedCommit, expectedConcurrencies[index]))
   const actual = levels.map((level) => level.concurrency).sort((a, b) => a - b)
   const expected = [...expectedConcurrencies].sort((a, b) => a - b)

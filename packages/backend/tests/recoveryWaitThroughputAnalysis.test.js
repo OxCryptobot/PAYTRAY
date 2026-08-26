@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import fs from 'node:fs/promises'
 import os from 'node:os'
@@ -5,6 +6,8 @@ import path from 'node:path'
 import { analyzeRecoveryWaitThroughput } from '../scripts/analyze-recovery-wait-throughput.mjs'
 
 const COMMIT = 'b097e2c80bdfbd2fb6efe8fd53fca3110dec0bf4'
+const backendDirectory = process.cwd()
+const waitThroughputScriptPath = path.join(backendDirectory, 'scripts', 'analyze-recovery-wait-throughput.mjs')
 
 function sampleReport(concurrency, { unsafe = false, target = false, commit = COMMIT } = {}) {
   const workers = Array.from({ length: concurrency }, (_, index) => ({
@@ -81,6 +84,36 @@ describe('recovery wait-throughput analysis', () => {
       expect(report.settlementAuthority).toBe(false)
       expect(report.mutation).toBe('read_only')
     } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects symlinked and non-regular report inputs in the CLI before parsing', async () => {
+    const fixture = await writeReports([2, 4, 8].map((concurrency) => sampleReport(concurrency)))
+    const inputDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-throughput-inputs-'))
+    try {
+      const symlinkPath = path.join(inputDirectory, 'c2-link.json')
+      const directoryPath = path.join(inputDirectory, 'c2-directory')
+      await fs.symlink(fixture.paths[0], symlinkPath)
+      await fs.mkdir(directoryPath)
+
+      for (const [inputPath, reason] of [[symlinkPath, `${symlinkPath} must not be a symlink`], [directoryPath, `${directoryPath} must be a regular file`]]) {
+        const reportPaths = [inputPath, fixture.paths[1], fixture.paths[2]].join(',')
+        let error
+        try {
+          execFileSync(process.execPath, [waitThroughputScriptPath], {
+            cwd: backendDirectory,
+            encoding: 'utf8',
+            env: { ...process.env, RECOVERY_STRESS_REPORTS: reportPaths, RECOVERY_STRESS_EXPECTED_COMMIT: COMMIT }
+          })
+        } catch (caught) {
+          error = caught
+        }
+        expect(error?.status).toBe(1)
+        expect(JSON.parse(error?.stderr || error?.stdout)).toMatchObject({ reportKind: 'local_disposable_recovery_wait_throughput_analysis', status: 'blocked', reason, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+      }
+    } finally {
+      await fs.rm(inputDirectory, { recursive: true, force: true })
       await fs.rm(fixture.directory, { recursive: true, force: true })
     }
   })

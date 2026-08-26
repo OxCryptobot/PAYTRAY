@@ -87,4 +87,40 @@ describe('PostgreSQL taxonomy verifier', () => {
       await fs.rm(directory, { recursive: true, force: true })
     }
   })
+
+  it('rejects symlinked and non-regular taxonomy inputs before JSON parsing', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-postgres-taxonomy-inputs-'))
+    try {
+      const targetPath = path.join(directory, 'taxonomy-target.json')
+      const symlinkPath = path.join(directory, 'taxonomy-link.json')
+      const directoryPath = path.join(directory, 'taxonomy-directory')
+      const symlinkOutputPath = path.join(directory, 'symlink-verification.json')
+      const directoryOutputPath = path.join(directory, 'directory-verification.json')
+      await fs.writeFile(targetPath, JSON.stringify(taxonomy([])))
+      await fs.symlink(targetPath, symlinkPath)
+      await fs.mkdir(directoryPath)
+
+      let symlinkError
+      try {
+        execFileSync(process.execPath, [scriptPath, symlinkPath, symlinkOutputPath], { cwd: backendDirectory, encoding: 'utf8' })
+      } catch (error) {
+        symlinkError = error
+      }
+      expect(symlinkError?.status).toBe(2)
+      expect(symlinkError?.stderr).toContain('taxonomy input must not be a symlink')
+      expect(JSON.parse(await fs.readFile(symlinkOutputPath, 'utf8'))).toMatchObject({ status: 'blocked', reason: 'taxonomy input must not be a symlink', authority: 'ci_log_audit_only', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false, valid: false })
+
+      let directoryError
+      try {
+        execFileSync(process.execPath, [scriptPath, directoryPath, directoryOutputPath], { cwd: backendDirectory, encoding: 'utf8' })
+      } catch (error) {
+        directoryError = error
+      }
+      expect(directoryError?.status).toBe(2)
+      expect(directoryError?.stderr).toContain('taxonomy input must be a regular file')
+      expect(JSON.parse(await fs.readFile(directoryOutputPath, 'utf8'))).toMatchObject({ status: 'blocked', reason: 'taxonomy input must be a regular file', authority: 'ci_log_audit_only', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false, valid: false })
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
 })

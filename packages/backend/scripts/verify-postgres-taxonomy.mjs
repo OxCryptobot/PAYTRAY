@@ -4,11 +4,47 @@ const inputPath = process.env.CI_NEGATIVE_JSON_PATH ?? process.argv[2]
 const outputPath = process.env.CI_POSTGRES_VERIFICATION_OUTPUT_PATH ?? process.argv[3] ?? '/tmp/paytray-postgres-taxonomy-verification.json'
 const expectedCountRaw = process.env.EXPECT_POSTGRES_RECORD_COUNT
 const expectedCount = expectedCountRaw === undefined ? null : Number.parseInt(expectedCountRaw, 10)
+const safety = {
+  releaseEligible: false,
+  settlementAuthority: false,
+  mutation: 'read_only',
+  deploymentPerformed: false,
+  settlementMutationPerformed: false
+}
+
+function failBeforeRead(reason) {
+  const report = {
+    status: 'blocked',
+    reason,
+    authority: 'ci_log_audit_only',
+    ...safety,
+    valid: false
+  }
+  try {
+    fs.writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`)
+  } catch {
+    // Preserve the original blocked result when the caller also supplies an invalid output path.
+  }
+  console.error(JSON.stringify(report, null, 2))
+  process.exit(2)
+}
+
+function assertRegularNonSymlinkFile(filePath) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch (error) {
+    failBeforeRead(`taxonomy input cannot be inspected: ${error.message}`)
+  }
+  if (stat.isSymbolicLink()) failBeforeRead('taxonomy input must not be a symlink')
+  if (!stat.isFile()) failBeforeRead('taxonomy input must be a regular file')
+}
 
 if (!inputPath) {
   console.error('CI_NEGATIVE_JSON_PATH or argv[2] is required')
   process.exit(2)
 }
+assertRegularNonSymlinkFile(inputPath)
 if (!fs.existsSync(inputPath)) {
   console.error(`taxonomy JSON does not exist: ${inputPath}`)
   process.exit(2)
@@ -71,11 +107,7 @@ const result = {
   allRecordsHaveUniqueLineNumbers: lineNumbers.size === records.length,
   errors,
   authority: 'ci_log_audit_only',
-  releaseEligible: false,
-  settlementAuthority: false,
-  mutation: 'read_only',
-  deploymentPerformed: false,
-  settlementMutationPerformed: false,
+  ...safety,
   valid: (expectedCount === null || records.length === expectedCount) && lineNumbers.size === records.length && errors.length === 0
 }
 fs.writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, runBoundedAdvisory } from '../lib/advisoryAiBoundary.js'
+import { createAdvisoryAiRequest, getAdvisoryAiCapabilities, isAdvisoryAiCapabilityReady, runBoundedAdvisory } from '../lib/advisoryAiBoundary.js'
 
 const config = {
   advisoryAi: {
@@ -36,6 +36,23 @@ describe('advisory AI boundary', () => {
       rawContentPersistence: false,
       mutation: 'read_only'
     })
+  })
+
+  it('requires strict bounded capability and safety fields before reporting ready', () => {
+    const capabilities = getAdvisoryAiCapabilities({ config })
+    expect(isAdvisoryAiCapabilityReady(capabilities)).toBe(true)
+    for (const override of [
+      { maxLatencyMs: '100' },
+      { maxCostMicrounits: -1 },
+      { maxRetrievalItems: 101 },
+      { retentionDays: 0 },
+      { humanReviewRequired: false },
+      { promotionStatus: 'promoted' },
+      { applied: true },
+      { mutation: 'write' }
+    ]) {
+      expect(isAdvisoryAiCapabilityReady({ ...capabilities, ...override })).toBe(false)
+    }
   })
 
   it('normalizes retrieval to evidence references and hashes the bounded request', () => {

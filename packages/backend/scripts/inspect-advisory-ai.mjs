@@ -1,8 +1,8 @@
 import config from '../lib/config.js'
-import { getAdvisoryAiCapabilities } from '../lib/advisoryAiBoundary.js'
+import { getAdvisoryAiCapabilities, isAdvisoryAiCapabilityReady } from '../lib/advisoryAiBoundary.js'
 
 const capabilities = getAdvisoryAiCapabilities({ config })
-const ready = capabilities.enabled && capabilities.providerConfigured && capabilities.rawContentPersistence === false
+const ready = isAdvisoryAiCapabilityReady(capabilities)
 console.log(JSON.stringify({
   reportKind: 'advisory_ai_evidence',
   status: ready ? 'ready' : 'blocked',

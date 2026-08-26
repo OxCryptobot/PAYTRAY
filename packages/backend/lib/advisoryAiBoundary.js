@@ -82,6 +82,21 @@ export function getAdvisoryAiCapabilities({ config }) {
   }
 }
 
+export function isAdvisoryAiCapabilityReady(capabilities = {}) {
+  return capabilities.enabled === true
+    && capabilities.providerConfigured === true
+    && Number.isInteger(capabilities.maxLatencyMs) && capabilities.maxLatencyMs > 0
+    && Number.isInteger(capabilities.maxCostMicrounits) && capabilities.maxCostMicrounits >= 0
+    && Number.isInteger(capabilities.maxRetrievalItems) && capabilities.maxRetrievalItems >= 1 && capabilities.maxRetrievalItems <= 100
+    && Number.isInteger(capabilities.retentionDays) && capabilities.retentionDays >= 1 && capabilities.retentionDays <= 3650
+    && capabilities.rawContentPersistence === false
+    && capabilities.humanReviewRequired === true
+    && capabilities.promotionStatus === 'shadow_only'
+    && capabilities.settlementAuthority === false
+    && capabilities.applied === false
+    && capabilities.mutation === 'read_only'
+}
+
 export function createAdvisoryAiRequest({ taskType, subject, retrievalItems = [], provenance, config, now = new Date() }) {
   if (!ALLOWED_TASK_TYPES.has(taskType)) throw new AdvisoryAiBoundaryError('Unsupported advisory-AI task type')
   if (!subject || typeof subject !== 'object' || Array.isArray(subject)) throw new AdvisoryAiBoundaryError('subject must be an object')

@@ -97,8 +97,20 @@ export function buildPostAttestationSequenceReport({ report, sourceSha256 = null
   }
 }
 
+function assertRegularNonSymlinkFile(filePath) {
+  let stat
+  try {
+    stat = fs.lstatSync(filePath)
+  } catch {
+    fail('post-attestation release-gates file is not a regular file')
+  }
+  if (stat.isSymbolicLink()) fail('post-attestation release-gates file must not be a symlink')
+  if (!stat.isFile()) fail('post-attestation release-gates file must be a regular file')
+}
+
 function loadReport(filePath) {
   if (!filePath) fail('POST_ATTESTATION_RELEASE_GATES_FILE is required')
+  assertRegularNonSymlinkFile(filePath)
   const raw = fs.readFileSync(filePath, 'utf8')
   let report
   try {

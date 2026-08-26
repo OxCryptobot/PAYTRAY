@@ -1,8 +1,15 @@
+import { execFileSync } from 'node:child_process'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildReleaseApprovalArtifact } from '../lib/releaseApprovalGate.js'
 import { buildPostAttestationSequenceReport } from '../scripts/verify-post-attestation-release-sequence.mjs'
 import { validateReviewerAttestationBundle } from '../scripts/verify-reviewer-attestation-bundle.mjs'
 import { buildDurableWorkerEvidence } from '../scripts/verify-durable-worker-evidence.mjs'
+
+const backendDirectory = process.cwd()
+const postAttestationScriptPath = path.join(backendDirectory, 'scripts', 'verify-post-attestation-release-sequence.mjs')
 
 const base = {
   deploymentPreflight: { ready: true, settlement: { chainId: 84532, mainnetEnabled: false }, checks: [] },
@@ -72,6 +79,35 @@ describe('release approval gate', () => {
     expect(result).toMatchObject({ status: 'operator_blocked', sequence: 'post_shadow_review_attestation', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
     expect(result.orderedStages.map((stage) => stage.id)).toEqual(['target-evidence', 'target-recovery', 'fresh-verifier', 'reconciliation', 'durable-workers', 'human-evidence', 'operator-custody', 'manifest-payload', 'authority-readiness'])
     expect(result.blockingChecks.length).toBe(15)
+  })
+
+  it('rejects symlinked and non-regular release-gates inputs before parsing', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-post-attestation-inputs-'))
+    try {
+      const targetPath = path.join(directory, 'release-gates-target.json')
+      const symlinkPath = path.join(directory, 'release-gates-link.json')
+      const directoryPath = path.join(directory, 'release-gates-directory')
+      await fs.writeFile(targetPath, JSON.stringify(makeSequenceReport('passed')))
+      await fs.symlink(targetPath, symlinkPath)
+      await fs.mkdir(directoryPath)
+
+      for (const [inputPath, reason] of [[symlinkPath, 'post-attestation release-gates file must not be a symlink'], [directoryPath, 'post-attestation release-gates file must be a regular file']]) {
+        let error
+        try {
+          execFileSync(process.execPath, [postAttestationScriptPath], {
+            cwd: backendDirectory,
+            encoding: 'utf8',
+            env: { ...process.env, POST_ATTESTATION_RELEASE_GATES_FILE: inputPath }
+          })
+        } catch (caught) {
+          error = caught
+        }
+        expect(error?.status).toBe(1)
+        expect(JSON.parse(error?.stdout)).toMatchObject({ status: 'blocked', reason, sequence: 'post_shadow_review_attestation', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false, authority: 'release_gate_sequence_inspection_only' })
+      }
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
   })
 
   it('reports a complete ordered sequence as verified while preserving false authority fields', () => {

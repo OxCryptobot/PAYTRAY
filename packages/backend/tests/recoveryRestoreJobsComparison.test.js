@@ -1,6 +1,8 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { compareRecoveryRestoreJobs } from '../scripts/compare-recovery-restore-jobs.mjs'
 
@@ -153,6 +155,55 @@ describe('recovery restore-jobs comparison', () => {
     await fs.symlink(fixture.paths[1], symlinkPath)
     try {
       await expect(compareRecoveryRestoreJobs({ reportPaths: [fixture.paths[0], symlinkPath, fixture.paths[2], fixture.paths[3]], expectedCommit: COMMIT })).rejects.toThrow('must be a regular non-symlink file')
+    } finally {
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks symlink and directory CLI inputs with an evidence-only envelope', async () => {
+    const fixture = await writeFixture([report('serial'), report('1'), report('2'), report('4')])
+    const symlinkPath = path.join(fixture.directory, 'report-cli-link.json')
+    const directoryPath = path.join(fixture.directory, 'report-cli-directory')
+    const scriptPath = fileURLToPath(new URL('../scripts/compare-recovery-restore-jobs.mjs', import.meta.url))
+    await fs.symlink(fixture.paths[1], symlinkPath)
+    await fs.mkdir(directoryPath)
+
+    const runBlocked = async (reportPaths) => {
+      try {
+        execFileSync(process.execPath, [scriptPath], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: {
+            ...process.env,
+            RECOVERY_RESTORE_JOBS_REPORTS: reportPaths.join(','),
+            RECOVERY_RESTORE_JOBS_EXPECTED_COMMIT: COMMIT,
+            RECOVERY_RESTORE_JOBS_EXPECTED_CONCURRENCY: '8',
+            RECOVERY_RESTORE_JOBS_LABELS: 'serial,1,2,4'
+          }
+        })
+        throw new Error('expected restore-jobs CLI to reject the input')
+      } catch (error) {
+        expect(error.status).toBe(1)
+        return JSON.parse(String(error.stderr))
+      }
+    }
+
+    try {
+      const symlinkBlocked = await runBlocked([fixture.paths[0], symlinkPath, fixture.paths[2], fixture.paths[3]])
+      const directoryBlocked = await runBlocked([fixture.paths[0], directoryPath, fixture.paths[2], fixture.paths[3]])
+      for (const blocked of [symlinkBlocked, directoryBlocked]) {
+        expect(blocked).toMatchObject({
+          reportKind: 'local_disposable_recovery_restore_jobs_comparison',
+          status: 'blocked',
+          authority: 'recovery_restore_jobs_comparison_only',
+          releaseEligible: false,
+          settlementAuthority: false,
+          mutation: 'read_only',
+          deploymentPerformed: false,
+          settlementMutationPerformed: false
+        })
+        expect(blocked.reason).toContain('regular non-symlink file')
+      }
     } finally {
       await fs.rm(fixture.directory, { recursive: true, force: true })
     }

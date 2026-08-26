@@ -52,15 +52,20 @@ function parseReportPaths(raw, expectedLength = 4) {
   return paths
 }
 
-async function loadJson(filePath) {
-  const resolved = path.resolve(filePath)
+async function assertRegularNonSymlinkFile(filePath) {
   let stat
   try {
-    stat = await fs.lstat(resolved)
+    stat = await fs.lstat(filePath)
   } catch (error) {
-    fail(`${resolved} could not be inspected: ${error.message}`)
+    fail(`${filePath} could not be inspected: ${error.message}`)
   }
-  if (!stat.isFile() || stat.isSymbolicLink()) fail(`${resolved} must be a regular non-symlink file`)
+  if (stat.isSymbolicLink()) fail(`${filePath} must be a regular non-symlink file`)
+  if (!stat.isFile()) fail(`${filePath} must be a regular non-symlink file`)
+}
+
+async function loadJson(filePath) {
+  await assertRegularNonSymlinkFile(filePath)
+  const resolved = path.resolve(filePath)
   let raw
   try {
     raw = await fs.readFile(resolved, 'utf8')
@@ -212,6 +217,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
       reportKind: 'local_disposable_recovery_restore_jobs_comparison',
       status: 'blocked',
       reason: error.message,
+      authority: 'recovery_restore_jobs_comparison_only',
       releaseEligible: false,
       settlementAuthority: false,
       mutation: 'read_only',

@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { lstat, readFile } from 'node:fs/promises'
 import { parseTokenRegistry } from './payments/tokenRegistry.js'
 import { buildTargetOperationsPreflight } from './targetOperationsPreflight.js'
 import { getReleaseReadiness } from './releaseReadiness.js'
@@ -71,8 +71,20 @@ function buildSigningKeyEvidence({ present = false, publicKeyFingerprintSha256 =
   }
 }
 
+async function assertRegularNonSymlinkFile(filePath, label) {
+  let stats
+  try {
+    stats = await lstat(filePath)
+  } catch (error) {
+    throw new Error(`${label} cannot be inspected: ${error.message}`, { cause: error })
+  }
+  if (stats.isSymbolicLink()) throw new Error(`${label} must not be a symlink`)
+  if (!stats.isFile()) throw new Error(`${label} must be a regular file`)
+}
+
 export async function loadReleaseSignoffs(filePath = process.env.RELEASE_SIGNOFFS_FILE) {
   if (!filePath) return []
+  await assertRegularNonSymlinkFile(filePath, 'RELEASE_SIGNOFFS_FILE')
   const value = JSON.parse(await readFile(filePath, 'utf8'))
   if (!Array.isArray(value)) throw new Error('RELEASE_SIGNOFFS_FILE must contain a JSON array')
   return value

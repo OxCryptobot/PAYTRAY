@@ -1,5 +1,8 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { buildReleaseEvidenceBundle, buildUnifiedOperatorEvidence } from '../lib/releaseEvidenceService.js'
+import { buildReleaseEvidenceBundle, buildUnifiedOperatorEvidence, loadReleaseSignoffs } from '../lib/releaseEvidenceService.js'
 
 const baseEvidence = {
   targetOperations: { status: 'ready', releaseEligible: false },
@@ -82,5 +85,26 @@ describe('release evidence aggregation', () => {
     expect(bundle.evidenceComplete).toBe(false)
     expect(bundle.releaseEligible).toBe(false)
     expect(bundle.blockers.map((item) => item.name)).toEqual(expect.arrayContaining(['targetOperations', 'deploymentPreflight', 'verifierOperations', 'shadowReviews', 'humanSignoffs', 'reviewerAttestations', 'signingKey']))
+  })
+
+  it('validates the original signoff path before reading or parsing it', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-release-signoffs-'))
+    try {
+      const signoffFile = path.join(root, 'signoffs.json')
+      const symlinkFile = path.join(root, 'signoffs-link.json')
+      const danglingFile = path.join(root, 'signoffs-dangling.json')
+      const directory = path.join(root, 'signoffs-directory')
+      fs.writeFileSync(signoffFile, '[]\n')
+      fs.symlinkSync(signoffFile, symlinkFile)
+      fs.symlinkSync(path.join(root, 'missing.json'), danglingFile)
+      fs.mkdirSync(directory)
+
+      await expect(loadReleaseSignoffs(signoffFile)).resolves.toEqual([])
+      await expect(loadReleaseSignoffs(symlinkFile)).rejects.toThrow('RELEASE_SIGNOFFS_FILE must not be a symlink')
+      await expect(loadReleaseSignoffs(danglingFile)).rejects.toThrow('RELEASE_SIGNOFFS_FILE must not be a symlink')
+      await expect(loadReleaseSignoffs(directory)).rejects.toThrow('RELEASE_SIGNOFFS_FILE must be a regular file')
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

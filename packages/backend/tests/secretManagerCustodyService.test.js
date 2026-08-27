@@ -1,5 +1,18 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { buildSecretManagerCustodyEvidence } from '../lib/secretManagerCustodyService.js'
+import { buildSecretManagerCustodyEvidence, loadSecretManagerCustodyManifest } from '../lib/secretManagerCustodyService.js'
+
+const verifierScript = fileURLToPath(new URL('../scripts/verify-secret-manager-custody.mjs', import.meta.url))
+
+function runVerifierCli(env) {
+  const result = spawnSync(process.execPath, [verifierScript], { env: { ...process.env, ...env }, encoding: 'utf8' })
+  const output = result.stdout || result.stderr
+  return { ...result, report: JSON.parse(output) }
+}
 
 function makeManifest(overrides = {}) {
   return {
@@ -52,5 +65,39 @@ describe('secret-manager custody evidence', () => {
     expect(evidence.manifestContainsSecretFields).toBe(true)
     expect(evidence.manifestSecretFieldPaths).toContain('$.privateKeyPem')
     expect(evidence.secretMaterialIncluded).toBe(false)
+  })
+
+  it('validates the original manifest path before reading or parsing it', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-secret-manager-manifest-'))
+    try {
+      const manifestFile = path.join(root, 'manifest.json')
+      const symlinkFile = path.join(root, 'manifest-link.json')
+      const danglingFile = path.join(root, 'manifest-dangling.json')
+      const directory = path.join(root, 'manifest-directory')
+      fs.writeFileSync(manifestFile, JSON.stringify(makeManifest()) + '\n')
+      fs.symlinkSync(manifestFile, symlinkFile)
+      fs.symlinkSync(path.join(root, 'missing.json'), danglingFile)
+      fs.mkdirSync(directory)
+
+      await expect(loadSecretManagerCustodyManifest(manifestFile)).resolves.toMatchObject({ provider: 'approved-secret-manager' })
+      await expect(loadSecretManagerCustodyManifest(symlinkFile)).rejects.toThrow('secret-manager custody manifest file must not be a symlink')
+      await expect(loadSecretManagerCustodyManifest(danglingFile)).rejects.toThrow('secret-manager custody manifest file must not be a symlink')
+      await expect(loadSecretManagerCustodyManifest(directory)).rejects.toThrow('secret-manager custody manifest file must be a regular file')
+      await expect(loadSecretManagerCustodyManifest(path.join(root, 'missing.json'))).rejects.toThrow(/ENOENT/)
+
+      const accepted = runVerifierCli({ RELEASE_SIGNING_CUSTODY_MANIFEST_FILE: manifestFile })
+      expect(accepted.status).toBe(1)
+      expect(accepted.report).toMatchObject({ status: 'blocked', manifestPresent: true, secretMaterialIncluded: false, privateKeyMaterialIncluded: false, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false, authority: 'secret_manager_custody_evidence_only' })
+
+      for (const input of [symlinkFile, danglingFile, directory]) {
+        const blocked = runVerifierCli({ RELEASE_SIGNING_CUSTODY_MANIFEST_FILE: input })
+        expect(blocked.status).toBe(1)
+        expect(blocked.report).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false, authority: 'secret_manager_custody_evidence_only' })
+        expect(blocked.report.reason).toMatch(/must not be a symlink|must be a regular file/)
+        expect(JSON.stringify(blocked.report)).not.toContain('approved-secret-manager')
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

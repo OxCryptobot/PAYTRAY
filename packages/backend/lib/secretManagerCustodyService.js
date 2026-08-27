@@ -92,7 +92,14 @@ export function buildSecretManagerCustodyEvidence({ manifest = null, env = proce
   }
 }
 
+async function assertRegularNonSymlinkFile(filePath) {
+  const stat = await fs.lstat(filePath)
+  if (stat.isSymbolicLink()) throw new Error('secret-manager custody manifest file must not be a symlink')
+  if (!stat.isFile()) throw new Error('secret-manager custody manifest file must be a regular file')
+}
+
 export async function loadSecretManagerCustodyManifest(filePath = process.env.RELEASE_SIGNING_CUSTODY_MANIFEST_FILE) {
   if (!filePath) return null
+  await assertRegularNonSymlinkFile(filePath)
   return JSON.parse(await fs.readFile(filePath, 'utf8'))
 }

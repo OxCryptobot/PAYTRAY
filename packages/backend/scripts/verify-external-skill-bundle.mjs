@@ -126,14 +126,14 @@ function runExtractedIntegrity(extractedRoot) {
 
 export function verifyExternalSkillBundle({ archivePath, sidecarPath, outputPath } = {}) {
   if (!archivePath || !sidecarPath) throw new TypeError('archivePath and sidecarPath are required')
-  const normalizedArchivePath = path.resolve(archivePath)
-  const normalizedSidecarPath = path.resolve(sidecarPath)
   const output = path.resolve(outputPath || process.env.SKILL_BUNDLE_VERIFICATION_OUTPUT || '/tmp/paytray-external-skill-bundle-verification.json')
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-external-skill-'))
   let result
   try {
-    const archiveStats = requireRegularFile(normalizedArchivePath, 'skill archive')
-    requireRegularFile(normalizedSidecarPath, 'SHA-256 sidecar')
+    const archiveStats = requireRegularFile(archivePath, 'skill archive')
+    requireRegularFile(sidecarPath, 'SHA-256 sidecar')
+    const normalizedArchivePath = path.resolve(archivePath)
+    const normalizedSidecarPath = path.resolve(sidecarPath)
     if (!normalizedArchivePath.endsWith('.skill')) fail('skill archive must use the .skill extension')
     if (archiveStats.size <= 0 || archiveStats.size > MAX_ARCHIVE_BYTES) fail('skill archive size is outside the permitted bounds')
     const expectedSha256 = parseSidecar(normalizedSidecarPath, normalizedArchivePath)

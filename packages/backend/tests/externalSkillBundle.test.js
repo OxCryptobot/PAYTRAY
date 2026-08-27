@@ -2,9 +2,17 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { verifyExternalSkillBundle } from '../scripts/verify-external-skill-bundle.mjs'
+
+const verifierScript = fileURLToPath(new URL('../scripts/verify-external-skill-bundle.mjs', import.meta.url))
+
+function runVerifierCli(archivePath, sidecarPath, outputPath) {
+  const result = spawnSync(process.execPath, [verifierScript, archivePath, sidecarPath, outputPath], { encoding: 'utf8' })
+  return { ...result, report: JSON.parse(result.stdout) }
+}
 
 function writeSidecar(archivePath, sidecarPath, digest = crypto.createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex')) {
   fs.writeFileSync(sidecarPath, `${digest}  ${path.basename(archivePath)}\n`)
@@ -175,5 +183,28 @@ describe('external skill-bundle verifier', () => {
     const result = verifyExternalSkillBundle({ archivePath: archive, sidecarPath: sidecar })
     expect(result).toMatchObject({ status: 'blocked', releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
     expect(result.error).toContain('credential-like material')
+  })
+
+  it('validates archive and sidecar identity before CLI resolution and emits structured blocked output', () => {
+    const { archive, sidecar } = createSafeBundle(root)
+    const archiveSymlink = path.join(root, 'archive-link.skill')
+    const danglingArchive = path.join(root, 'archive-dangling.skill')
+    const archiveDirectory = path.join(root, 'archive-directory.skill')
+    const output = path.join(root, 'cli-result.json')
+    fs.symlinkSync(archive, archiveSymlink)
+    fs.symlinkSync(path.join(root, 'missing.skill'), danglingArchive)
+    fs.mkdirSync(archiveDirectory)
+
+    const accepted = runVerifierCli(archive, sidecar, output)
+    expect(accepted.status).toBe(0)
+    expect(accepted.report).toMatchObject({ status: 'verified', sha256Matches: true, authority: 'external_skill_bundle_integrity_only', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+
+    for (const [inputPath, expectedError] of [[archiveSymlink, 'skill archive must be a regular non-symlink file'], [danglingArchive, 'skill archive must be a regular non-symlink file'], [archiveDirectory, 'skill archive must be a regular non-symlink file']]) {
+      const blocked = runVerifierCli(inputPath, sidecar, output)
+      expect(blocked.status).toBe(1)
+      expect(blocked.report).toMatchObject({ status: 'blocked', error: expectedError, authority: 'external_skill_bundle_integrity_only', releaseEligible: false, settlementAuthority: false, mutation: 'read_only', deploymentPerformed: false, settlementMutationPerformed: false })
+      expect(blocked.report).not.toHaveProperty('sha256Matches')
+      expect(blocked.report).not.toHaveProperty('archiveEntryCount')
+    }
   })
 })

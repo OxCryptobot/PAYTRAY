@@ -68,8 +68,7 @@ async function createBundle(overrides = {}) {
   return directory
 }
 
-function runAudit(directory) {
-  const outputPath = path.join(directory, 'release-attestation-artifacts.json')
+function runAudit(directory, outputPath = path.join(directory, 'release-attestation-artifacts.json')) {
   try {
     const stdout = execFileSync(process.execPath, [scriptPath, directory, outputPath], {
       cwd: backendDirectory,
@@ -109,6 +108,46 @@ describe('release-attestation artifact retention contract', () => {
       expect(workflow).toContain('retention-days: 7')
     } finally {
       await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('blocks symlinked, dangling-symlink, and non-directory artifact roots before enumeration', async () => {
+    const realDirectory = await createBundle()
+    const symlinkPath = `${realDirectory}-link`
+    const danglingSymlinkPath = `${realDirectory}-dangling-link`
+    const filePath = `${realDirectory}-file`
+    const outputPath = `${realDirectory}-blocked.json`
+    await fs.symlink(realDirectory, symlinkPath)
+    await fs.symlink(`${realDirectory}-missing`, danglingSymlinkPath)
+    await fs.writeFile(filePath, 'not-a-directory\n')
+
+    try {
+      for (const inputPath of [symlinkPath, danglingSymlinkPath, filePath]) {
+        const result = runAudit(inputPath, outputPath)
+        expect(result.status).toBe(1)
+        expect(result.report).toMatchObject({
+          status: 'blocked',
+          artifactDirectory: path.resolve(inputPath),
+          checks: {},
+          authority: 'artifact_retention_audit_only',
+          releaseEligible: false,
+          settlementAuthority: false,
+          mutation: 'read_only',
+          deploymentPerformed: false,
+          settlementMutationPerformed: false,
+          valid: false
+        })
+        expect(result.report.errors).toContainEqual({
+          artifact: path.resolve(inputPath),
+          reason: 'artifact directory must be a regular non-symlink directory'
+        })
+      }
+    } finally {
+      await fs.rm(realDirectory, { recursive: true, force: true })
+      await fs.rm(symlinkPath, { force: true })
+      await fs.rm(danglingSymlinkPath, { force: true })
+      await fs.rm(filePath, { force: true })
+      await fs.rm(outputPath, { force: true })
     }
   })
 

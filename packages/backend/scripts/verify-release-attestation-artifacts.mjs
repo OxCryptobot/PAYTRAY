@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { lstatSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url))
 const repositoryDirectory = path.resolve(scriptDirectory, '../..')
-const artifactDirectory = path.resolve(process.env.MIGRATION_AUDIT_ARTIFACT_DIR ?? process.argv[2] ?? path.join(repositoryDirectory, 'artifacts'))
+const artifactDirectoryInput = process.env.MIGRATION_AUDIT_ARTIFACT_DIR ?? process.argv[2] ?? path.join(repositoryDirectory, 'artifacts')
+const artifactDirectory = path.resolve(artifactDirectoryInput)
 const outputPath = process.env.RELEASE_ATTESTATION_ARTIFACT_OUTPUT_PATH ?? process.argv[3] ?? '/tmp/paytray-release-attestation-artifacts.json'
 
 const requiredArtifacts = {
@@ -74,6 +75,16 @@ function regularFileState(filePath) {
   }
 }
 
+function directoryState(directoryPath) {
+  try {
+    const stat = lstatSync(directoryPath)
+    if (stat.isSymbolicLink() || !stat.isDirectory()) return 'unsafe'
+    return 'directory'
+  } catch (error) {
+    return error.code === 'ENOENT' ? 'missing' : 'error'
+  }
+}
+
 function verifyArtifact(name, authority) {
   const reportPath = path.join(artifactDirectory, name)
   const sidecarPath = `${reportPath}.sha256`
@@ -127,7 +138,10 @@ function verifyArtifact(name, authority) {
   check.valid = check.present && check.checksumMatches && check.jsonValid && check.safe
 }
 
-if (!existsSync(artifactDirectory)) errors.push({ artifact: artifactDirectory, reason: 'artifact directory is missing' })
+const artifactDirectoryStatus = directoryState(artifactDirectoryInput)
+if (artifactDirectoryStatus === 'missing') errors.push({ artifact: artifactDirectory, reason: 'artifact directory is missing' })
+else if (artifactDirectoryStatus === 'unsafe') errors.push({ artifact: artifactDirectory, reason: 'artifact directory must be a regular non-symlink directory' })
+else if (artifactDirectoryStatus === 'error') errors.push({ artifact: artifactDirectory, reason: 'artifact directory could not be inspected' })
 else {
   for (const [name, authority] of Object.entries(requiredArtifacts)) verifyArtifact(name, authority)
   const allowedEntries = new Set([...Object.keys(requiredArtifacts), ...Object.keys(requiredArtifacts).map((name) => `${name}.sha256`), path.basename(outputPath)])

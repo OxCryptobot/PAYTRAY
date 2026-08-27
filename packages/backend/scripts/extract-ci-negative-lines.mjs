@@ -91,12 +91,7 @@ function main() {
       console.error(`CI log does not exist: ${inputPath}`)
       return 2
     }
-    const blocked = buildBlockedReport({
-      inputPath,
-      runId,
-      commit,
-      reason: `CI log could not be inspected: ${error.message}`
-    })
+    const blocked = buildBlockedReport({ inputPath, runId, commit, reason: `CI log could not be inspected: ${error.message}` })
     console.error(JSON.stringify(blocked, null, 2))
     return 1
   }

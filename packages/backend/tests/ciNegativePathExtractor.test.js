@@ -55,4 +55,55 @@ describe('CI negative-path extractor', () => {
       await fs.rm(directory, { recursive: true, force: true })
     }
   })
+
+  it('blocks symlink and directory inputs before taxonomy extraction', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'paytray-ci-negative-identity-'))
+    const inputPath = path.join(directory, 'ci.log')
+    const symlinkPath = path.join(directory, 'ci-link.log')
+    const danglingSymlinkPath = path.join(directory, 'ci-dangling-link.log')
+    const directoryPath = path.join(directory, 'ci-directory')
+    const outputPath = path.join(directory, 'taxonomy.json')
+    await fs.writeFile(inputPath, 'job\tstep\tERROR fixture\n')
+    await fs.symlink(inputPath, symlinkPath)
+    await fs.symlink(path.join(directory, 'missing.log'), danglingSymlinkPath)
+    await fs.mkdir(directoryPath)
+
+    const runBlocked = (candidatePath) => {
+      try {
+        execFileSync(process.execPath, [scriptPath, candidatePath, outputPath], {
+          cwd: backendDirectory,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+        throw new Error('expected CI negative-line extractor to reject the input')
+      } catch (error) {
+        expect(error.status).toBe(1)
+        return JSON.parse(String(error.stderr))
+      }
+    }
+
+    try {
+      const blockedReports = [runBlocked(symlinkPath), runBlocked(danglingSymlinkPath), runBlocked(directoryPath)]
+      for (const report of blockedReports) {
+        expect(report).toMatchObject({
+          source: expect.any(String),
+          status: 'blocked',
+          reason: 'CI log must be a regular non-symlink file',
+          totalErrorLikeLines: 0,
+          processFailureFree: false,
+          authority: 'ci_log_audit_only',
+          releaseEligible: false,
+          settlementAuthority: false,
+          mutation: 'read_only',
+          deploymentPerformed: false,
+          settlementMutationPerformed: false,
+          valid: false
+        })
+        expect(Object.values(report.categories).every((category) => category.count === 0 && category.lines.length === 0)).toBe(true)
+      }
+      expect(await fs.stat(outputPath).then(() => true, () => false)).toBe(false)
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
 })

@@ -43,8 +43,8 @@ function assertRegularNonSymlinkFile(filePath) {
 function loadReport(filePath, { target, releaseCommit }) {
   if (!filePath) fail('RELEASE_EVIDENCE_REFERENCE_FILE is required')
   const protectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT || '/protected/paytray'
+  assertRegularNonSymlinkFile(filePath)
   const resolvedPath = validateEvidencePath(filePath, { label: 'release-evidence reference', target, protectedRoot })
-  assertRegularNonSymlinkFile(resolvedPath)
   const raw = fs.readFileSync(resolvedPath, 'utf8')
   let envelope
   try {

@@ -1,11 +1,19 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { buildSmokePhase2Evidence } from '../scripts/verify-smoke-phase2-evidence.mjs'
 import { buildReleaseEvidenceReference } from '../scripts/verify-release-evidence-reference.mjs'
 
 const releaseCommit = 'c'.repeat(40)
+const verifierScript = fileURLToPath(new URL('../scripts/verify-release-evidence-reference.mjs', import.meta.url))
+
+function runVerifierCli(env) {
+  const result = spawnSync(process.execPath, [verifierScript], { env: { ...process.env, ...env }, encoding: 'utf8' })
+  return { ...result, report: JSON.parse(result.stdout) }
+}
 
 function writeJson(root, name, value) {
   const file = path.join(root, name)
@@ -151,6 +159,44 @@ describe('release-evidence reference verifier', () => {
       expect(() => buildReleaseEvidenceReference({ evidenceFile: symlinkPath, target: 'local_disposable', releaseCommit })).toThrow('must not be a symlink')
       expect(() => buildReleaseEvidenceReference({ evidenceFile: directoryPath, target: 'local_disposable', releaseCommit })).toThrow('must be a regular file')
     } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('validates authenticated-target input identity before protected-root resolution', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'paytray-release-evidence-auth-inputs-'))
+    const previousProtectedRoot = process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT
+    process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT = root
+    try {
+      const reportPath = writeJson(root, 'release.json', releaseEnvelope())
+      const symlinkPath = path.join(root, 'release-link.json')
+      const danglingPath = path.join(root, 'release-dangling.json')
+      const directoryPath = path.join(root, 'release-directory')
+      fs.symlinkSync(reportPath, symlinkPath)
+      fs.symlinkSync(path.join(root, 'does-not-exist.json'), danglingPath)
+      fs.mkdirSync(directoryPath)
+
+      expect(buildReleaseEvidenceReference({ evidenceFile: reportPath, target: 'authenticated_target', releaseCommit })).toMatchObject({ status: 'verified_reference', target: 'authenticated_target', releaseCommit, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', applied: false, deploymentPerformed: false, settlementMutationPerformed: false })
+
+      const cliEnv = {
+        RELEASE_EVIDENCE_REFERENCE_TARGET: 'authenticated_target',
+        RELEASE_EVIDENCE_REFERENCE_COMMIT: releaseCommit,
+        PAYTRAY_PROTECTED_EVIDENCE_ROOT: root
+      }
+      const accepted = runVerifierCli({ ...cliEnv, RELEASE_EVIDENCE_REFERENCE_FILE: reportPath })
+      expect(accepted.status).toBe(0)
+      expect(accepted.report).toMatchObject({ status: 'verified_reference', target: 'authenticated_target', releaseCommit, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', applied: false, deploymentPerformed: false, settlementMutationPerformed: false, authority: 'release_evidence_aggregation_only' })
+
+      for (const [inputPath, reason] of [[symlinkPath, 'release-evidence reference file must not be a symlink'], [danglingPath, 'release-evidence reference file must not be a symlink'], [directoryPath, 'release-evidence reference file must be a regular file']]) {
+        const blocked = runVerifierCli({ ...cliEnv, RELEASE_EVIDENCE_REFERENCE_FILE: inputPath })
+        expect(blocked.status).toBe(1)
+        expect(blocked.report).toMatchObject({ reportKind: 'release_evidence_reference_verification', status: 'blocked', reason, releaseEligible: false, settlementAuthority: false, mutation: 'read_only', applied: false, deploymentPerformed: false, settlementMutationPerformed: false, authority: 'release_evidence_aggregation_only' })
+        expect(blocked.report).not.toHaveProperty('filePath')
+        expect(blocked.report).not.toHaveProperty('sourceSha256')
+      }
+    } finally {
+      if (previousProtectedRoot === undefined) delete process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT
+      else process.env.PAYTRAY_PROTECTED_EVIDENCE_ROOT = previousProtectedRoot
       fs.rmSync(root, { recursive: true, force: true })
     }
   })

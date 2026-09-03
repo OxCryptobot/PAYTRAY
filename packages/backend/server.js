@@ -67,6 +67,7 @@ import { issueReviewerAttestationChallenge, verifyReviewerAttestation, listRevie
 import { getExtensionOpenApiDocument } from './lib/extensionOpenApi.js'
 import { listExtensionHooks, registerExtensionHook } from './lib/extensionHookService.js'
 import { getWebhookInboxHealth } from './lib/webhookInboxService.js'
+import { buildEngagementThreadProjection } from './lib/engagementThreadProjection.js'
 import { assertLegacyPaymentMutationAllowed } from './lib/payments/legacyPaymentPolicy.js'
 import {
   generateServiceToken,
@@ -2522,7 +2523,16 @@ app.post('/api/v2/engagements', authenticateToken, async (req, res, next) => {
         matchSessionId: req.body.matchSessionId
       }
     }))
-    res.status(201).json({ success: true, engagement, source: 'durable_engagement_context' })
+    const thread = buildEngagementThreadProjection({
+      engagement,
+      clientWallet: req.walletAddress,
+      providerWallet: req.body.providerWallet
+    })
+    if (thread && !conversationThreads.has(thread.id)) {
+      conversationThreads.set(thread.id, thread)
+      markStateDirty()
+    }
+    res.status(201).json({ success: true, engagement, thread, source: 'durable_engagement_context' })
   } catch (error) {
     next(error)
   }

@@ -65,7 +65,7 @@ let experts = [
   }
 ]
 
-const state = { selectedId: null, query: '', domain: 'all', availability: 'all', engagementId: null, paymentIntentId: null, queryId: null, discoveryMode: 'phase1_client_fixture' }
+const state = { selectedId: null, query: '', domain: 'all', availability: 'all', engagementId: null, threadId: null, paymentIntentId: null, queryId: null, discoveryMode: 'phase1_client_fixture' }
 let walletSession = null
 const list = document.querySelector('#expert-list')
 const resultCount = document.querySelector('#result-count')
@@ -77,6 +77,12 @@ const selectedEngagement = document.querySelector('#selected-engagement')
 const panelTitle = document.querySelector('#panel-title')
 const streamStatus = document.querySelector('#stream-status')
 const liveDiscoveryButton = document.querySelector('#load-live-discovery')
+const collaborationWorkspace = document.querySelector('#collaboration-workspace')
+const collaborationState = document.querySelector('#collaboration-state')
+const threadContext = document.querySelector('#thread-context')
+const threadMessages = document.querySelector('#thread-messages')
+const messageForm = document.querySelector('#message-form')
+const messageInput = document.querySelector('#message-input')
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character])
@@ -126,7 +132,9 @@ async function loadLiveDiscovery() {
     state.discoveryMode = 'durable_discovery_v1'
     state.selectedId = null
     state.engagementId = null
+    state.threadId = null
     state.paymentIntentId = null
+    collaborationWorkspace.classList.add('hidden')
     emptyEngagement.classList.remove('hidden')
     selectedEngagement.classList.add('hidden')
     renderExperts()
@@ -196,6 +204,77 @@ function showStatus(message, type = '') {
   streamStatus.className = `stream-status ${type}`
 }
 
+function renderThread(thread) {
+  const messages = Array.isArray(thread?.messages) ? thread.messages : []
+  threadContext.textContent = thread?.context?.objective
+    ? `${thread.context.objective} · ${messages.length} message${messages.length === 1 ? '' : 's'}`
+    : 'Private collaboration context is ready.'
+  collaborationState.textContent = String(thread?.status || 'active').replaceAll('_', ' ').toUpperCase()
+  threadMessages.innerHTML = messages.length
+    ? messages.map((message) => `<div class="thread-message"><span class="thread-author">${escapeHtml(message.authorWallet === walletSession?.wallet ? 'You' : 'Expert')}</span><p>${escapeHtml(message.text)}</p><time datetime="${escapeHtml(message.createdAt)}">${escapeHtml(new Date(message.createdAt).toLocaleString())}</time></div>`).join('')
+    : '<div class="thread-empty">No messages yet. Start with the outcome you want to move forward.</div>'
+  threadMessages.scrollTop = threadMessages.scrollHeight
+}
+
+async function loadThread({ silent = false } = {}) {
+  if (!state.threadId) {
+    if (!silent) showStatus('Create the engagement before opening its private thread.', 'error')
+    return
+  }
+  try {
+    if (!silent) showStatus('Loading the private collaboration thread…')
+    const session = await ensureWalletSession()
+    const response = await fetch(`${session.apiBase}/api/threads/${state.threadId}`, { headers: { authorization: `Bearer ${session.accessToken}` } })
+    const payload = await response.json()
+    if (!response.ok) throw new Error(payload.error || `Thread unavailable (${response.status})`)
+    renderThread(payload.thread)
+    collaborationWorkspace.classList.remove('hidden')
+    if (!silent) showStatus('Private thread refreshed. Payment state remains separate and verifier-backed.', 'success')
+  } catch (error) {
+    showStatus(`Thread unavailable: ${error.message}`, 'error')
+  }
+}
+
+async function sendThreadMessage(event) {
+  event.preventDefault()
+  const text = messageInput.value.trim()
+  if (!state.threadId || !text) return
+  try {
+    showStatus('Sending message to the private thread…')
+    const session = await ensureWalletSession()
+    const response = await fetch(`${session.apiBase}/api/threads/${state.threadId}/messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${session.accessToken}` },
+      body: JSON.stringify({ text })
+    })
+    const payload = await response.json()
+    if (!response.ok) throw new Error(payload.error || `Message failed (${response.status})`)
+    messageInput.value = ''
+    await loadThread({ silent: true })
+    showStatus('Message sent. Engagement context and payment verification remain linked but separate.', 'success')
+  } catch (error) {
+    showStatus(`Message not sent: ${error.message}`, 'error')
+  }
+}
+
+async function markCollaborationActive() {
+  if (!state.engagementId) return
+  try {
+    const session = await ensureWalletSession()
+    const response = await fetch(`${session.apiBase}/api/v2/engagements/${state.engagementId}/collaboration-state`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${session.accessToken}` },
+      body: JSON.stringify({ status: 'active' })
+    })
+    const payload = await response.json()
+    if (!response.ok) throw new Error(payload.error || `Collaboration update failed (${response.status})`)
+    collaborationState.textContent = 'ACTIVE'
+    showStatus(`Collaboration is ${payload.engagement.collaboration_status || 'active'}. Payment remains independently verified.`, 'success')
+  } catch (error) {
+    showStatus(`Collaboration update unavailable: ${error.message}`, 'error')
+  }
+}
+
 async function authenticateWallet({ apiBase, walletProvider, wallet, chainId }) {
   const challengeResponse = await fetch(`${apiBase}/api/auth/challenge`, {
     method: 'POST',
@@ -259,8 +338,12 @@ async function startEngagement() {
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.error || `Engagement request failed (${response.status})`)
     state.engagementId = payload.engagement.id
+    state.threadId = payload.engagement.thread_id || payload.engagement.threadId || null
     state.paymentIntentId = null
-    showStatus(`Engagement ${payload.engagement.id} is ready. Thread ${payload.engagement.thread_id} is separate from payment settlement. Create a payment intent only when you are ready to fund time.`, 'success')
+    collaborationWorkspace.classList.remove('hidden')
+    collaborationState.textContent = 'ACTIVE'
+    await loadThread({ silent: true })
+    showStatus(`Engagement ${payload.engagement.id} is ready. Thread ${state.threadId || 'pending'} is separate from payment settlement. Create a payment intent only when you are ready to fund time.`, 'success')
   } catch (error) {
     showStatus(`Engagement not created: ${error.message}`, 'error')
   }
@@ -346,6 +429,8 @@ document.addEventListener('click', (event) => {
   if (event.target.closest('#start-engagement')) startEngagement()
   if (event.target.closest('#request-stream')) requestPaymentIntent()
   if (event.target.closest('#refresh-payment-status')) refreshPaymentStatus()
+  if (event.target.closest('#refresh-thread')) loadThread()
+  if (event.target.closest('#mark-collaboration-active')) markCollaborationActive()
 })
 
 document.addEventListener('keydown', (event) => {
@@ -359,6 +444,7 @@ searchInput.addEventListener('input', (event) => { state.query = event.target.va
 domainFilter.addEventListener('change', (event) => { state.domain = event.target.value; renderExperts() })
 availabilityFilter.addEventListener('change', (event) => { state.availability = event.target.value; renderExperts() })
 liveDiscoveryButton?.addEventListener('click', loadLiveDiscovery)
+messageForm?.addEventListener('submit', sendThreadMessage)
 document.querySelector('#clear-filters').addEventListener('click', () => {
   state.query = ''; state.domain = 'all'; state.availability = 'all'
   searchInput.value = ''; domainFilter.value = 'all'; availabilityFilter.value = 'all'

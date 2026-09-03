@@ -73,6 +73,20 @@
               <button class="primary-button" id="start-engagement">Start conversation <span>→</span></button>
               <button class="secondary-button" id="request-stream">Request testnet payment intent <span>↗</span></button>
               <button class="filter-button" id="refresh-payment-status">Refresh verified status</button>
+              <div id="collaboration-workspace" class="collaboration-workspace hidden" aria-label="Private collaboration thread">
+                <div class="workspace-heading"><span class="context-label">PRIVATE THREAD</span><span id="collaboration-state" class="workspace-state">NOT STARTED</span></div>
+                <div id="thread-context" class="thread-context">Create the engagement to open a private thread with this expert.</div>
+                <div id="thread-messages" class="thread-messages" aria-live="polite"><div class="thread-empty">No messages yet. Start with the outcome you want to move forward.</div></div>
+                <form id="message-form" class="message-form">
+                  <label class="sr-only" for="message-input">Message the expert</label>
+                  <input id="message-input" name="message" maxlength="2000" autocomplete="off" placeholder="Write a message about the work…" />
+                  <button class="primary-button" type="submit">Send <span>↗</span></button>
+                </form>
+                <div class="collaboration-actions">
+                  <button class="filter-button" id="refresh-thread" type="button">Refresh thread</button>
+                  <button class="filter-button" id="mark-collaboration-active" type="button">Mark active</button>
+                </div>
+              </div>
               <div id="stream-status" class="stream-status hidden" role="status" aria-live="polite"></div>
             </div>
           </aside>

@@ -46,16 +46,24 @@ async function main() {
         assert(body.includes('aria-live="polite"'), 'index live-region accessibility contract is missing')
         assert(body.includes('type="module" src="./app.js"'), 'index module script contract is missing')
         assert(body.includes('Base Sepolia'), 'index testnet policy label is missing')
+        assert(body.includes('id="collaboration-workspace"'), 'private collaboration workspace is missing')
+        assert(body.includes('id="message-form"'), 'thread message form is missing')
+        assert(body.includes('id="refresh-thread"'), 'thread refresh control is missing')
       }
       if (route === '/app.js') {
         assert(body.includes('MIGRATION_016') === false, 'client must not contain migration test-only markers')
         assert(body.includes('window.PAYTRAY_API_BASE'), 'client API-base contract is missing')
         assert(body.includes("personal_sign"), 'wallet challenge contract is missing')
+        assert(body.includes('/api/threads/'), 'thread API integration is missing')
+        assert(body.includes('/collaboration-state'), 'collaboration-state API integration is missing')
+        assert(body.includes('Payment remains independently verified'), 'payment and collaboration separation copy is missing')
       }
       if (route === '/styles.css') {
         assert(body.includes('focus-visible'), 'keyboard focus contract is missing')
         assert(body.includes('prefers-reduced-motion'), 'reduced-motion contract is missing')
         assert(body.includes('content-visibility: auto'), 'deferred-rendering contract is missing')
+        assert(body.includes('.collaboration-workspace'), 'collaboration workspace styles are missing')
+        assert(body.includes('.thread-messages'), 'thread message styles are missing')
       }
     }
 

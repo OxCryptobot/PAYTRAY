@@ -123,5 +123,8 @@
       "packages/backend",
       "packages/sdk"
     ]
+  },
+  "dependencies": {
+    "qs": "6.16.0"
   }
 }

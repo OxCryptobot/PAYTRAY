@@ -14,6 +14,13 @@ export function buildEngagementThreadProjection({ engagement, clientWallet, prov
     },
     messages: [],
     status: String(engagement.collaboration_status || 'ready'),
-    createdAt: engagement.created_at || now()
+    createdAt: engagement.created_at || now(),
+    lastActivityAt: engagement.created_at || now(),
+    messageCount: 0,
+    safety: {
+      releaseEligible: false,
+      settlementAuthority: false,
+      mutation: 'read_only'
+    }
   }
 }

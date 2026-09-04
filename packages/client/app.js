@@ -65,7 +65,7 @@ let experts = [
   }
 ]
 
-const state = { selectedId: null, query: '', domain: 'all', availability: 'all', engagementId: null, threadId: null, paymentIntentId: null, queryId: null, discoveryMode: 'phase1_client_fixture' }
+const state = { selectedId: null, query: '', domain: 'all', availability: 'all', engagementId: null, threadId: null, paymentIntentId: null, queryId: null, discoveryMode: 'phase1_client_fixture', collaborationStatus: 'ready', messageSending: false }
 let walletSession = null
 const list = document.querySelector('#expert-list')
 const resultCount = document.querySelector('#result-count')
@@ -83,6 +83,8 @@ const threadContext = document.querySelector('#thread-context')
 const threadMessages = document.querySelector('#thread-messages')
 const messageForm = document.querySelector('#message-form')
 const messageInput = document.querySelector('#message-input')
+const messageCount = document.querySelector('#message-count')
+const messageDraftStatus = document.querySelector('#message-draft-status')
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character])
@@ -204,16 +206,57 @@ function showStatus(message, type = '') {
   streamStatus.className = `stream-status ${type}`
 }
 
+function draftStorageKey() {
+  return state.threadId ? `paytray:thread-draft:${state.threadId}` : null
+}
+
+function updateComposerState() {
+  const length = messageInput?.value.length || 0
+  if (messageCount) messageCount.textContent = `${length}/2000`
+  if (messageDraftStatus) messageDraftStatus.textContent = length ? 'Draft saved in this browser session' : 'No local draft'
+  if (messageInput) messageInput.disabled = state.messageSending || state.collaborationStatus === 'completed'
+  const sendButton = messageForm?.querySelector('button[type="submit"]')
+  if (sendButton) {
+    sendButton.disabled = state.messageSending || state.collaborationStatus === 'completed'
+    sendButton.textContent = state.messageSending ? 'Sending…' : state.collaborationStatus === 'completed' ? 'Read-only' : 'Send ↗'
+  }
+}
+
+function restoreMessageDraft() {
+  const key = draftStorageKey()
+  if (!key || !messageInput) return
+  try {
+    messageInput.value = sessionStorage.getItem(key) || ''
+  } catch {
+    messageInput.value = ''
+  }
+  updateComposerState()
+}
+
+function saveMessageDraft() {
+  const key = draftStorageKey()
+  if (!key || !messageInput) return
+  try {
+    if (messageInput.value) sessionStorage.setItem(key, messageInput.value)
+    else sessionStorage.removeItem(key)
+  } catch {
+    // Draft persistence is an optional UX enhancement and never blocks messaging.
+  }
+  updateComposerState()
+}
+
 function renderThread(thread) {
   const messages = Array.isArray(thread?.messages) ? thread.messages : []
+  state.collaborationStatus = String(thread?.status || 'active')
   threadContext.textContent = thread?.context?.objective
-    ? `${thread.context.objective} · ${messages.length} message${messages.length === 1 ? '' : 's'}`
-    : 'Private collaboration context is ready.'
-  collaborationState.textContent = String(thread?.status || 'active').replaceAll('_', ' ').toUpperCase()
+    ? `${thread.context.objective} · ${thread.messageCount ?? messages.length} message${(thread.messageCount ?? messages.length) === 1 ? '' : 's'} · payment remains verifier-backed`
+    : 'Private collaboration context is ready. Payment remains separate and verifier-backed.'
+  collaborationState.textContent = state.collaborationStatus.replaceAll('_', ' ').toUpperCase()
   threadMessages.innerHTML = messages.length
     ? messages.map((message) => `<div class="thread-message"><span class="thread-author">${escapeHtml(message.authorWallet === walletSession?.wallet ? 'You' : 'Expert')}</span><p>${escapeHtml(message.text)}</p><time datetime="${escapeHtml(message.createdAt)}">${escapeHtml(new Date(message.createdAt).toLocaleString())}</time></div>`).join('')
     : '<div class="thread-empty">No messages yet. Start with the outcome you want to move forward.</div>'
   threadMessages.scrollTop = threadMessages.scrollHeight
+  updateComposerState()
 }
 
 async function loadThread({ silent = false } = {}) {
@@ -228,6 +271,7 @@ async function loadThread({ silent = false } = {}) {
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.error || `Thread unavailable (${response.status})`)
     renderThread(payload.thread)
+    restoreMessageDraft()
     collaborationWorkspace.classList.remove('hidden')
     if (!silent) showStatus('Private thread refreshed. Payment state remains separate and verifier-backed.', 'success')
   } catch (error) {
@@ -238,7 +282,9 @@ async function loadThread({ silent = false } = {}) {
 async function sendThreadMessage(event) {
   event.preventDefault()
   const text = messageInput.value.trim()
-  if (!state.threadId || !text) return
+  if (!state.threadId || !text || state.messageSending || state.collaborationStatus === 'completed') return
+  state.messageSending = true
+  updateComposerState()
   try {
     showStatus('Sending message to the private thread…')
     const session = await ensureWalletSession()
@@ -250,26 +296,32 @@ async function sendThreadMessage(event) {
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.error || `Message failed (${response.status})`)
     messageInput.value = ''
+    saveMessageDraft()
     await loadThread({ silent: true })
     showStatus('Message sent. Engagement context and payment verification remain linked but separate.', 'success')
   } catch (error) {
     showStatus(`Message not sent: ${error.message}`, 'error')
+  } finally {
+    state.messageSending = false
+    updateComposerState()
   }
 }
 
-async function markCollaborationActive() {
+async function updateCollaborationState(status) {
   if (!state.engagementId) return
   try {
     const session = await ensureWalletSession()
     const response = await fetch(`${session.apiBase}/api/v2/engagements/${state.engagementId}/collaboration-state`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${session.accessToken}` },
-      body: JSON.stringify({ status: 'active' })
+      body: JSON.stringify({ status })
     })
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.error || `Collaboration update failed (${response.status})`)
-    collaborationState.textContent = 'ACTIVE'
-    showStatus(`Collaboration is ${payload.engagement.collaboration_status || 'active'}. Payment remains independently verified.`, 'success')
+    state.collaborationStatus = payload.engagement.collaboration_status || status
+    collaborationState.textContent = state.collaborationStatus.toUpperCase()
+    updateComposerState()
+    showStatus(`Collaboration is ${state.collaborationStatus}. Payment remains independently verified.`, 'success')
   } catch (error) {
     showStatus(`Collaboration update unavailable: ${error.message}`, 'error')
   }
@@ -430,7 +482,8 @@ document.addEventListener('click', (event) => {
   if (event.target.closest('#request-stream')) requestPaymentIntent()
   if (event.target.closest('#refresh-payment-status')) refreshPaymentStatus()
   if (event.target.closest('#refresh-thread')) loadThread()
-  if (event.target.closest('#mark-collaboration-active')) markCollaborationActive()
+  const lifecycleButton = event.target.closest('[data-collaboration-status]')
+  if (lifecycleButton) updateCollaborationState(lifecycleButton.dataset.collaborationStatus)
 })
 
 document.addEventListener('keydown', (event) => {
@@ -445,6 +498,7 @@ domainFilter.addEventListener('change', (event) => { state.domain = event.target
 availabilityFilter.addEventListener('change', (event) => { state.availability = event.target.value; renderExperts() })
 liveDiscoveryButton?.addEventListener('click', loadLiveDiscovery)
 messageForm?.addEventListener('submit', sendThreadMessage)
+messageInput?.addEventListener('input', saveMessageDraft)
 document.querySelector('#clear-filters').addEventListener('click', () => {
   state.query = ''; state.domain = 'all'; state.availability = 'all'
   searchInput.value = ''; domainFilter.value = 'all'; availabilityFilter.value = 'all'

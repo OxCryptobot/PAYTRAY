@@ -1826,15 +1826,39 @@ describe('PayTray backend skeleton', () => {
     expect(handoffResponse.status).toBe(200)
     const threadId = handoffResponse.body.thread.id
 
-    await request(app)
+    const firstMessageResponse = await request(app)
       .post(`/api/threads/${threadId}/messages`)
       .set('Authorization', `Bearer ${tokenA}`)
       .send({ text: 'I need help with liquidity strategy and DeFi protocol review. Action: send proposal by Friday.' })
 
-    await request(app)
+    expect(firstMessageResponse.status).toBe(200)
+    expect(firstMessageResponse.body.messageCount).toBe(1)
+    expect(firstMessageResponse.body.safety).toEqual({ releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
+
+    const secondMessageResponse = await request(app)
       .post(`/api/threads/${threadId}/messages`)
       .set('Authorization', `Bearer ${tokenB}`)
       .send({ text: 'I will review the protocol and follow up with recommendations. Todo: complete audit next week.' })
+
+    expect(secondMessageResponse.status).toBe(200)
+    expect(secondMessageResponse.body.messageCount).toBe(2)
+    expect(secondMessageResponse.body.lastActivityAt).toBeTruthy()
+
+    const oversizedResponse = await request(app)
+      .post(`/api/threads/${threadId}/messages`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ text: 'x'.repeat(2001) })
+
+    expect(oversizedResponse.status).toBe(400)
+    expect(oversizedResponse.body.error).toContain('2000 characters or fewer')
+
+    const threadResponse = await request(app)
+      .get(`/api/threads/${threadId}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+
+    expect(threadResponse.status).toBe(200)
+    expect(threadResponse.body.thread.messageCount).toBe(2)
+    expect(threadResponse.body.thread.safety).toEqual({ releaseEligible: false, settlementAuthority: false, mutation: 'read_only' })
 
     const synthResponse = await request(app)
       .post(`/api/intelligence/conversations/${threadId}/synthesize`)

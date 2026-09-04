@@ -82,9 +82,14 @@
                   <input id="message-input" name="message" maxlength="2000" autocomplete="off" placeholder="Write a message about the work…" />
                   <button class="primary-button" type="submit">Send <span>↗</span></button>
                 </form>
+                <div class="composer-meta"><span id="message-draft-status">No local draft</span><span id="message-count">0/2000</span></div>
                 <div class="collaboration-actions">
                   <button class="filter-button" id="refresh-thread" type="button">Refresh thread</button>
-                  <button class="filter-button" id="mark-collaboration-active" type="button">Mark active</button>
+                  <div class="lifecycle-actions" role="group" aria-label="Collaboration lifecycle">
+                    <button class="filter-button" data-collaboration-status="active" type="button">Active</button>
+                    <button class="filter-button" data-collaboration-status="paused" type="button">Pause</button>
+                    <button class="filter-button" data-collaboration-status="completed" type="button">Complete</button>
+                  </div>
                 </div>
               </div>
               <div id="stream-status" class="stream-status hidden" role="status" aria-live="polite"></div>

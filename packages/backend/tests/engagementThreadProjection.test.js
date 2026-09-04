@@ -30,7 +30,14 @@ describe('engagement thread projection', () => {
       },
       messages: [],
       status: 'ready',
-      createdAt: '2026-09-03T12:00:00.000Z'
+      createdAt: '2026-09-03T12:00:00.000Z',
+      lastActivityAt: '2026-09-03T12:00:00.000Z',
+      messageCount: 0,
+      safety: {
+        releaseEligible: false,
+        settlementAuthority: false,
+        mutation: 'read_only'
+      }
     })
   })
 

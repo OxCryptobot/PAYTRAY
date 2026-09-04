@@ -82,6 +82,8 @@ dotenv.config({ path: '.env.local' })
 
 const logger = getLogger('Server')
 const app = express()
+// Keep URL query parsing on Node's bounded simple parser; nested qs parsing is not part of PayTray's API contract.
+app.set('query parser', 'simple')
 app.locals.advisoryAiProvider = null
 const profiles = new Map()
 const paymentStreams = new Map()
@@ -1608,23 +1610,40 @@ app.post('/api/threads/:threadId/messages', authenticateToken, (req, res, next) 
       throw new AuthorizationError('Cannot post to this thread')
     }
 
+    if (thread.status === 'completed') {
+      throw new ValidationError('Completed collaboration threads are read-only')
+    }
+
     const text = String(req.body.text || '').trim()
     if (!text) {
       throw new ValidationError('Message text is required')
     }
-
-    const message = {
-      id: String(thread.messages.length + 1),
-      authorWallet: req.walletAddress,
-      text,
-      createdAt: nowIso()
+    if (text.length > 2000) {
+      throw new ValidationError('Message text must be 2000 characters or fewer')
     }
 
-    thread.messages.push(message)
+    const messages = Array.isArray(thread.messages) ? thread.messages : []
+    const createdAt = nowIso()
+    const message = {
+      id: String(messages.length + 1),
+      authorWallet: req.walletAddress,
+      text,
+      createdAt
+    }
+
+    messages.push(message)
+    thread.messages = messages
+    thread.lastActivityAt = createdAt
+    thread.messageCount = messages.length
+    thread.safety = {
+      releaseEligible: false,
+      settlementAuthority: false,
+      mutation: 'read_only'
+    }
     conversationThreads.set(thread.id, thread)
     markStateDirty()
 
-    res.json({ success: true, threadId: thread.id, message })
+    res.json({ success: true, threadId: thread.id, message, messageCount: thread.messageCount, lastActivityAt: thread.lastActivityAt, safety: thread.safety })
   } catch (error) {
     next(error)
   }

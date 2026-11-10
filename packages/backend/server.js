@@ -18,7 +18,13 @@ import {
   validate
 } from './lib/errors.js'
 import { getLogger, requestLogger, errorLogger } from './lib/logger.js'
-import { loadStateSnapshot, saveStateSnapshot } from './lib/stateStore.js'
+import { loadStateSnapshot, saveStateSnapshot, SnapshotWriter } from './lib/stateStore.js'
+import { SelfLearningRanker, FEATURES } from './lib/learning.js'
+import { ChainVerifier } from './lib/chainVerifier.js'
+import { LEARNING_TRUST_POLICY, migrateLearningTrust } from './lib/learningTrust.js'
+import { SessionStore } from './lib/sessions.js'
+import { semanticSkillScore } from './lib/semantic.js'
+import { JsonRpcProvider } from 'ethers'
 import {
   generateServiceToken,
   generateTokenPair,
@@ -65,6 +71,14 @@ const rankingModel = {
     }
   }
 }
+const learner = new SelfLearningRanker(RANKING_WEIGHTS)
+const RISK_FEATURES = Object.freeze(['amountSpike', 'highVelocity', 'shortDuration', 'unsupportedChain', 'selfPayment'])
+const riskLearner = new SelfLearningRanker(
+  { amountSpike: 35, highVelocity: 30, shortDuration: 20, unsupportedChain: 40, selfPayment: 60 },
+  { features: RISK_FEATURES, initialBias: -2.2, seedScale: 3 }
+)
+const sessionStore = new SessionStore()
+const selfReview = { lastRunAt: null, runs: 0, ranking: null, risk: null }
 const chainRegistry = new Map([[String(config.payments.settlementChainId), { enabled: true, reason: 'default settlement chain' }]])
 const paymentCreateIdempotency = new Map()
 const queueJobs = new Map()
@@ -96,8 +110,14 @@ const requestMetrics = {
   }
 }
 
-let stateDirty = false
 let stateFlushTimer = null
+let reviewTimer = null
+let chainVerifier = null
+
+export function setChainVerifier(verifier) {
+  chainVerifier = verifier
+}
+const snapshotWriter = new SnapshotWriter(serializeState, (snapshot) => saveStateSnapshot(config.state.filePath, snapshot))
 
 function nowIso() {
   return new Date().toISOString()
@@ -185,12 +205,13 @@ function requireScopes(...requiredScopes) {
 }
 
 function markStateDirty() {
-  stateDirty = true
+  snapshotWriter.markDirty()
 }
 
 function serializeState() {
   return {
     version: 1,
+    learningTrustPolicy: LEARNING_TRUST_POLICY,
     updatedAt: nowIso(),
     profiles: Array.from(profiles.entries()),
     paymentStreams: Array.from(paymentStreams.entries()),
@@ -204,6 +225,10 @@ function serializeState() {
     sessionArtifacts: Array.from(sessionArtifacts.entries()),
     reputationEvents,
     rankingModel,
+    learner: learner.toJSON(),
+    riskLearner: riskLearner.toJSON(),
+    selfReview,
+    sessions: sessionStore.toJSON(),
     chainRegistry: Array.from(chainRegistry.entries()),
     paymentCreateIdempotency: Array.from(paymentCreateIdempotency.entries()),
     queueJobs: Array.from(queueJobs.entries()),
@@ -215,6 +240,11 @@ function serializeState() {
 function restoreState(snapshot) {
   if (!snapshot || typeof snapshot !== 'object') {
     return
+  }
+
+  if (snapshot.learningTrustPolicy !== LEARNING_TRUST_POLICY) {
+    snapshot = migrateLearningTrust(snapshot)
+    markStateDirty()
   }
 
   for (const [key, value] of safeArray(snapshot.profiles)) profiles.set(key, value)
@@ -238,6 +268,14 @@ function restoreState(snapshot) {
   }
 
   chainRegistry.clear()
+  sessionStore.restore(snapshot.sessions)
+  if (snapshot.riskLearner) riskLearner.restore(snapshot.riskLearner)
+  if (snapshot.selfReview && typeof snapshot.selfReview === 'object') Object.assign(selfReview, snapshot.selfReview)
+  if (snapshot.learner) {
+    learner.restore(snapshot.learner)
+  }
+  rankingModel.weights = RANKING_WEIGHTS
+
   const restoredChains = safeArray(snapshot.chainRegistry)
   if (restoredChains.length) {
     for (const [key, value] of restoredChains) chainRegistry.set(key, value)
@@ -252,13 +290,7 @@ function restoreState(snapshot) {
 }
 
 async function flushStateSnapshot(force = false) {
-  if (!force && !stateDirty) {
-    return false
-  }
-
-  await saveStateSnapshot(config.state.filePath, serializeState())
-  stateDirty = false
-  return true
+  return snapshotWriter.flush(force)
 }
 
 async function enqueueWebhookDeliveries(eventName, payload) {
@@ -707,6 +739,79 @@ function applyLedgerDelta(wallet, chainId, { pending = 0, settled = 0 }) {
   entry.updatedAt = nowIso()
 }
 
+async function verifyStreamTransaction(stream, state, txHash) {
+  if (!chainVerifier) {
+    if (config.chain.requireVerification) {
+      throw new AppError('Chain verification is required but no RPC is configured', 503)
+    }
+    return null
+  }
+
+  const hash = state === 'reflected' ? stream.txHash : txHash
+  if (!hash) {
+    throw new ValidationError('txHash is required for on-chain verified confirmation')
+  }
+
+  const normalizedHash = String(hash).toLowerCase()
+  for (const other of paymentStreams.values()) {
+    if (other.id !== stream.id && other.txHash && String(other.txHash).toLowerCase() === normalizedHash) {
+      throw new ConflictError('Transaction is already bound to another stream')
+    }
+  }
+
+  const result = await chainVerifier.verify(String(hash))
+  const acceptable = state === 'reflected' ? ['confirmed'] : ['included', 'confirmed']
+  if (!acceptable.includes(result.status)) {
+    throw new ConflictError(`Transaction is not ${state === 'reflected' ? 'confirmed' : 'included'} on-chain (${result.status})`)
+  }
+  return { ...result, verifiedAt: nowIso() }
+}
+
+function learnFromStreamOutcome(stream, disputed) {
+  // Receipt verification does not yet authenticate settlement details or dispute outcomes.
+  void stream
+  void disputed
+  return null
+}
+
+function pruneSessions() {
+  return sessionStore.prune(7 * 24 * 3600 * 1000)
+}
+
+function runSelfReview() {
+  pruneSessions()
+  const now = nowIso()
+  selfReview.lastRunAt = now
+  selfReview.runs += 1
+  selfReview.ranking = learner.review(now)
+  selfReview.risk = riskLearner.review(now)
+  markStateDirty()
+  return selfReview
+}
+
+function assessEventTrust(event, reporterWallet) {
+  const stream = event.streamId ? paymentStreams.get(event.streamId) : null
+  if (!stream) return { trusted: false, reason: 'no_stream' }
+  if (stream.chainVerification?.status !== 'confirmed') return { trusted: false, reason: 'settlement_unverified' }
+  if (stream.recipientWallet !== event.wallet) return { trusted: false, reason: 'subject_not_recipient' }
+  if (stream.senderWallet !== reporterWallet) return { trusted: false, reason: 'reporter_not_counterparty' }
+  return { trusted: false, reason: 'settlement_details_unverified' }
+}
+
+function learnFromOutcome(event, priorEventCount) {
+  if (!event.trusted) return null
+  const session = event.sessionId ? matchSessions.get(event.sessionId) : null
+  const record = profiles.get(event.wallet)
+  const profile = record?.profile
+  if (!profile) return null
+
+  const filters = session?.filters || { domain: event.expertise[0] || null }
+  const { features } = extractCandidateFeatures(profile, filters)
+  const success = event.outcome === 'completed' && event.paidMinutes > 0 && event.disputed !== true
+  const result = learner.observe(features, success ? 1 : 0, event.createdAt)
+  return { ...result, priorEventCount }
+}
+
 function trainRankingModelFromOutcomes() {
   const totals = {}
 
@@ -783,7 +888,7 @@ function evaluateRankingModel() {
   }
 }
 
-function scoreDiscoveryCandidate(profile, filters = {}, { includeBreakdown = false } = {}) {
+function extractCandidateFeatures(profile, filters = {}) {
   const skills = safeArray(profile.expertise).map((skill) => String(skill).toLowerCase())
   const targetSkill = String(filters.domain || '').trim().toLowerCase()
   const skillMatch = targetSkill && skills.includes(targetSkill) ? 1 : 0
@@ -800,10 +905,19 @@ function scoreDiscoveryCandidate(profile, filters = {}, { includeBreakdown = fal
   const chainPreference = String(filters.chainPreference || '').trim()
   const chainScore = chainPreference && Number(profile.chainPreference) === Number(chainPreference) ? 1 : 0.5
 
-  const reputation = buildReputationSummary(profile.wallet)
-  const completionRate = reputation.events > 0 ? reputation.completed / reputation.events : 0.5
+  const completionRate = 0.5
+  const outcomeHistoryBoost = 0.5
 
-  const outcomeHistoryBoost = targetSkill ? rankingModel.expertiseScores[targetSkill] || 0.5 : 0.5
+  return {
+    features: { skillMatch, budgetScore, timezoneScore, languageScore, chainScore, completionRate, outcomeHistoryBoost },
+    context: { targetSkill, budget, timezone, language, chainPreference }
+  }
+}
+
+function scoreDiscoveryCandidate(profile, filters = {}, { includeBreakdown = false } = {}) {
+  const { features, context } = extractCandidateFeatures(profile, filters)
+  const { skillMatch, budgetScore, timezoneScore, languageScore, chainScore, completionRate, outcomeHistoryBoost } = features
+  const { targetSkill, budget, timezone, language, chainPreference } = context
   const weightedComponents = {
     skillMatch: skillMatch * rankingModel.weights.skillMatch,
     budgetScore: budgetScore * rankingModel.weights.budgetScore,
@@ -836,14 +950,14 @@ function scoreDiscoveryCandidate(profile, filters = {}, { includeBreakdown = fal
   if (timezone && timezoneScore === 1) explanation.push('timezone aligned')
   if (language && languageScore === 1) explanation.push('language aligned')
   if (chainPreference && chainScore === 1) explanation.push('chain preference aligned')
-  if (reputation.events > 0) explanation.push('has prior outcomes history')
   if (explanation.length === 0) explanation.push('baseline compatibility profile')
 
   return {
     totalScore,
     breakdown,
     explanation,
-    modelVersion: rankingModel.version
+    modelVersion: rankingModel.version,
+    explorationBonus: 0
   }
 }
 
@@ -907,8 +1021,24 @@ function scorePaymentRisk({ senderWallet, recipientWallet, amount, duration, cha
     riskScore += 60
   }
 
+  const ruleScore = Math.min(100, riskScore)
+  const riskFeatures = {
+    amountSpike: flags.includes('amount_spike') ? 1 : 0,
+    highVelocity: flags.includes('high_velocity') ? 1 : 0,
+    shortDuration: flags.includes('short_duration') ? 1 : 0,
+    unsupportedChain: flags.includes('unsupported_chain') ? 1 : 0,
+    selfPayment: flags.includes('self_payment') ? 1 : 0
+  }
+  const learnedScore = Number((riskLearner.predictLive(riskFeatures) * 100).toFixed(2))
+  const learningTrust = 0
+  riskScore = ruleScore
+
   return {
-    riskScore: Math.min(100, riskScore),
+    riskScore,
+    ruleScore,
+    learnedScore,
+    learningTrust,
+    riskFeatures,
     severity: riskScore >= 70 ? 'high' : riskScore >= 40 ? 'medium' : 'low',
     flags,
     reasons: flags.length
@@ -1022,6 +1152,13 @@ function authenticateToken(req, res, next) {
 
   try {
     req.user = verifyToken(token)
+    if (req.user.type !== 'access') {
+      throw new AuthenticationError('Access token required')
+    }
+    if (!sessionStore.isActive(req.user.sid)) {
+      throw new AuthenticationError('Session is no longer active')
+    }
+    req.sessionId = req.user.sid
     req.userId = req.user.userId
     req.walletAddress = req.user.walletAddress
     req.scopes = safeArray(req.user.scopes)
@@ -1139,7 +1276,9 @@ app.post('/api/auth/login', (req, res, next) => {
     const user = getOrCreateUser(validated.wallet)
   const defaultScopes = getDefaultScopes(user.wallet_address)
   const scopes = resolveLoginScopes(defaultScopes, requestedScopes)
-    const tokens = generateTokenPair(user.id, user.wallet_address, scopes)
+    const session = sessionStore.create(user.id, user.wallet_address, scopes)
+    const tokens = generateTokenPair(user.id, user.wallet_address, scopes, session)
+    markStateDirty()
     requestMetrics.auth.loginSuccess += 1
 
     res.json({
@@ -1160,6 +1299,52 @@ app.post('/api/auth/login', (req, res, next) => {
     requestMetrics.auth.loginFailed += 1
     next(error)
   }
+})
+
+app.post('/api/auth/refresh', (req, res, next) => {
+  try {
+    const refreshToken = req.body?.refreshToken
+    if (typeof refreshToken !== 'string' || !refreshToken) {
+      throw new AuthenticationError('refreshToken is required')
+    }
+
+    checkRateLimit(`auth:refresh:${getClientIP(req)}`, config.auth.loginAttemptLimit, config.rateLimit.windowMs)
+
+    const claims = verifyToken(refreshToken)
+    if (claims.type !== 'refresh' || !claims.sid || !claims.jti) {
+      throw new AuthenticationError('Refresh token required')
+    }
+
+    const rotation = sessionStore.rotate(claims.sid, claims.jti)
+    markStateDirty()
+    if (!rotation.ok) {
+      throw new AuthenticationError(rotation.reason === 'reuse_detected'
+        ? 'Refresh token reuse detected; session revoked'
+        : 'Session is no longer active')
+    }
+
+    const { family } = rotation
+    const tokens = generateTokenPair(family.userId, family.wallet, family.scopes, { sid: family.sid, jti: rotation.jti })
+    res.json({ success: true, tokens })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.post('/api/auth/logout', authenticateToken, (req, res) => {
+  sessionStore.revoke(req.sessionId, 'logout')
+  markStateDirty()
+  res.json({ success: true })
+})
+
+app.post('/api/auth/logout-all', authenticateToken, (req, res) => {
+  const revoked = sessionStore.revokeAllForWallet(req.walletAddress, 'logout_all')
+  markStateDirty()
+  res.json({ success: true, revoked })
+})
+
+app.get('/api/auth/sessions', authenticateToken, (req, res) => {
+  res.json({ success: true, currentSessionId: req.sessionId, sessions: sessionStore.listForWallet(req.walletAddress) })
 })
 
 app.get('/api/users/me', authenticateToken, (req, res, next) => {
@@ -1369,10 +1554,13 @@ app.post('/api/discovery/search', authenticateToken, (req, res, next) => {
           score: ranked.totalScore,
           scoreBreakdown: ranked.breakdown,
           scoreExplanation: ranked.explanation,
-          modelVersion: ranked.modelVersion
+          semanticMatch: filters.domain ? semanticSkillScore(filters.domain, profile) : null,
+          modelVersion: ranked.modelVersion,
+          explorationBonus: ranked.explorationBonus,
+          rankScore: Number((ranked.totalScore + ranked.explorationBonus).toFixed(2))
         }
       })
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => b.rankScore - a.rankScore)
 
     const sessionId = String(matchSessions.size + 1)
     const session = {
@@ -1380,6 +1568,7 @@ app.post('/api/discovery/search', authenticateToken, (req, res, next) => {
       requesterWallet: req.walletAddress,
       filters,
       candidateWallets: candidates.map((item) => item.profile.wallet),
+      impressions: candidates.slice(0, 50).map((item, index) => ({ wallet: item.profile.wallet, rank: index + 1, score: item.rankScore, modelVersion: item.modelVersion })),
       createdAt: nowIso(),
       selectedWallet: null
     }
@@ -1570,6 +1759,10 @@ app.post('/api/reputation/events', authenticateToken, async (req, res, next) => 
       createdAt: nowIso()
     }
 
+    const trust = assessEventTrust(event, req.walletAddress)
+    event.trusted = trust.trusted
+    event.trustReason = trust.reason
+    const learning = learnFromOutcome(event, reputationEvents.length)
     reputationEvents.push(event)
     recomputeRankingEvaluation()
     markStateDirty()
@@ -1583,7 +1776,7 @@ app.post('/api/reputation/events', authenticateToken, async (req, res, next) => 
       createdAt: event.createdAt
     })
 
-    res.json({ success: true, event, summary: buildReputationSummary(wallet) })
+    res.json({ success: true, event, summary: buildReputationSummary(wallet), learning })
   } catch (error) {
     next(error)
   }
@@ -1826,6 +2019,8 @@ app.post('/api/payments/streams', authenticateToken, (req, res, next) => {
       includedAt: null,
       reflectedAt: null,
       withdrawn: 0,
+      riskFeatures: riskCheck.riskFeatures,
+      riskLearned: false,
       createdAt: nowIso()
     }
 
@@ -1930,6 +2125,8 @@ app.post('/api/payments/streams/:streamId/confirm', authenticateToken, async (re
       throw new ConflictError('Stream is already reflected')
     }
 
+    const verification = await verifyStreamTransaction(stream, state, req.body.txHash)
+
     if (state === 'included') {
       if (stream.confirmationState !== 'submitted') {
         throw new ConflictError(`Cannot transition from ${stream.confirmationState} to included`)
@@ -1937,6 +2134,7 @@ app.post('/api/payments/streams/:streamId/confirm', authenticateToken, async (re
 
       stream.confirmationState = 'included'
       stream.includedAt = nowIso()
+      if (verification) stream.txHash = String(req.body.txHash)
     }
 
     if (state === 'reflected') {
@@ -1949,6 +2147,8 @@ app.post('/api/payments/streams/:streamId/confirm', authenticateToken, async (re
       }
       stream.confirmationState = 'reflected'
       stream.reflectedAt = nowIso()
+      stream.chainVerification = verification
+      if (!stream.disputeState) learnFromStreamOutcome(stream, false)
 
       await enqueueWebhookDeliveries('payment.stream.reflected', {
         streamId: stream.id,
@@ -2281,6 +2481,26 @@ app.post('/api/trust/signals/:id/resolve', authenticateToken, requireScopes('adm
   }
 })
 
+app.get('/api/intelligence/learning/status', authenticateToken, requireScopes('intelligence:*'), (req, res) => {
+  res.json({ success: true, mode: 'experimental_only', features: FEATURES, learning: learner.status(), activeWeights: rankingModel.weights, risk: { features: RISK_FEATURES, learning: riskLearner.status() }, selfReview })
+})
+
+app.post('/api/intelligence/learning/review', authenticateToken, requireScopes('intelligence:*'), (req, res) => {
+  res.json({ success: true, selfReview: runSelfReview() })
+})
+
+app.post('/api/intelligence/learning/rollback', authenticateToken, requireScopes('intelligence:*'), (req, res, next) => {
+  try {
+    if (!learner.rollback()) {
+      throw new ConflictError('No previous model version available to roll back to')
+    }
+    markStateDirty()
+    res.json({ success: true, learning: learner.status() })
+  } catch (error) {
+    next(error)
+  }
+})
+
 app.post('/api/intelligence/ranking/train', authenticateToken, requireScopes('intelligence:*'), (req, res, next) => {
   try {
     const model = trainRankingModelFromOutcomes()
@@ -2433,9 +2653,36 @@ app.get('/api/ops/slo', authenticateToken, requireScopes('ops:*'), (req, res) =>
         verifyFailed: requestMetrics.walletVerification.verifyFailed,
         verifyRateLimited: requestMetrics.walletVerification.verifyRateLimited
       },
-      operations
+      operations,
+      learning: {
+        rankingSamples: learner.status().samples,
+        riskSamples: riskLearner.status().samples,
+        rankingStale: Boolean(selfReview.ranking?.stale),
+        lastSelfReviewAt: selfReview.lastRunAt
+      }
     }
   })
+})
+
+app.get('/metrics', authenticateToken, requireScopes('ops:*'), (req, res) => {
+  const ranking = learner.status()
+  const risk = riskLearner.status()
+  const operations = computeOperationalBacklogMetrics()
+  const lines = [
+    ['paytray_http_requests_total', requestMetrics.total],
+    ['paytray_http_errors_total', requestMetrics.errors],
+    ['paytray_http_latency_p95_ms', percentile(requestMetrics.latencies, 95)],
+    ['paytray_retryable_queue_jobs', operations.retryableQueueJobs],
+    ['paytray_retryable_webhook_deliveries', operations.retryableWebhookDeliveries],
+    ['paytray_ranking_model_version', ranking.version],
+    ['paytray_ranking_samples', ranking.samples],
+    ['paytray_ranking_live_loss', ranking.liveLoss ?? 0],
+    ['paytray_ranking_shadow_loss', ranking.shadowLoss ?? 0],
+    ['paytray_risk_model_version', risk.version],
+    ['paytray_risk_samples', risk.samples],
+    ['paytray_self_review_runs_total', selfReview.runs]
+  ].map(([name, value]) => `${name} ${Number(value) || 0}`)
+  res.type('text/plain; version=0.0.4').send(`${lines.join('\n')}\n`)
 })
 
 app.post('/api/ops/chains/enable', authenticateToken, requireScopes('ops:*'), (req, res, next) => {
@@ -2776,6 +3023,8 @@ app.post('/api/payments/streams/:streamId/dispute', authenticateToken, (req, res
       resolution: null
     }
 
+    learnFromStreamOutcome(stream, true)
+
     const signalId = String(trustSignals.size + 1)
     const counterparty = req.walletAddress === stream.senderWallet ? stream.recipientWallet : stream.senderWallet
     trustSignals.set(signalId, {
@@ -3089,10 +3338,20 @@ export async function startServer() {
   const snapshot = await loadStateSnapshot(config.state.filePath)
   restoreState(snapshot)
 
+  if (!chainVerifier && config.chain.rpcUrl) {
+    chainVerifier = new ChainVerifier(new JsonRpcProvider(config.chain.rpcUrl), { minConfirmations: config.chain.minConfirmations })
+  }
+
   await initializeDatabase().catch((error) => {
     logger.error('Database initialization failed', error)
     throw error
   })
+
+  const reviewInterval = Number(process.env.LEARNING_REVIEW_INTERVAL_MS || 3600000)
+  if (!reviewTimer && reviewInterval > 0) {
+    reviewTimer = setInterval(runSelfReview, reviewInterval)
+    reviewTimer.unref()
+  }
 
   if (!stateFlushTimer) {
 

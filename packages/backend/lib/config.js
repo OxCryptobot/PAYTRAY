@@ -50,6 +50,11 @@ export const config = {
     reliabilityTargetPct: Number.parseInt(process.env.RELIABILITY_TARGET_PCT || '99', 10),
     reliabilityMinSamples: Number.parseInt(process.env.RELIABILITY_MIN_SAMPLES || '3', 10)
   },
+  chain: {
+    rpcUrl: process.env.CHAIN_RPC_URL || null,
+    minConfirmations: Number.parseInt(process.env.CHAIN_MIN_CONFIRMATIONS || '3', 10),
+    requireVerification: process.env.CHAIN_REQUIRE_VERIFICATION === 'true'
+  },
   publicApi: {
     key: process.env.PUBLIC_API_KEY || null
   },

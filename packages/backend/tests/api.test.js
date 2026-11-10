@@ -4,7 +4,8 @@ import { Wallet } from 'ethers'
 import fs from 'fs/promises'
 import config from '../lib/config.js'
 import { rateLimitMap } from '../lib/security.js'
-import app from '../server.js'
+import { generateTokenPair } from '../lib/security.js'
+import app, { setChainVerifier } from '../server.js'
 
 async function createChallenge(walletAddress) {
   const response = await request(app).post('/api/auth/challenge').send({
@@ -36,6 +37,19 @@ async function loginWallet(wallet, options = {}) {
 
   expect(response.status).toBe(200)
   return response.body.tokens.accessToken
+}
+
+async function loginTokens(wallet) {
+  const challenge = await createChallenge(wallet.address)
+  const signature = await wallet.signMessage(challenge.message)
+  const response = await request(app).post('/api/auth/login').send({
+    wallet: wallet.address,
+    signature,
+    challengeId: challenge.id,
+    message: challenge.message
+  })
+  expect(response.status).toBe(200)
+  return response.body.tokens
 }
 
 async function createWalletVerifyChallenge(walletAddress, chainId = 8453) {
@@ -1943,5 +1957,281 @@ describe('PayTray backend skeleton', () => {
       .set('Authorization', `Bearer ${outsiderToken}`)
 
     expect(forbiddenResponse.status).toBe(403)
+  })
+})
+
+describe('Self-learning loop', () => {
+  it('ignores self-reported outcomes for learning but records them as untrusted', async () => {
+    const expert = Wallet.createRandom()
+    const token = await loginWallet(expert)
+
+    const before = await request(app).get('/api/intelligence/learning/status').set('Authorization', `Bearer ${token}`)
+    const samplesBefore = before.body.learning.samples
+
+    for (let i = 0; i < 5; i += 1) {
+      const eventResponse = await request(app)
+        .post('/api/reputation/events')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ wallet: expert.address, outcome: 'completed', paidMinutes: 30, expertise: ['rust'] })
+      expect(eventResponse.status).toBe(200)
+      expect(eventResponse.body.event.trusted).toBe(false)
+      expect(eventResponse.body.event.trustReason).toBe('no_stream')
+      expect(eventResponse.body.learning).toBeNull()
+    }
+
+    const after = await request(app).get('/api/intelligence/learning/status').set('Authorization', `Bearer ${token}`)
+    expect(after.body.learning.samples).toBe(samplesBefore)
+  })
+})
+
+describe('Receipt verification and learning safety', () => {
+  const HASH = `0x${'b'.repeat(64)}`
+
+  function fakeVerifier(statusRef) {
+    return { verify: async () => ({ status: statusRef.status, blockNumber: 1, blockHash: '0xabc', confirmations: 5 }) }
+  }
+
+  async function settle(sender, recipient, token) {
+    const create = await request(app).post('/api/payments/streams').set('Authorization', `Bearer ${token}`)
+      .send({ recipientWallet: recipient.address, token: 'USDC', amount: 5, duration: 1800 })
+    expect(create.status).toBe(200)
+    return create.body.stream.id
+  }
+
+  it('requires a receipt but does not learn from unverified settlement details', async () => {
+    const sender = Wallet.createRandom()
+    const recipient = Wallet.createRandom()
+    const token = await loginWallet(sender)
+    const recipientToken = await loginWallet(recipient)
+    const statusRef = { status: 'included' }
+    setChainVerifier(fakeVerifier(statusRef))
+
+    try {
+      const streamId = await settle(sender, recipient, token)
+      const confirmUrl = `/api/payments/streams/${streamId}/confirm`
+
+      const missingHash = await request(app).post(confirmUrl).set('Authorization', `Bearer ${token}`).send({ state: 'included' })
+      expect(missingHash.status).toBe(400)
+
+      statusRef.status = 'not_found'
+      const notFound = await request(app).post(confirmUrl).set('Authorization', `Bearer ${token}`).send({ state: 'included', txHash: HASH })
+      expect(notFound.status).toBe(409)
+
+      statusRef.status = 'included'
+      const included = await request(app).post(confirmUrl).set('Authorization', `Bearer ${token}`).send({ state: 'included', txHash: HASH })
+      expect(included.status).toBe(200)
+
+      const early = await request(app).post(confirmUrl).set('Authorization', `Bearer ${token}`).send({ state: 'reflected' })
+      expect(early.status).toBe(409)
+
+      const learnerBefore = (await request(app).get('/api/intelligence/learning/status').set('Authorization', `Bearer ${token}`)).body.risk.learning.samples
+
+      statusRef.status = 'confirmed'
+      const reflected = await request(app).post(confirmUrl).set('Authorization', `Bearer ${token}`).send({ state: 'reflected' })
+      expect(reflected.status).toBe(200)
+
+      const learnerAfter = (await request(app).get('/api/intelligence/learning/status').set('Authorization', `Bearer ${token}`)).body.risk.learning.samples
+      expect(learnerAfter).toBe(learnerBefore)
+
+      const selfReport = await request(app).post('/api/reputation/events').set('Authorization', `Bearer ${recipientToken}`)
+        .send({ wallet: recipient.address, streamId, outcome: 'completed', paidMinutes: 30, expertise: ['rust'] })
+      expect(selfReport.body.event.trustReason).toBe('reporter_not_counterparty')
+
+      await request(app).post('/api/profiles').set('Authorization', `Bearer ${recipientToken}`)
+        .send({ name: 'Settled Expert', bio: 'Rust', expertise: ['rust'], hourlyRate: 50 })
+
+      const report = await request(app).post('/api/reputation/events').set('Authorization', `Bearer ${token}`)
+        .send({ wallet: recipient.address, streamId, outcome: 'completed', paidMinutes: 30, expertise: ['rust'] })
+      expect(report.body.event.trusted).toBe(false)
+      expect(report.body.event.trustReason).toBe('settlement_details_unverified')
+      expect(report.body.learning).toBeNull()
+
+      const duplicate = await request(app).post('/api/reputation/events').set('Authorization', `Bearer ${token}`)
+        .send({ wallet: recipient.address, streamId, outcome: 'completed', paidMinutes: 30, expertise: ['rust'] })
+      expect(duplicate.body.event.trustReason).toBe('settlement_details_unverified')
+    } finally {
+      setChainVerifier(null)
+    }
+  })
+
+  it('rejects reusing one transaction hash for a second stream', async () => {
+    const sender = Wallet.createRandom()
+    const recipient = Wallet.createRandom()
+    const token = await loginWallet(sender)
+    setChainVerifier(fakeVerifier({ status: 'included' }))
+    try {
+      const first = await settle(sender, recipient, token)
+      const second = await settle(sender, recipient, token)
+      const body = { state: 'included', txHash: `0x${'c'.repeat(64)}` }
+      const ok = await request(app).post(`/api/payments/streams/${first}/confirm`).set('Authorization', `Bearer ${token}`).send(body)
+      expect(ok.status).toBe(200)
+      const reuse = await request(app).post(`/api/payments/streams/${second}/confirm`).set('Authorization', `Bearer ${token}`).send(body)
+      expect(reuse.status).toBe(409)
+    } finally {
+      setChainVerifier(null)
+    }
+  })
+
+  it('does not learn risk from streams confirmed without on-chain verification', async () => {
+    const sender = Wallet.createRandom()
+    const recipient = Wallet.createRandom()
+    const token = await loginWallet(sender)
+    const before = (await request(app).get('/api/intelligence/learning/status').set('Authorization', `Bearer ${token}`)).body.risk.learning.samples
+    const streamId = await settle(sender, recipient, token)
+    for (const state of ['included', 'reflected']) {
+      const response = await request(app).post(`/api/payments/streams/${streamId}/confirm`).set('Authorization', `Bearer ${token}`).send({ state })
+      expect(response.status).toBe(200)
+    }
+    const after = (await request(app).get('/api/intelligence/learning/status').set('Authorization', `Bearer ${token}`)).body.risk.learning.samples
+    expect(after).toBe(before)
+  })
+})
+
+describe('Adaptive risk, self-review and metrics', () => {
+  it('runs self-review, exports metrics and leaves risk learner untouched by unverified streams', async () => {
+    const sender = Wallet.createRandom()
+    const recipient = Wallet.createRandom()
+    const token = await loginWallet(sender)
+
+    const before = await request(app)
+      .get('/api/intelligence/learning/status')
+      .set('Authorization', `Bearer ${token}`)
+    const riskBefore = before.body.risk.learning.samples
+
+    const create = await request(app)
+      .post('/api/payments/streams')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ recipientWallet: recipient.address, token: 'USDC', amount: 5, duration: 1800 })
+    expect(create.status).toBe(200)
+    expect(create.body.risk.ruleScore).toBeDefined()
+    expect(create.body.risk.learnedScore).toBeGreaterThanOrEqual(0)
+
+    const streamId = create.body.stream.id
+    for (const state of ['included', 'reflected']) {
+      const confirm = await request(app)
+        .post(`/api/payments/streams/${streamId}/confirm`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ state })
+      expect(confirm.status).toBe(200)
+    }
+
+    const after = await request(app)
+      .get('/api/intelligence/learning/status')
+      .set('Authorization', `Bearer ${token}`)
+    expect(after.body.risk.learning.samples).toBe(riskBefore)
+
+    const review = await request(app)
+      .post('/api/intelligence/learning/review')
+      .set('Authorization', `Bearer ${token}`)
+    expect(review.status).toBe(200)
+    expect(review.body.selfReview.runs).toBeGreaterThanOrEqual(1)
+
+    const metrics = await request(app)
+      .get('/metrics')
+      .set('Authorization', `Bearer ${token}`)
+    expect(metrics.status).toBe(200)
+    expect(metrics.text).toContain('paytray_ranking_samples')
+    expect(metrics.text).toContain('paytray_risk_samples')
+  })
+
+  describe('Decision safety boundaries', () => {
+    it('rejects refresh tokens and sessionless tokens on access endpoints', async () => {
+      const wallet = Wallet.createRandom()
+      const forged = generateTokenPair('user', wallet.address.toLowerCase(), ['ops:*'])
+      expect((await request(app).get('/api/ops/slo').set('Authorization', `Bearer ${forged.accessToken}`)).status).toBe(401)
+
+      const tokens = await loginTokens(wallet)
+      expect((await request(app).get('/api/ops/slo').set('Authorization', `Bearer ${tokens.accessToken}`)).status).toBe(200)
+      expect((await request(app).get('/api/ops/slo').set('Authorization', `Bearer ${tokens.refreshToken}`)).status).toBe(401)
+    })
+
+    it('rotates refresh tokens, detects reuse and revokes the family', async () => {
+      const wallet = Wallet.createRandom()
+      const first = await loginTokens(wallet)
+
+      const rotated = await request(app).post('/api/auth/refresh').send({ refreshToken: first.refreshToken })
+      expect(rotated.status).toBe(200)
+      const second = rotated.body.tokens
+      expect((await request(app).get('/api/ops/slo').set('Authorization', `Bearer ${second.accessToken}`)).status).toBe(200)
+
+      const replay = await request(app).post('/api/auth/refresh').send({ refreshToken: first.refreshToken })
+      expect(replay.status).toBe(401)
+
+      expect((await request(app).get('/api/ops/slo').set('Authorization', `Bearer ${second.accessToken}`)).status).toBe(401)
+      expect((await request(app).post('/api/auth/refresh').send({ refreshToken: second.refreshToken })).status).toBe(401)
+    })
+
+    it('refresh endpoint rejects access tokens and malformed input', async () => {
+      const tokens = await loginTokens(Wallet.createRandom())
+      expect((await request(app).post('/api/auth/refresh').send({ refreshToken: tokens.accessToken })).status).toBe(401)
+      expect((await request(app).post('/api/auth/refresh').send({})).status).toBe(401)
+    })
+
+    it('logout revokes only that session; logout-all revokes every session', async () => {
+      const wallet = Wallet.createRandom()
+      const a = await loginTokens(wallet)
+      const b = await loginTokens(wallet)
+
+      expect((await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${a.accessToken}`)).status).toBe(200)
+      expect((await request(app).get('/api/ops/slo').set('Authorization', `Bearer ${a.accessToken}`)).status).toBe(401)
+      expect((await request(app).get('/api/ops/slo').set('Authorization', `Bearer ${b.accessToken}`)).status).toBe(200)
+
+      const listed = await request(app).get('/api/auth/sessions').set('Authorization', `Bearer ${b.accessToken}`)
+      expect(listed.body.sessions.length).toBeGreaterThanOrEqual(2)
+
+      const all = await request(app).post('/api/auth/logout-all').set('Authorization', `Bearer ${b.accessToken}`)
+      expect(all.body.revoked).toBeGreaterThanOrEqual(1)
+      expect((await request(app).get('/api/ops/slo').set('Authorization', `Bearer ${b.accessToken}`)).status).toBe(401)
+    })
+
+    it('does not let unverified reputation outcomes affect served discovery scores', async () => {
+      const expert = Wallet.createRandom()
+      const expertToken = await loginWallet(expert)
+      const searchToken = await loginWallet(Wallet.createRandom())
+      const profile = await request(app).post('/api/profiles')
+        .set('Authorization', `Bearer ${expertToken}`)
+        .send({ name: 'Safety Expert', bio: 'Outcome isolation', expertise: ['safety'], hourlyRate: 50 })
+      expect(profile.status).toBe(200)
+      const search = async () => {
+        const response = await request(app).post('/api/discovery/search')
+          .set('Authorization', `Bearer ${searchToken}`).send({ domain: 'safety' })
+        expect(response.status).toBe(200)
+        return response.body.candidates.find((candidate) => candidate.profile.wallet === expert.address.toLowerCase())
+      }
+      const before = await search()
+      for (let i = 0; i < 30; i += 1) {
+        const event = await request(app).post('/api/reputation/events')
+          .set('Authorization', `Bearer ${expertToken}`)
+          .send({ wallet: expert.address, outcome: 'completed', paidMinutes: 10, expertise: ['safety'] })
+        expect(event.status).toBe(200)
+      }
+      const train = await request(app).post('/api/intelligence/ranking/train')
+        .set('Authorization', `Bearer ${expertToken}`).send({})
+      expect(train.status).toBe(200)
+      const after = await search()
+      expect(after.score).toBe(before.score)
+      expect(after.rankScore).toBe(before.rankScore)
+      expect(after.explorationBonus).toBe(0)
+    expect(after.semanticMatch).toBeGreaterThan(0.9)
+      const status = await request(app).get('/api/intelligence/learning/status')
+        .set('Authorization', `Bearer ${expertToken}`)
+      expect(status.body.mode).toBe('experimental_only')
+    })
+
+    it('keeps payment decisions on rules regardless of experimental model output', async () => {
+      const sender = Wallet.createRandom()
+      const token = await loginWallet(sender)
+      const response = await request(app).post('/api/intelligence/risk/payments/score')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ senderWallet: sender.address, recipientWallet: Wallet.createRandom().address, amount: 10, duration: 60, chainId: 8453 })
+      expect(response.status).toBe(200)
+      expect(response.body.score.riskScore).toBe(response.body.score.ruleScore)
+      expect(response.body.score.learningTrust).toBe(0)
+    })
+  })
+
+  it('rejects unauthenticated metrics access', async () => {
+    const response = await request(app).get('/metrics')
+    expect(response.status).toBe(401)
   })
 })

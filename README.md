@@ -92,4 +92,20 @@ The backend currently exposes stable Phase 1 skeleton contracts under `packages/
 	- `POST /api/livekit/token` returns HTTP 503 when LiveKit credentials are missing instead of issuing placeholder auth tokens.
 	- LiveKit session tokens are signed with `LIVEKIT_API_SECRET` rather than the core JWT auth secret.
 
+- Sessions:
+	- Login returns an access token and a refresh token tied to a server-side session. `POST /api/auth/refresh` rotates the refresh token; reusing an old one revokes the whole session.
+	- `POST /api/auth/logout`, `POST /api/auth/logout-all`, and `GET /api/auth/sessions` manage sessions. Access tokens without an active session are rejected.
+
+- On-chain verification:
+	- Set `CHAIN_RPC_URL` (and optionally `CHAIN_MIN_CONFIRMATIONS`, default 3) so `POST /api/payments/streams/:id/confirm` requires a `txHash` and verifies the receipt; `CHAIN_REQUIRE_VERIFICATION=true` returns 503 if no RPC is configured.
+	- Receipt checks do not yet validate amount/recipient, so reputation events are never marked `trusted` and the experimental learners do not train. A txHash can confirm only one stream.
+
+- Experimental learning:
+	- Reputation and stream events update experimental models only. They are client-supplied or unverified and must not control live ranking or payment risk.
+	- Discovery uses fixed weights and neutral outcome features; payment risk uses rules. The exploration bonus is disabled.
+	- `GET /api/intelligence/learning/status` exposes `mode: experimental_only` and model diagnostics; rollback affects only the experimental model.
+	- `POST /api/intelligence/learning/review` and an hourly timer (`LEARNING_REVIEW_INTERVAL_MS`) report staleness without reusing old observations for a new promotion.
+	- `GET /metrics` (requires `ops:*`) exports Prometheus-format gauges.
+	- See `SYSTEM_REPORT.md` for the full system report and gap register.
+
 The old peerstream implementation, deployment cruft, and unrelated application surface have been removed so the team can build forward from a clean baseline.

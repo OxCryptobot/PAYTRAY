@@ -1,5 +1,9 @@
 # Master Blueprint: PayTray as an Integrated AI Platform
 
+> This is a historical architecture proposal, not a current implementation
+> assessment. See `SYSTEM_REPORT.md` for current diagnostics, safety limits,
+> and prioritized gaps.
+
 ## Blueprint Goal
 
 Yes, the three capabilities can be integrated into one coherent platform, but only if PayTray is treated as a coordination system, not three loosely connected features. The current repo shows promising domain modules but also hard integration risks that will block “seamless” behavior unless fixed first.

@@ -36,10 +36,12 @@ export function decodeToken(token) {
   return jwt.decode(token)
 }
 
-export function generateTokenPair(userId, walletAddress, scopes = ['core:access']) {
+export function generateTokenPair(userId, walletAddress, scopes = ['core:access'], session = {}) {
+  const claims = { userId, walletAddress, scopes }
+  if (session.sid) claims.sid = session.sid
   return {
-    accessToken: generateToken({ userId, walletAddress, scopes, type: 'access' }, config.jwt.accessTokenTTL),
-    refreshToken: generateToken({ userId, walletAddress, scopes, type: 'refresh' }, config.jwt.refreshTokenTTL)
+    accessToken: generateToken({ ...claims, type: 'access' }, config.jwt.accessTokenTTL),
+    refreshToken: generateToken({ ...claims, type: 'refresh', ...(session.jti ? { jti: session.jti } : {}) }, config.jwt.refreshTokenTTL)
   }
 }
 
@@ -88,11 +90,26 @@ export function generateRandomToken(length = 32) {
 
 export const rateLimitMap = new Map()
 
+export const RATE_LIMIT_MAX_KEYS = 50000
+
+// Never evict active windows: that would allow attackers to reset other clients' limits.
+export function sweepRateLimits(now = Date.now()) {
+  for (const [key, record] of rateLimitMap) {
+    if (now >= record.resetAt) rateLimitMap.delete(key)
+  }
+}
+
 export function checkRateLimit(key, limit = config.rateLimit.max, windowMs = config.rateLimit.windowMs) {
   const now = Date.now()
+  if (!rateLimitMap.has(key) && rateLimitMap.size >= RATE_LIMIT_MAX_KEYS) {
+    sweepRateLimits(now)
+    if (rateLimitMap.size >= RATE_LIMIT_MAX_KEYS) {
+      throw new RateLimitError('Rate limiter capacity exceeded', Math.max(1, Math.ceil(windowMs / 1000)))
+    }
+  }
   const record = rateLimitMap.get(key) || { count: 0, resetAt: now + windowMs }
 
-  if (now > record.resetAt) {
+  if (now >= record.resetAt) {
     record.count = 0
     record.resetAt = now + windowMs
   }
@@ -134,5 +151,6 @@ export default {
   generateRandomToken,
   checkRateLimit,
   getClientIP,
-  rateLimitMap
+  rateLimitMap,
+  sweepRateLimits
 }
